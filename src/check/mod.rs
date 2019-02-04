@@ -1,0 +1,220 @@
+mod ty;
+
+use std::iter::once;
+
+use mlsub::auto::{Automaton, StateId};
+use mlsub::polar::Ty;
+use mlsub::Polarity;
+
+use crate::check::ty::{BuildConstructor, Constructor, Label, TypeSystem};
+use crate::syntax::{Expr, Symbol, SymbolMap};
+
+pub fn check(expr: &Expr) -> Result<(), ()> {
+    Context::default().check_expr(expr).map(drop)
+}
+
+struct Context {
+    auto: Automaton<TypeSystem>,
+    vars: Vec<SymbolMap<Scheme>>,
+}
+
+#[derive(Debug, Clone)]
+struct Scheme {
+    expr: StateId,
+    env: SymbolMap<StateId>,
+}
+
+impl Context {
+    fn default() -> Self {
+        Context {
+            auto: Automaton::new(),
+            vars: vec![SymbolMap::default()],
+        }
+    }
+}
+
+impl Context {
+    fn check_expr(&mut self, expr: &Expr) -> Result<Scheme, ()> {
+        match expr {
+            Expr::Var(symbol) => self.check_var(*symbol),
+            Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
+            Expr::App(func, arg) => self.check_call(func, arg),
+            Expr::Let(symbol, val, expr) => self.check_let(*symbol, val, expr),
+            Expr::True => self.check_bool(true),
+            Expr::False => self.check_bool(false),
+            Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
+            Expr::Cons(map) => self.check_record(map),
+            Expr::Proj(expr, label) => self.check_proj(expr, *label),
+        }
+    }
+
+    fn check_var(&mut self, symbol: Symbol) -> Result<Scheme, ()> {
+        if let Some(scheme) = self.get_var(symbol) {
+            return Ok(scheme)
+        }
+
+        let pair = self.auto.build_var();
+        let env = SymbolMap::default();
+        Ok(Scheme {
+            expr: pair.pos,
+            env: env.update(symbol, pair.neg),
+        })
+    }
+
+    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<Scheme, ()> {
+        let mut body = self.check_expr(expr)?;
+        let dom = body
+            .env
+            .remove(&symbol)
+            .unwrap_or_else(|| self.auto.build_empty(Polarity::Neg));
+        let func = self.build_func(dom, body.expr);
+        Ok(Scheme {
+            env: body.env,
+            expr: func,
+        })
+    }
+
+    fn check_call(&mut self, func: &Expr, arg: &Expr) -> Result<Scheme, ()> {
+        let func = self.check_expr(func)?;
+        let arg = self.check_expr(arg)?;
+
+        let pair = self.auto.build_var();
+        let f = self.build_func(arg.expr, pair.neg);
+        if !self.auto.biunify(func.expr, f) {
+            return Err(());
+        }
+
+        Ok(Scheme {
+            expr: pair.pos,
+            env: self.meet_env(func.env, arg.env),
+        })
+    }
+
+    fn check_let(&mut self, symbol: Symbol, val: &Expr, expr: &Expr) -> Result<Scheme, ()> {
+        let val = self.check_expr(val)?;
+        self.push_var(symbol, val.clone());
+        let expr = self.check_expr(expr)?;
+        self.pop_var();
+        Ok(Scheme {
+            env: self.meet_env(val.env, expr.env),
+            expr: expr.expr,
+        })
+    }
+
+    fn check_bool(&mut self, val: bool) -> Result<Scheme, ()> {
+        let expr = self
+            .auto
+            .builder()
+            .build_polar(Polarity::Pos, &Ty::Constructed(BuildConstructor::Bool));
+        Ok(Scheme {
+            expr,
+            env: SymbolMap::default(),
+        })
+    }
+
+    fn check_if(&mut self, cond: &Expr, cons: &Expr, alt: &Expr) -> Result<Scheme, ()> {
+        let cond = self.check_expr(cond)?;
+        let cons = self.check_expr(cons)?;
+        let alt = self.check_expr(alt)?;
+
+        let pair = self.auto.build_var();
+        let b = self
+            .auto
+            .builder()
+            .build_polar(Polarity::Neg, &Ty::Constructed(BuildConstructor::Bool));
+
+        if !self.auto.biunify_all(
+            [(cond.expr, b), (cons.expr, pair.neg), (alt.expr, pair.neg)]
+                .iter()
+                .cloned(),
+        ) {
+            return Err(());
+        }
+
+        let env = self.meet_envs([cond.env, cons.env, alt.env].iter().cloned());
+        Ok(Scheme {
+            env,
+            expr: pair.pos,
+        })
+    }
+
+    fn check_record(&mut self, rec: &SymbolMap<Expr>) -> Result<Scheme, ()> {
+        let ids = rec
+            .iter()
+            .map(|(symbol, expr)| Ok((*symbol, self.check_expr(expr)?)))
+            .collect::<Result<Vec<(Symbol, Scheme)>, ()>>()?;
+        let expr = self.build_record(ids.iter().map(|(symbol, scheme)| (*symbol, scheme.expr)));
+        let env = self.meet_envs(ids.into_iter().map(|(_, scheme)| scheme.env));
+        Ok(Scheme { expr, env })
+    }
+
+    fn check_proj(&mut self, expr: &Expr, symbol: Symbol) -> Result<Scheme, ()> {
+        let expr = self.check_expr(expr)?;
+
+        let pair = self.auto.build_var();
+        let rec = self.build_record(once((symbol, pair.neg)));
+        if !self.auto.biunify(expr.expr, rec) {
+            return Err(());
+        }
+
+        Ok(Scheme {
+            expr: pair.pos,
+            env: expr.env,
+        })
+    }
+
+    fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {
+        let mut vars = self.vars.last().cloned().unwrap();
+        vars.insert(symbol, scheme);
+        self.vars.push(vars);
+    }
+
+    fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
+        self.vars.last().unwrap().get(&symbol).cloned()
+    }
+
+    fn pop_var(&mut self) {
+        self.vars.pop();
+    }
+
+    fn meet_env(&mut self, lhs: SymbolMap<StateId>, rhs: SymbolMap<StateId>) -> SymbolMap<StateId> {
+        SymbolMap::union_with(lhs, rhs, |l, r| {
+            self.auto.build_add(Polarity::Neg, [l, r].iter().cloned())
+        })
+    }
+
+    fn meet_envs<I>(&mut self, envs: I) -> SymbolMap<StateId>
+    where
+        I: IntoIterator<Item = SymbolMap<StateId>>,
+    {
+        envs.into_iter()
+            .fold(SymbolMap::default(), |l, r| self.meet_env(l, r))
+    }
+
+    fn build_func(&mut self, dom: StateId, range: StateId) -> StateId {
+        self.auto.build_constructed(
+            Polarity::Pos,
+            Constructor::Func,
+            [(Label::Domain, dom), (Label::Range, range)]
+                .iter()
+                .cloned(),
+        )
+    }
+
+    fn build_record<I>(&mut self, iter: I) -> StateId
+    where
+        I: IntoIterator<Item = (Symbol, StateId)>,
+    {
+        let (fields, trans): (_, Vec<_>) = iter
+            .into_iter()
+            .map(|(symbol, id)| (symbol, (symbol, id)))
+            .unzip();
+        self.auto.build_constructed(
+            Polarity::Pos,
+            Constructor::Record(fields),
+            trans
+                .into_iter()
+                .map(|(symbol, id)| (Label::Label(symbol), id)),
+        )
+    }
+}

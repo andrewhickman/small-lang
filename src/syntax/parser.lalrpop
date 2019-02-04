@@ -1,0 +1,26 @@
+use std::rc::Rc;
+use std::sync::RwLockWriteGuard;
+
+use crate::syntax::Expr;
+use crate::syntax::symbol::{Symbol, Interner};
+
+grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
+
+pub(crate) Expr: Expr = {
+    Symbol => Expr::Var(<>),
+    "func" <Symbol> "=>" <RcExpr> => Expr::Abs(<>),
+    <RcExpr> <RcExpr> => Expr::App(<>),
+    "let" <Symbol> "=" <RcExpr> "in" <RcExpr> => Expr::Let(<>),
+    "true" => Expr::True,
+    "false" => Expr::False,
+    "if" <RcExpr> "then" <RcExpr> "else" <RcExpr> => Expr::If(<>),
+    "{" <fields:(<Symbol> ":" <Expr>)*> "}" => Expr::Cons(fields.into_iter().collect()),
+    <RcExpr> "." <Symbol> => Expr::Proj(<>),
+}
+
+RcExpr: Rc<Expr> = "(" <Expr> ")" => Rc::new(<>);
+
+Symbol: Symbol = {
+   r"[[:alpha:]]+" => interner.intern(<>),
+}
+

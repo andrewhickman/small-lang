@@ -1,0 +1,25 @@
+[package]
+name = "small-lang"
+version = "0.1.0"
+authors = ["Andrew Hickman <andrew.hickman1@sky.com>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+lazy_static = "~1"
+seahash = "~3"
+lalrpop-util = "0.16.3"
+regex = "~1"
+structopt = "0.2.14"
+iter-set = "0.2.0"
+
+[dependencies.mlsub]
+git = "https://github.com/andrewhickman/mlsub-rs"
+rev = "3d4f9f07e09f616e7bde84d84e1b90994b775e1c"
+
+[dependencies.im]
+package = "im-rc"
+version = "~12"
+
+[build-dependencies]
+lalrpop = "0.16.3"
