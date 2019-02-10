@@ -15,7 +15,7 @@ iter-set = "0.2.0"
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
-rev = "932fb40"
+rev = "be53df8"
 
 [dependencies.im]
 package = "im-rc"

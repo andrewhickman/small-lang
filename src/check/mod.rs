@@ -101,9 +101,7 @@ impl Context {
 
         let pair = self.auto.build_var();
         let f = self.build_func(Polarity::Neg, arg.expr, pair.neg);
-        if !self.auto.biunify(func.expr, f) {
-            return Err(());
-        }
+        self.auto.biunify(func.expr, f)?;
 
         Ok(Scheme {
             expr: pair.pos,
@@ -142,13 +140,11 @@ impl Context {
             .auto
             .build_constructed(Polarity::Neg, Constructor::Bool);
 
-        if !self.auto.biunify_all(
+        self.auto.biunify_all(
             [(cond.expr, b), (cons.expr, pair.neg), (alt.expr, pair.neg)]
                 .iter()
                 .cloned(),
-        ) {
-            return Err(());
-        }
+        )?;
 
         let env = self.meet_envs([cond.env, cons.env, alt.env].iter().cloned());
         Ok(Scheme {
@@ -175,9 +171,7 @@ impl Context {
 
         let pair = self.auto.build_var();
         let rec = self.build_record(Polarity::Neg, once((symbol, pair.neg)));
-        if !self.auto.biunify(expr.expr, rec) {
-            return Err(());
-        }
+        self.auto.biunify(expr.expr, rec)?;
 
         Ok(Scheme {
             expr: pair.pos,
