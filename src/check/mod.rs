@@ -66,7 +66,7 @@ impl Context {
             .env
             .remove(&symbol)
             .unwrap_or_else(|| self.auto.build_empty(Polarity::Neg));
-        let func = self.build_func(dom, body.expr);
+        let func = self.build_func(Polarity::Pos, dom, body.expr);
         Ok(Scheme {
             env: body.env,
             expr: func,
@@ -78,7 +78,7 @@ impl Context {
         let arg = self.check_expr(arg)?;
 
         let pair = self.auto.build_var();
-        let f = self.build_func(arg.expr, pair.neg);
+        let f = self.build_func(Polarity::Neg, arg.expr, pair.neg);
         if !self.auto.biunify(func.expr, f) {
             return Err(());
         }
@@ -140,7 +140,10 @@ impl Context {
             .iter()
             .map(|(symbol, expr)| Ok((*symbol, self.check_expr(expr)?)))
             .collect::<Result<Vec<(Symbol, Scheme)>, ()>>()?;
-        let expr = self.build_record(ids.iter().map(|(symbol, scheme)| (*symbol, scheme.expr)));
+        let expr = self.build_record(
+            Polarity::Pos,
+            ids.iter().map(|(symbol, scheme)| (*symbol, scheme.expr)),
+        );
         let env = self.meet_envs(ids.into_iter().map(|(_, scheme)| scheme.env));
         Ok(Scheme { expr, env })
     }
@@ -149,7 +152,7 @@ impl Context {
         let expr = self.check_expr(expr)?;
 
         let pair = self.auto.build_var();
-        let rec = self.build_record(once((symbol, pair.neg)));
+        let rec = self.build_record(Polarity::Neg, once((symbol, pair.neg)));
         if !self.auto.biunify(expr.expr, rec) {
             return Err(());
         }
@@ -188,19 +191,19 @@ impl Context {
             .fold(SymbolMap::default(), |l, r| self.meet_env(l, r))
     }
 
-    fn build_func(&mut self, dom: StateId, range: StateId) -> StateId {
+    fn build_func(&mut self, pol: Polarity, dom: StateId, range: StateId) -> StateId {
         self.auto.build_constructed(
-            Polarity::Pos,
+            pol,
             Constructor::Func(StateSet::new(dom), StateSet::new(range)),
         )
     }
 
-    fn build_record<I>(&mut self, iter: I) -> StateId
+    fn build_record<I>(&mut self, pol: Polarity, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
         self.auto.build_constructed(
-            Polarity::Pos,
+            pol,
             Constructor::Record(
                 iter.into_iter()
                     .map(|(sym, id)| (sym, StateSet::new(id)))

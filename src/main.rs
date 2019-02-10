@@ -1,6 +1,8 @@
 mod check;
 mod rt;
 mod syntax;
+#[cfg(test)]
+mod tests;
 
 use std::error::Error;
 use std::fs::read_to_string;
@@ -22,16 +24,15 @@ struct Args {
 }
 
 fn main() {
-    if let Err(e) = run() {
-        println!("Error: {}.", e);
+    if let Err(e) = run(&Args::from_args()) {
+        eprintln!("Error: {}.", e);
         process::exit(1);
     }
 
     println!("ok");
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
-    let args = Args::from_args();
+fn run(args: &Args) -> Result<(), Box<dyn Error>> {
     let input = read_to_string(&args.file)?;
     let expr = Expr::from_str(&input)?;
     let func = check(&expr).map_err(|()| "type error")?;
