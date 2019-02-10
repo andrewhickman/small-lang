@@ -14,7 +14,7 @@ pub(crate) Expr: Expr = {
     "true" => Expr::True,
     "false" => Expr::False,
     "if" <RcExpr> "then" <RcExpr> "else" <RcExpr> => Expr::If(<>),
-    "{" <fields:(<Symbol> ":" <Expr>)*> "}" => Expr::Cons(fields.into_iter().collect()),
+    "{" <fields:(<Symbol> ":" <Expr> ",")*> "}" => Expr::Cons(fields.into_iter().collect()),
     <RcExpr> "." <Symbol> => Expr::Proj(<>),
 }
 

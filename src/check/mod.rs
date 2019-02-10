@@ -8,8 +8,30 @@ use mlsub::Polarity;
 use crate::check::ty::Constructor;
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
-pub fn check(expr: &Expr) -> Result<(), ()> {
-    Context::default().check_expr(expr).map(drop)
+pub fn check(expr: &Expr) -> Result<(), &'static str> {
+    let mut ctx = Context::default();
+    let mut reduced = Automaton::new();
+
+    let scheme = ctx.check_expr(expr).map_err(|()| "inference error")?;
+
+    // put scheme into reduced form.
+    let mut states = reduced.reduce(
+        &ctx.auto,
+        once((scheme.expr, Polarity::Pos)).chain(scheme.env.values().map(|&v| (v, Polarity::Neg))),
+    );
+    let actual = states.next().unwrap();
+
+    // build expected type, bool -> unit
+    let b = reduced.build_constructed(Polarity::Neg, Constructor::Bool);
+    let u = reduced.build_empty(Polarity::Pos);
+    let expected = reduced.build_constructed(
+        Polarity::Pos,
+        Constructor::Func(StateSet::new(b), StateSet::new(u)),
+    );
+
+    reduced
+        .subsume(expected, actual)
+        .map_err(|()| "invalid main type")
 }
 
 struct Context {

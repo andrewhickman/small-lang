@@ -35,7 +35,7 @@ fn main() {
 fn run(args: &Args) -> Result<(), Box<dyn Error>> {
     let input = read_to_string(&args.file)?;
     let expr = Expr::from_str(&input)?;
-    let func = check(&expr).map_err(|()| "type error")?;
+    let func = check(&expr)?;
     // let mut stack = vec![Value::Bool(args.value), func].into();
     // Command::App.exec(&mut stack);
     // println!("{:#?}", stack);

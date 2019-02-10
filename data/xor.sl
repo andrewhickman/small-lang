@@ -8,6 +8,9 @@ func arg => (
       )
     )
   ) in (
-    (xor) (arg)
+    (xor) ({
+      l: arg,
+      r: if (arg) then (false) else (true),
+    })
   )
 )
