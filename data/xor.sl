@@ -1,16 +1,26 @@
 func arg => (
-  let xor = (
-    func args => (
-      if ((args).l) then (
-        (args).r
+  let not = (
+    func x => (
+      if (x) then (
+        false
       ) else (
-        (args).l
+        true
       )
     )
   ) in (
-    (xor) ({
-      l: arg,
-      r: if (arg) then (false) else (true),
-    })
+    let xor = (
+      func args => (
+        if ((args).l) then (
+          (not) ((args).r)
+        ) else (
+          (args).r
+        )
+      )
+    ) in (
+      (xor) ({
+        l: arg,
+        r: (not) (arg),
+      })
+    )
   )
 )

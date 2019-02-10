@@ -2,21 +2,21 @@ use std::rc::Rc;
 
 use crate::syntax::symbol::{Symbol, SymbolMap};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
     Bool(bool),
     Func(Rc<[Command]>),
     Record(SymbolMap<Value>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Command {
     Push(Value),
-    Pop,
     App,
     Test(usize),
+    Jump(usize),
+    Set(Symbol),
     Get(Symbol),
-    Begin,
     Load(Symbol),
     Store(Symbol),
     End,
@@ -24,8 +24,8 @@ pub enum Command {
 
 #[derive(Debug)]
 pub struct Context {
-    stack: Vec<Value>,
-    vars: Vec<SymbolMap<Value>>,
+    pub stack: Vec<Value>,
+    pub vars: Vec<SymbolMap<Value>>,
 }
 
 impl Value {
@@ -52,55 +52,56 @@ impl Value {
 }
 
 impl Command {
-    pub fn exec(&self, ctx: &mut Context) -> usize {
+    pub fn exec(&self, ctx: &mut Context) -> Option<usize> {
         match *self {
             Command::Push(ref val) => {
                 ctx.stack.push(val.clone());
-                0
-            }
-            Command::Pop => {
-                ctx.stack.pop().unwrap();
-                0
+                None
             }
             Command::App => {
                 let func = ctx.stack.pop().unwrap().unwrap_func();
                 let mut idx = 0;
                 while let Some(cmd) = func.get(idx) {
-                    idx += 1 + cmd.exec(ctx)
+                    idx += cmd.exec(ctx).unwrap_or(0);
+                    idx += 1;
                 }
-                0
+                None
             }
             Command::Test(offset) => {
                 if ctx.stack.pop().unwrap().unwrap_bool() {
-                    offset
+                    Some(offset)
                 } else {
-                    0
+                    None
                 }
+            }
+            Command::Jump(offset) => Some(offset),
+            Command::Set(label) => {
+                let val = ctx.stack.pop().unwrap();
+                let mut rec = ctx.stack.pop().unwrap().unwrap_record();
+                rec.insert(label, val);
+                ctx.stack.push(Value::Record(rec));
+                None
             }
             Command::Get(label) => {
                 let rec = ctx.stack.pop().unwrap().unwrap_record();
                 let val = rec[&label].clone();
                 ctx.stack.push(val);
-                0
-            }
-            Command::Begin => {
-                let vars = ctx.vars().clone();
-                ctx.vars.push(vars);
-                0
+                None
             }
             Command::Load(symbol) => {
                 let val = ctx.vars()[&symbol].clone();
                 ctx.stack.push(val);
-                0
+                None
             }
             Command::Store(symbol) => {
                 let val = ctx.stack.pop().unwrap();
-                ctx.vars().insert(symbol, val);
-                0
+                let vars = ctx.vars().update(symbol, val);
+                ctx.vars.push(vars);
+                None
             }
             Command::End => {
                 ctx.vars.pop().unwrap();
-                0
+                None
             }
         }
     }
@@ -116,7 +117,7 @@ impl From<Vec<Value>> for Context {
     fn from(stack: Vec<Value>) -> Self {
         Context {
             stack,
-            vars: Vec::new(),
+            vars: vec![SymbolMap::default()],
         }
     }
 }

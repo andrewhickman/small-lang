@@ -1,9 +1,10 @@
 use std::error::Error;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 use crate::{run, Args};
+use crate::rt::Value;
 
-fn run_file(file: impl AsRef<Path>, value: bool) -> Result<(), Box<dyn Error>> {
+fn run_file(file: impl AsRef<Path>, value: bool) -> Result<Vec<Value>, Box<dyn Error>> {
     run(&Args {
         file: Path::new("data").join(file).with_extension("sl"),
         value,
@@ -15,7 +16,7 @@ macro_rules! test_file {
         #[test]
         fn $file() {
             match run_file(stringify!($file), $arg) {
-                Ok(actual) => assert_eq!(actual, $expected),
+                Ok(actual) => assert_eq!(actual, vec![$expected]),
                 Err(err) => panic!("expected success but got error: {}", err),
             }
         }
@@ -31,8 +32,8 @@ macro_rules! test_file {
     };
 }
 
-test_file!(not, true, Ok(()));
-test_file!(not2, true, Ok(()));
-test_file!(xor, true, Ok(()));
+test_file!(not, true, Ok(Value::Bool(false)));
+test_file!(not2, true, Ok(Value::Bool(true)));
+test_file!(xor, true, Ok(Value::Bool(true)));
 test_file!(bad_main_ty, true, Err("invalid main type"));
 test_file!(type_error, true, Err("inference error"));

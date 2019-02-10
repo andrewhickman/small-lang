@@ -6,13 +6,14 @@ use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
+use crate::rt::{Command, Value};
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
-pub fn check(expr: &Expr) -> Result<(), &'static str> {
+pub fn check(expr: &Expr) -> Result<Value, &'static str> {
     let mut ctx = Context::default();
     let mut reduced = Automaton::new();
 
-    let scheme = ctx.check_expr(expr).map_err(|()| "inference error")?;
+    let (scheme, value) = ctx.check_expr(expr).map_err(|()| "inference error")?;
 
     // put scheme into reduced form.
     let mut states = reduced.reduce(
@@ -31,7 +32,10 @@ pub fn check(expr: &Expr) -> Result<(), &'static str> {
 
     reduced
         .subsume(expected, actual)
-        .map_err(|()| "invalid main type")
+        .map_err(|()| "invalid main type")?;
+
+    assert_eq!(value.len(), 1);
+    Ok(Value::Func(value.into()))
 }
 
 struct Context {
@@ -55,7 +59,7 @@ impl Context {
 }
 
 impl Context {
-    fn check_expr(&mut self, expr: &Expr) -> Result<Scheme, ()> {
+    fn check_expr(&mut self, expr: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
         match expr {
             Expr::Var(symbol) => self.check_var(*symbol),
             Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
@@ -69,71 +73,111 @@ impl Context {
         }
     }
 
-    fn check_var(&mut self, symbol: Symbol) -> Result<Scheme, ()> {
+    fn check_var(&mut self, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
+        let cmd = Command::Load(symbol);
         if let Some(scheme) = self.get_var(symbol) {
-            return Ok(scheme);
+            return Ok((scheme, vec![cmd]));
         }
 
         let pair = self.auto.build_var();
         let env = SymbolMap::default();
-        Ok(Scheme {
-            expr: pair.pos,
-            env: env.update(symbol, pair.neg),
-        })
+        Ok((
+            Scheme {
+                expr: pair.pos,
+                env: env.update(symbol, pair.neg),
+            },
+            vec![cmd],
+        ))
     }
 
-    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<Scheme, ()> {
-        let mut body = self.check_expr(expr)?;
+    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
+        let (mut body, mut body_cmds) = self.check_expr(expr)?;
         let dom = body
             .env
             .remove(&symbol)
             .unwrap_or_else(|| self.auto.build_empty(Polarity::Neg));
         let func = self.build_func(Polarity::Pos, dom, body.expr);
-        Ok(Scheme {
-            env: body.env,
-            expr: func,
-        })
+
+        body_cmds.insert(0, Command::Store(symbol));
+        body_cmds.push(Command::End);
+        let cmd = Command::Push(Value::Func(body_cmds.into()));
+
+        Ok((
+            Scheme {
+                env: body.env,
+                expr: func,
+            },
+            vec![cmd],
+        ))
     }
 
-    fn check_call(&mut self, func: &Expr, arg: &Expr) -> Result<Scheme, ()> {
-        let func = self.check_expr(func)?;
-        let arg = self.check_expr(arg)?;
+    fn check_call(&mut self, func: &Expr, arg: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
+        let (func, fcmd) = self.check_expr(func)?;
+        let (arg, mut cmds) = self.check_expr(arg)?;
 
         let pair = self.auto.build_var();
         let f = self.build_func(Polarity::Neg, arg.expr, pair.neg);
         self.auto.biunify(func.expr, f)?;
 
-        Ok(Scheme {
-            expr: pair.pos,
-            env: self.meet_env(func.env, arg.env),
-        })
+        cmds.extend(fcmd);
+        cmds.push(Command::App);
+        Ok((
+            Scheme {
+                expr: pair.pos,
+                env: self.meet_env(func.env, arg.env),
+            },
+            cmds,
+        ))
     }
 
-    fn check_let(&mut self, symbol: Symbol, val: &Expr, expr: &Expr) -> Result<Scheme, ()> {
-        let val = self.check_expr(val)?;
+    fn check_let(
+        &mut self,
+        symbol: Symbol,
+        val: &Expr,
+        expr: &Expr,
+    ) -> Result<(Scheme, Vec<Command>), ()> {
+        let (val, mut cmds) = self.check_expr(val)?;
+
         self.push_var(symbol, val.clone());
-        let expr = self.check_expr(expr)?;
+        let (expr, ecmds) = self.check_expr(expr)?;
         self.pop_var();
-        Ok(Scheme {
-            env: self.meet_env(val.env, expr.env),
-            expr: expr.expr,
-        })
+
+        cmds.push(Command::Store(symbol));
+        cmds.extend(ecmds);
+        cmds.push(Command::End);
+
+        Ok((
+            Scheme {
+                env: self.meet_env(val.env, expr.env),
+                expr: expr.expr,
+            },
+            cmds,
+        ))
     }
 
-    fn check_bool(&mut self, val: bool) -> Result<Scheme, ()> {
+    fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), ()> {
         let expr = self
             .auto
             .build_constructed(Polarity::Pos, Constructor::Bool);
-        Ok(Scheme {
-            expr,
-            env: SymbolMap::default(),
-        })
+        let cmd = vec![Command::Push(Value::Bool(val))];
+        Ok((
+            Scheme {
+                expr,
+                env: SymbolMap::default(),
+            },
+            cmd,
+        ))
     }
 
-    fn check_if(&mut self, cond: &Expr, cons: &Expr, alt: &Expr) -> Result<Scheme, ()> {
-        let cond = self.check_expr(cond)?;
-        let cons = self.check_expr(cons)?;
-        let alt = self.check_expr(alt)?;
+    fn check_if(
+        &mut self,
+        cond: &Expr,
+        cons: &Expr,
+        alt: &Expr,
+    ) -> Result<(Scheme, Vec<Command>), ()> {
+        let (cond, mut cmds) = self.check_expr(cond)?;
+        let (cons, cons_cmds) = self.check_expr(cons)?;
+        let (alt, alt_cmds) = self.check_expr(alt)?;
 
         let pair = self.auto.build_var();
         let b = self
@@ -145,38 +189,62 @@ impl Context {
                 .iter()
                 .cloned(),
         )?;
-
         let env = self.meet_envs([cond.env, cons.env, alt.env].iter().cloned());
-        Ok(Scheme {
-            env,
-            expr: pair.pos,
-        })
+
+        cmds.push(Command::Test(alt_cmds.len() + 1));
+        cmds.extend(alt_cmds);
+        cmds.push(Command::Jump(cons_cmds.len()));
+        cmds.extend(cons_cmds);
+
+        Ok((
+            Scheme {
+                env,
+                expr: pair.pos,
+            },
+            cmds,
+        ))
     }
 
-    fn check_record(&mut self, rec: &SymbolMap<Expr>) -> Result<Scheme, ()> {
-        let ids = rec
+    fn check_record(&mut self, rec: &SymbolMap<Expr>) -> Result<(Scheme, Vec<Command>), ()> {
+        let mut ids = rec
             .iter()
-            .map(|(symbol, expr)| Ok((*symbol, self.check_expr(expr)?)))
-            .collect::<Result<Vec<(Symbol, Scheme)>, ()>>()?;
+            .map(|(symbol, expr)| {
+                let (expr, cmds) = self.check_expr(expr)?;
+                Ok((*symbol, expr, cmds))
+            })
+            .collect::<Result<Vec<(Symbol, Scheme, Vec<Command>)>, ()>>()?;
+
+        let cmds = ids.iter_mut().fold(
+            vec![Command::Push(Value::Record(SymbolMap::default()))],
+            |mut cmds, (symbol, _, val_cmds)| {
+                cmds.append(val_cmds);
+                cmds.push(Command::Set(*symbol));
+                cmds
+            },
+        );
+
         let expr = self.build_record(
             Polarity::Pos,
-            ids.iter().map(|(symbol, scheme)| (*symbol, scheme.expr)),
+            ids.iter().map(|(symbol, scheme, _)| (*symbol, scheme.expr)),
         );
-        let env = self.meet_envs(ids.into_iter().map(|(_, scheme)| scheme.env));
-        Ok(Scheme { expr, env })
+        let env = self.meet_envs(ids.into_iter().map(|(_, scheme, _)| scheme.env));
+
+        Ok((Scheme { expr, env }, cmds))
     }
 
-    fn check_proj(&mut self, expr: &Expr, symbol: Symbol) -> Result<Scheme, ()> {
-        let expr = self.check_expr(expr)?;
+    fn check_proj(&mut self, expr: &Expr, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
+        let (expr, mut cmds) = self.check_expr(expr)?;
 
         let pair = self.auto.build_var();
         let rec = self.build_record(Polarity::Neg, once((symbol, pair.neg)));
         self.auto.biunify(expr.expr, rec)?;
 
-        Ok(Scheme {
+        cmds.push(Command::Get(symbol));
+
+        Ok((Scheme {
             expr: pair.pos,
             env: expr.env,
-        })
+        }, cmds))
     }
 
     fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {

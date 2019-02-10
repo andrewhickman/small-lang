@@ -13,6 +13,7 @@ use std::str::FromStr;
 use structopt::StructOpt;
 
 use crate::check::check;
+use crate::rt::{Command, Value};
 use crate::syntax::Expr;
 
 #[derive(StructOpt)]
@@ -32,12 +33,13 @@ fn main() {
     println!("ok");
 }
 
-fn run(args: &Args) -> Result<(), Box<dyn Error>> {
+fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
     let input = read_to_string(&args.file)?;
     let expr = Expr::from_str(&input)?;
     let func = check(&expr)?;
-    // let mut stack = vec![Value::Bool(args.value), func].into();
-    // Command::App.exec(&mut stack);
-    // println!("{:#?}", stack);
-    Ok(())
+    let mut ctx = vec![Value::Bool(args.value), func].into();
+    Command::App.exec(&mut ctx);
+    Command::App.exec(&mut ctx);
+    println!("{:#?}", ctx);
+    Ok(ctx.stack)
 }
