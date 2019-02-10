@@ -1,54 +1,82 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::mem::{discriminant, Discriminant};
+use std::vec;
 
-use im::OrdSet;
-use mlsub::polar::Ty;
+use im::OrdMap;
+use mlsub::auto::StateSet;
 use mlsub::Polarity;
 
 use crate::syntax::Symbol;
 
-#[derive(Debug)]
-pub struct TypeSystem;
-
-impl mlsub::TypeSystem for TypeSystem {
-    type Constructor = Constructor;
-    type Symbol = Label;
-}
-
 #[derive(Clone, Debug)]
 pub enum Constructor {
     Bool,
-    Func,
-    Record(OrdSet<Symbol>),
+    Func(StateSet, StateSet),
+    Record(OrdMap<Symbol, StateSet>),
 }
 
 impl mlsub::Constructor for Constructor {
+    type Label = Label;
     type Component = Discriminant<Self>;
+    type Params = vec::IntoIter<(Label, StateSet)>;
 
     fn component(&self) -> Self::Component {
         discriminant(self)
     }
 
-    fn join(&mut self, other: &Self) {
+    fn join(&mut self, other: &Self, pol: Polarity) {
         match (self, other) {
             (Constructor::Bool, Constructor::Bool) => (),
-            (Constructor::Func, Constructor::Func) => (),
-            (Constructor::Record(ref mut lhs), Constructor::Record(ref rhs)) => {
-                *lhs = lhs.clone().intersection(rhs.clone())
+            (Constructor::Func(ld, lr), Constructor::Func(rd, rr)) => {
+                ld.union(rd);
+                lr.union(rr);
             }
+            (Constructor::Record(ref mut lhs), Constructor::Record(ref rhs)) => match pol {
+                Polarity::Pos => {
+                    *lhs = lhs.clone().intersection_with(rhs.clone(), |mut l, r| {
+                        l.union(&r);
+                        l
+                    })
+                }
+                Polarity::Neg => {
+                    *lhs = lhs.clone().union_with(rhs.clone(), |mut l, r| {
+                        l.union(&r);
+                        l
+                    })
+                }
+            },
             _ => unreachable!(),
         }
     }
 
-    fn meet(&mut self, other: &Self) {
-        match (self, other) {
-            (Constructor::Bool, Constructor::Bool) => (),
-            (Constructor::Func, Constructor::Func) => (),
-            (Constructor::Record(ref mut lhs), Constructor::Record(ref rhs)) => {
-                *lhs = lhs.clone().union(rhs.clone())
+    fn params(&self) -> Self::Params {
+        match self {
+            Constructor::Bool => vec![],
+            Constructor::Func(d, r) => vec![(Label::Domain, d.clone()), (Label::Range, r.clone())],
+            Constructor::Record(fields) => fields
+                .clone()
+                .into_iter()
+                .map(|(label, set)| (Label::Label(label), set))
+                .collect(),
+        }
+        .into_iter()
+    }
+
+    fn map<F>(self, mut mapper: F) -> Self
+    where
+        F: FnMut(Self::Label, StateSet) -> StateSet,
+    {
+        match self {
+            Constructor::Bool => Constructor::Bool,
+            Constructor::Func(d, r) => {
+                Constructor::Func(mapper(Label::Domain, d), mapper(Label::Range, r))
             }
-            _ => unreachable!(),
+            Constructor::Record(fields) => Constructor::Record(
+                fields
+                    .into_iter()
+                    .map(|(label, set)| (label.clone(), mapper(Label::Label(label), set)))
+                    .collect(),
+            ),
         }
     }
 }
@@ -57,9 +85,9 @@ impl PartialOrd for Constructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Constructor::Bool, Constructor::Bool) => Some(Ordering::Equal),
-            (Constructor::Func, Constructor::Func) => Some(Ordering::Equal),
+            (Constructor::Func(..), Constructor::Func(..)) => Some(Ordering::Equal),
             (Constructor::Record(ref lhs), Constructor::Record(ref rhs)) => {
-                iter_set::cmp(lhs, rhs).map(Ordering::reverse)
+                iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
             }
             _ => None,
         }
@@ -79,48 +107,11 @@ pub enum Label {
     Label(Symbol),
 }
 
-impl mlsub::auto::Symbol for Label {
+impl mlsub::Label for Label {
     fn polarity(&self) -> Polarity {
         match self {
             Label::Domain => Polarity::Neg,
             Label::Range | Label::Label(_) => Polarity::Pos,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum BuildConstructor {
-    Bool,
-    Func(Box<Ty<Self, char>>, Box<Ty<Self, char>>),
-    Record(BTreeMap<Symbol, Box<Ty<Self, char>>>),
-}
-
-impl mlsub::auto::Build<TypeSystem, char> for BuildConstructor {
-    fn constructor(&self) -> Constructor {
-        match self {
-            BuildConstructor::Bool => Constructor::Bool,
-            BuildConstructor::Func(..) => Constructor::Func,
-            BuildConstructor::Record(fields) => {
-                Constructor::Record(fields.keys().cloned().collect())
-            }
-        }
-    }
-
-    fn visit_transitions<'a, F>(&'a self, mut visit: F)
-    where
-        F: FnMut(Label, &'a Ty<BuildConstructor, char>),
-    {
-        match self {
-            BuildConstructor::Bool => (),
-            BuildConstructor::Func(domain, range) => {
-                visit(Label::Domain, &*domain);
-                visit(Label::Range, &*range);
-            }
-            BuildConstructor::Record(fields) => {
-                for (&label, ty) in fields {
-                    visit(Label::Label(label), &*ty);
-                }
-            }
         }
     }
 }

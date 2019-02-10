@@ -2,11 +2,10 @@ mod ty;
 
 use std::iter::once;
 
-use mlsub::auto::{Automaton, StateId};
-use mlsub::polar::Ty;
+use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
 
-use crate::check::ty::{BuildConstructor, Constructor, Label, TypeSystem};
+use crate::check::ty::Constructor;
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn check(expr: &Expr) -> Result<(), ()> {
@@ -14,7 +13,7 @@ pub fn check(expr: &Expr) -> Result<(), ()> {
 }
 
 struct Context {
-    auto: Automaton<TypeSystem>,
+    auto: Automaton<Constructor>,
     vars: Vec<SymbolMap<Scheme>>,
 }
 
@@ -50,7 +49,7 @@ impl Context {
 
     fn check_var(&mut self, symbol: Symbol) -> Result<Scheme, ()> {
         if let Some(scheme) = self.get_var(symbol) {
-            return Ok(scheme)
+            return Ok(scheme);
         }
 
         let pair = self.auto.build_var();
@@ -104,8 +103,7 @@ impl Context {
     fn check_bool(&mut self, val: bool) -> Result<Scheme, ()> {
         let expr = self
             .auto
-            .builder()
-            .build_polar(Polarity::Pos, &Ty::Constructed(BuildConstructor::Bool));
+            .build_constructed(Polarity::Pos, Constructor::Bool);
         Ok(Scheme {
             expr,
             env: SymbolMap::default(),
@@ -120,8 +118,7 @@ impl Context {
         let pair = self.auto.build_var();
         let b = self
             .auto
-            .builder()
-            .build_polar(Polarity::Neg, &Ty::Constructed(BuildConstructor::Bool));
+            .build_constructed(Polarity::Neg, Constructor::Bool);
 
         if !self.auto.biunify_all(
             [(cond.expr, b), (cons.expr, pair.neg), (alt.expr, pair.neg)]
@@ -194,10 +191,7 @@ impl Context {
     fn build_func(&mut self, dom: StateId, range: StateId) -> StateId {
         self.auto.build_constructed(
             Polarity::Pos,
-            Constructor::Func,
-            [(Label::Domain, dom), (Label::Range, range)]
-                .iter()
-                .cloned(),
+            Constructor::Func(StateSet::new(dom), StateSet::new(range)),
         )
     }
 
@@ -205,16 +199,13 @@ impl Context {
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
-        let (fields, trans): (_, Vec<_>) = iter
-            .into_iter()
-            .map(|(symbol, id)| (symbol, (symbol, id)))
-            .unzip();
         self.auto.build_constructed(
             Polarity::Pos,
-            Constructor::Record(fields),
-            trans
-                .into_iter()
-                .map(|(symbol, id)| (Label::Label(symbol), id)),
+            Constructor::Record(
+                iter.into_iter()
+                    .map(|(sym, id)| (sym, StateSet::new(id)))
+                    .collect(),
+            ),
         )
     }
 }
