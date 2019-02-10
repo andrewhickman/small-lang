@@ -20,8 +20,19 @@ macro_rules! test_file {
             }
         }
     };
+    ($file:ident, $arg:expr, Err($expected:expr)) => {
+        #[test]
+        fn $file() {
+            match run_file(stringify!($file), $arg) {
+                Err(actual) => assert_eq!(actual.to_string(), $expected),
+                Ok(_) => panic!("expected error but got success"),
+            }
+        }
+    };
 }
 
 test_file!(not, true, Ok(()));
 test_file!(not2, true, Ok(()));
 test_file!(xor, true, Ok(()));
+test_file!(bad_main_ty, true, Err("invalid main type"));
+test_file!(type_error, true, Err("inference error"));
