@@ -35,5 +35,6 @@ macro_rules! test_file {
 test_file!(not, true, Ok(Value::Bool(false)));
 test_file!(not2, true, Ok(Value::Bool(true)));
 test_file!(xor, true, Ok(Value::Bool(true)));
+test_file!(shadow, true, Ok(Value::Bool(false)));
 test_file!(bad_main_ty, true, Err("invalid main type"));
 test_file!(type_error, true, Err("inference error"));

@@ -23,15 +23,15 @@ pub fn check(expr: &Expr) -> Result<Value, &'static str> {
     let actual = states.next().unwrap();
 
     // build expected type, bool -> unit
-    let b = reduced.build_constructed(Polarity::Neg, Constructor::Bool);
-    let u = reduced.build_empty(Polarity::Pos);
+    let b = reduced.build_constructed(Polarity::Pos, Constructor::Bool);
+    let u = reduced.build_empty(Polarity::Neg);
     let expected = reduced.build_constructed(
-        Polarity::Pos,
+        Polarity::Neg,
         Constructor::Func(StateSet::new(b), StateSet::new(u)),
     );
 
     reduced
-        .subsume(expected, actual)
+        .biunify(actual, expected)
         .map_err(|()| "invalid main type")?;
 
     assert_eq!(value.len(), 1);
