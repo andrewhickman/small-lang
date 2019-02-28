@@ -14,7 +14,7 @@ use structopt::StructOpt;
 
 use crate::check::check;
 use crate::rt::{Command, Value};
-use crate::syntax::Expr;
+use crate::syntax::LocExpr;
 
 #[derive(StructOpt)]
 struct Args {
@@ -35,7 +35,7 @@ fn main() {
 
 fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
     let input = read_to_string(&args.file)?;
-    let expr = Expr::from_str(&input)?;
+    let expr = LocExpr::from_str(&input)?;
     let func = check(&expr)?;
     let mut ctx = vec![Value::Bool(args.value), func].into();
     Command::App.exec(&mut ctx);

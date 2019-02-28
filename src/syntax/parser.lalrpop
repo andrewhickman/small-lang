@@ -1,12 +1,17 @@
-use std::rc::Rc;
 use std::sync::RwLockWriteGuard;
+use std::rc::Rc;
 
-use crate::syntax::Expr;
+use crate::syntax::{Expr, LocExpr};
 use crate::syntax::symbol::{Symbol, Interner};
+use crate::syntax::location::Source;
 
-grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
+grammar(interner: &mut RwLockWriteGuard<'_, Interner>, src: &Source);
 
-pub(crate) Expr: Expr = {
+extern {
+    type Location = Location;
+}
+
+Expr: Expr = {
     Symbol => Expr::Var(<>),
     "func" <Symbol> "=>" <RcExpr> => Expr::Abs(<>),
     <RcExpr> <RcExpr> => Expr::App(<>),
@@ -14,11 +19,17 @@ pub(crate) Expr: Expr = {
     "true" => Expr::True,
     "false" => Expr::False,
     "if" <RcExpr> "then" <RcExpr> "else" <RcExpr> => Expr::If(<>),
-    "{" <fields:(<Symbol> ":" <Expr> ",")*> "}" => Expr::Cons(fields.into_iter().collect()),
+    "{" <fields:(<Symbol> ":" <LocExpr> ",")*> "}" => Expr::Cons(fields.into_iter().collect()),
     <RcExpr> "." <Symbol> => Expr::Proj(<>),
 }
 
-RcExpr: Rc<Expr> = "(" <Expr> ")" => Rc::new(<>);
+pub(crate) LocExpr: LocExpr = <l:@L> <expr:Expr> <r:@R> => LocExpr { 
+    expr, 
+    start: src.location(l), 
+    end: src.location(r) 
+};
+
+RcExpr: Rc<LocExpr> = "(" <LocExpr> ")" => Rc::new(<>);
 
 Symbol: Symbol = {
    r"[[:alpha:]]+" => interner.intern(<>),

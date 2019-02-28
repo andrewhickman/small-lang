@@ -7,9 +7,9 @@ use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
 use crate::rt::{Command, Value};
-use crate::syntax::{Expr, Symbol, SymbolMap};
+use crate::syntax::{LocExpr, Expr, Symbol, SymbolMap};
 
-pub fn check(expr: &Expr) -> Result<Value, &'static str> {
+pub fn check(expr: &LocExpr) -> Result<Value, &'static str> {
     let mut ctx = Context::default();
     let mut reduced = Automaton::new();
 
@@ -59,8 +59,8 @@ impl Context {
 }
 
 impl Context {
-    fn check_expr(&mut self, expr: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
-        match expr {
+    fn check_expr(&mut self, expr: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
+        match &expr.expr {
             Expr::Var(symbol) => self.check_var(*symbol),
             Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
             Expr::App(func, arg) => self.check_call(func, arg),
@@ -90,7 +90,7 @@ impl Context {
         ))
     }
 
-    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_func(&mut self, symbol: Symbol, expr: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
         let (mut body, mut body_cmds) = self.check_expr(expr)?;
         let dom = body
             .env
@@ -111,7 +111,7 @@ impl Context {
         ))
     }
 
-    fn check_call(&mut self, func: &Expr, arg: &Expr) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_call(&mut self, func: &LocExpr, arg: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
         let (func, fcmd) = self.check_expr(func)?;
         let (arg, mut cmds) = self.check_expr(arg)?;
 
@@ -133,8 +133,8 @@ impl Context {
     fn check_let(
         &mut self,
         symbol: Symbol,
-        val: &Expr,
-        expr: &Expr,
+        val: &LocExpr,
+        expr: &LocExpr,
     ) -> Result<(Scheme, Vec<Command>), ()> {
         let (val, mut cmds) = self.check_expr(val)?;
 
@@ -171,9 +171,9 @@ impl Context {
 
     fn check_if(
         &mut self,
-        cond: &Expr,
-        cons: &Expr,
-        alt: &Expr,
+        cond: &LocExpr,
+        cons: &LocExpr,
+        alt: &LocExpr,
     ) -> Result<(Scheme, Vec<Command>), ()> {
         let (cond, mut cmds) = self.check_expr(cond)?;
         let (cons, cons_cmds) = self.check_expr(cons)?;
@@ -205,7 +205,7 @@ impl Context {
         ))
     }
 
-    fn check_record(&mut self, rec: &SymbolMap<Expr>) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_record(&mut self, rec: &SymbolMap<LocExpr>) -> Result<(Scheme, Vec<Command>), ()> {
         let mut ids = rec
             .iter()
             .map(|(symbol, expr)| {
@@ -232,7 +232,7 @@ impl Context {
         Ok((Scheme { expr, env }, cmds))
     }
 
-    fn check_proj(&mut self, expr: &Expr, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_proj(&mut self, expr: &LocExpr, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
         let (expr, mut cmds) = self.check_expr(expr)?;
 
         let pair = self.auto.build_var();
