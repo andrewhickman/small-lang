@@ -7,7 +7,7 @@ use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
 use crate::rt::{Command, Value};
-use crate::syntax::{LocExpr, Expr, Symbol, SymbolMap};
+use crate::syntax::{Expr, LocExpr, Symbol, SymbolMap};
 
 pub fn check(expr: &LocExpr) -> Result<Value, &'static str> {
     let mut ctx = Context::default();
@@ -241,10 +241,13 @@ impl Context {
 
         cmds.push(Command::Get(symbol));
 
-        Ok((Scheme {
-            expr: pair.pos,
-            env: expr.env,
-        }, cmds))
+        Ok((
+            Scheme {
+                expr: pair.pos,
+                env: expr.env,
+            },
+            cmds,
+        ))
     }
 
     fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {

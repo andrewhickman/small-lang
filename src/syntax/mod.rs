@@ -2,8 +2,8 @@ pub mod location;
 pub mod symbol;
 lalrpop_mod!(parser, "/syntax/parser.rs");
 
-pub use symbol::{Symbol, SymbolMap};
 pub use location::{Location, Source};
+pub use symbol::{Symbol, SymbolMap};
 
 use std::rc::Rc;
 use std::str::FromStr;
@@ -28,7 +28,7 @@ pub enum Expr {
 
 #[derive(Clone, Debug)]
 pub struct LocExpr {
-    pub start: Location, 
+    pub start: Location,
     pub expr: Expr,
     pub end: Location,
 }

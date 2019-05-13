@@ -1,13 +1,14 @@
 use std::error::Error;
+use std::fs::read_to_string;
 use std::path::Path;
 
-use crate::{run, Args};
 use crate::rt::Value;
+use crate::{run, Args};
 
 fn run_file(file: impl AsRef<Path>, value: bool) -> Result<Vec<Value>, Box<dyn Error>> {
-    run(&Args {
-        file: Path::new("data").join(file).with_extension("sl"),
-        value,
+    run(Args {
+        input: read_to_string(Path::new("data").join(file).with_extension("sl"))?,
+        value: Value::Bool(value),
     })
 }
 

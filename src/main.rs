@@ -1,45 +1,33 @@
-mod check;
-mod rt;
-mod syntax;
-#[cfg(test)]
-mod tests;
-
-use std::error::Error;
 use std::fs::read_to_string;
-use std::path::PathBuf;
 use std::process;
-use std::str::FromStr;
+use std::error::Error;
+use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::check::check;
-use crate::rt::{Command, Value};
-use crate::syntax::LocExpr;
+use small_lang::rt::Value;
 
 #[derive(StructOpt)]
 struct Args {
-    #[structopt(name = "FILE", parse(from_os_str))]
+    #[structopt(value_name = "FILE", parse(from_os_str))]
     file: PathBuf,
-    #[structopt(name = "VALUE", parse(try_from_str))]
+    #[structopt(value_name = "VALUE", parse(try_from_str))]
     value: bool,
 }
 
-fn main() {
-    if let Err(e) = run(&Args::from_args()) {
-        eprintln!("Error: {}.", e);
-        process::exit(1);
-    }
-
-    println!("ok");
+fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
+    small_lang::run(small_lang::Args {
+        input: read_to_string(&args.file)?,
+        value: Value::Bool(args.value),
+    })
 }
 
-fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
-    let input = read_to_string(&args.file)?;
-    let expr = LocExpr::from_str(&input)?;
-    let func = check(&expr)?;
-    let mut ctx = vec![Value::Bool(args.value), func].into();
-    Command::App.exec(&mut ctx);
-    Command::App.exec(&mut ctx);
-    println!("{:#?}", ctx);
-    Ok(ctx.stack)
+fn main() {
+    match run(&Args::from_args()) {
+        Ok(stack) => println!("{:#?}", stack),
+        Err(err) => {
+            eprintln!("Error: {}.", err);
+            process::exit(1);
+        }
+    }
 }

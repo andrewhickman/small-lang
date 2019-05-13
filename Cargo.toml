@@ -5,14 +5,21 @@ authors = ["Andrew Hickman <andrew.hickman1@sky.com>"]
 edition = "2018"
 build = "build.rs"
 
+[[bin]]
+name = "small-lang"
+required-features = ["structopt"]
+
 [dependencies]
 lazy_static = "~1"
 seahash = "~3"
 lalrpop-util = "0.16.3"
 regex = "~1"
-structopt = "0.2.14"
 iter-set = "0.2.0"
 memchr = "2.2.0"
+
+[dependencies.structopt]
+version = "0.2.14"
+optional = true
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
