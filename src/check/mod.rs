@@ -9,11 +9,14 @@ use crate::check::ty::Constructor;
 use crate::rt::{Command, Value};
 use crate::syntax::{Expr, LocExpr, Symbol, SymbolMap};
 
-pub fn check(expr: &LocExpr) -> Result<Value, &'static str> {
+pub fn check(expr: &LocExpr) -> Result<Value, String> {
     let mut ctx = Context::default();
     let mut reduced = Automaton::new();
 
-    let (scheme, value) = ctx.check_expr(expr).map_err(|()| "inference error")?;
+    let (scheme, value) = ctx.check_expr(expr).map_err(|err| match err {
+        Error::TypeError => "inference error".to_owned(),
+        Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
+    })?;
 
     // put scheme into reduced form.
     let mut states = reduced.reduce(
@@ -32,10 +35,21 @@ pub fn check(expr: &LocExpr) -> Result<Value, &'static str> {
 
     reduced
         .biunify(actual, expected)
-        .map_err(|()| "invalid main type")?;
+        .map_err(|()| "invalid main type".to_owned())?;
 
     assert_eq!(value.len(), 1);
     Ok(Value::Func(value.into()))
+}
+
+enum Error {
+    UndefinedVar(Symbol),
+    TypeError,
+}
+
+impl From<()> for Error {
+    fn from((): ()) -> Self {
+        Error::TypeError
+    }
 }
 
 struct Context {
@@ -59,7 +73,7 @@ impl Context {
 }
 
 impl Context {
-    fn check_expr(&mut self, expr: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_expr(&mut self, expr: &LocExpr) -> Result<(Scheme, Vec<Command>), Error> {
         match &expr.expr {
             Expr::Var(symbol) => self.check_var(*symbol),
             Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
@@ -73,25 +87,29 @@ impl Context {
         }
     }
 
-    fn check_var(&mut self, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_var(&mut self, symbol: Symbol) -> Result<(Scheme, Vec<Command>), Error> {
         let cmd = Command::Load(symbol);
         if let Some(scheme) = self.get_var(symbol) {
             return Ok((scheme, vec![cmd]));
         }
 
-        let pair = self.auto.build_var();
-        let env = SymbolMap::default();
-        Ok((
-            Scheme {
-                expr: pair.pos,
-                env: env.update(symbol, pair.neg),
-            },
-            vec![cmd],
-        ))
+        Err(Error::UndefinedVar(symbol))
     }
 
-    fn check_func(&mut self, symbol: Symbol, expr: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_func(
+        &mut self,
+        symbol: Symbol,
+        expr: &LocExpr,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+
+        let pair = self.auto.build_var();
+        self.push_var(symbol, Scheme {
+            expr: pair.pos,
+            env: SymbolMap::default().update(symbol, pair.neg),
+        });
         let (mut body, mut body_cmds) = self.check_expr(expr)?;
+        self.pop_var();
+
         let dom = body
             .env
             .remove(&symbol)
@@ -111,7 +129,11 @@ impl Context {
         ))
     }
 
-    fn check_call(&mut self, func: &LocExpr, arg: &LocExpr) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_call(
+        &mut self,
+        func: &LocExpr,
+        arg: &LocExpr,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let (func, fcmd) = self.check_expr(func)?;
         let (arg, mut cmds) = self.check_expr(arg)?;
 
@@ -135,7 +157,7 @@ impl Context {
         symbol: Symbol,
         val: &LocExpr,
         expr: &LocExpr,
-    ) -> Result<(Scheme, Vec<Command>), ()> {
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let (val, mut cmds) = self.check_expr(val)?;
 
         self.push_var(symbol, val.clone());
@@ -155,7 +177,7 @@ impl Context {
         ))
     }
 
-    fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), Error> {
         let expr = self
             .auto
             .build_constructed(Polarity::Pos, Constructor::Bool);
@@ -174,7 +196,7 @@ impl Context {
         cond: &LocExpr,
         cons: &LocExpr,
         alt: &LocExpr,
-    ) -> Result<(Scheme, Vec<Command>), ()> {
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let (cond, mut cmds) = self.check_expr(cond)?;
         let (cons, cons_cmds) = self.check_expr(cons)?;
         let (alt, alt_cmds) = self.check_expr(alt)?;
@@ -205,14 +227,14 @@ impl Context {
         ))
     }
 
-    fn check_record(&mut self, rec: &SymbolMap<LocExpr>) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_record(&mut self, rec: &SymbolMap<LocExpr>) -> Result<(Scheme, Vec<Command>), Error> {
         let mut ids = rec
             .iter()
             .map(|(symbol, expr)| {
                 let (expr, cmds) = self.check_expr(expr)?;
                 Ok((*symbol, expr, cmds))
             })
-            .collect::<Result<Vec<(Symbol, Scheme, Vec<Command>)>, ()>>()?;
+            .collect::<Result<Vec<(Symbol, Scheme, Vec<Command>)>, Error>>()?;
 
         let cmds = ids.iter_mut().fold(
             vec![Command::Push(Value::Record(SymbolMap::default()))],
@@ -232,7 +254,11 @@ impl Context {
         Ok((Scheme { expr, env }, cmds))
     }
 
-    fn check_proj(&mut self, expr: &LocExpr, symbol: Symbol) -> Result<(Scheme, Vec<Command>), ()> {
+    fn check_proj(
+        &mut self,
+        expr: &LocExpr,
+        symbol: Symbol,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr, mut cmds) = self.check_expr(expr)?;
 
         let pair = self.auto.build_var();

@@ -38,4 +38,5 @@ test_file!(not2, true, Ok(Value::Bool(true)));
 test_file!(xor, true, Ok(Value::Bool(true)));
 test_file!(shadow, true, Ok(Value::Bool(false)));
 test_file!(bad_main_ty, true, Err("invalid main type"));
+test_file!(undefined_var, true, Err("undefined var `x`"));
 test_file!(type_error, true, Err("inference error"));
