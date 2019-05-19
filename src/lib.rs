@@ -12,16 +12,10 @@ use crate::check::check;
 use crate::rt::{Command, Value};
 use crate::syntax::LocExpr;
 
-pub struct Args {
-    pub input: String,
-    pub value: Value,
-}
-
-pub fn run(args: Args) -> Result<Vec<Value>, Box<dyn Error>> {
-    let expr = LocExpr::from_str(&args.input)?;
+pub fn run(input: &str) -> Result<Vec<Value>, Box<dyn Error>> {
+    let expr = LocExpr::from_str(input)?;
     let func = check(&expr)?;
-    let mut ctx = vec![args.value, func].into();
-    Command::App.exec(&mut ctx);
+    let mut ctx = vec![func].into();
     Command::App.exec(&mut ctx);
     Ok(ctx.stack)
 }

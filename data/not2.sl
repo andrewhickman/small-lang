@@ -1,13 +1,15 @@
-func arg => (
-  let not = (
-    func x => (
-      if (x) then (
-        false
-      ) else (
-        true
+(
+  func arg => (
+    let not = (
+      func x => (
+        if (x) then (
+          false
+        ) else (
+          true
+        )
       )
+    ) in (
+      (not) ((not) (arg))
     )
-  ) in (
-    (not) ((not) (arg))
   )
-)
+) (true)

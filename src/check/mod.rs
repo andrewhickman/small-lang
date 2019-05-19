@@ -11,34 +11,36 @@ use crate::syntax::{Expr, LocExpr, Symbol, SymbolMap};
 
 pub fn check(expr: &LocExpr) -> Result<Value, String> {
     let mut ctx = Context::default();
-    let mut reduced = Automaton::new();
+    // let mut reduced = Automaton::new();
 
-    let (scheme, value) = ctx.check_expr(expr).map_err(|err| match err {
+    let (_, value) = ctx.check_expr(expr).map_err(|err| match err {
         Error::TypeError => "inference error".to_owned(),
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
     })?;
 
-    // put scheme into reduced form.
-    let mut states = reduced.reduce(
-        &ctx.auto,
-        once((scheme.expr, Polarity::Pos)).chain(scheme.env.values().map(|&v| (v, Polarity::Neg))),
-    );
-    let actual = states.next().unwrap();
-
-    // build expected type, bool -> unit
-    let b = reduced.build_constructed(Polarity::Pos, Constructor::Bool);
-    let u = reduced.build_empty(Polarity::Neg);
-    let expected = reduced.build_constructed(
-        Polarity::Neg,
-        Constructor::Func(StateSet::new(b), StateSet::new(u)),
-    );
-
-    reduced
-        .biunify(actual, expected)
-        .map_err(|()| "invalid main type".to_owned())?;
-
-    assert_eq!(value.len(), 1);
     Ok(Value::Func(value.into()))
+
+    // // put scheme into reduced form.
+    // let mut states = reduced.reduce(
+    //     &ctx.auto,
+    //     once((scheme.expr, Polarity::Pos)).chain(scheme.env.values().map(|&v| (v, Polarity::Neg))),
+    // );
+    // let actual = states.next().unwrap();
+
+    // // build expected type, bool -> unit
+    // let b = reduced.build_constructed(Polarity::Pos, Constructor::Bool);
+    // let u = reduced.build_empty(Polarity::Neg);
+    // let expected = reduced.build_constructed(
+    //     Polarity::Neg,
+    //     Constructor::Func(StateSet::new(b), StateSet::new(u)),
+    // );
+
+    // reduced
+    //     .biunify(actual, expected)
+    //     .map_err(|()| "invalid main type".to_owned())?;
+
+    // assert_eq!(value.len(), 1);
+    // Ok(Value::Func(value.into()))
 }
 
 enum Error {

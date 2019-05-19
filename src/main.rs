@@ -11,15 +11,10 @@ use small_lang::rt::Value;
 struct Args {
     #[structopt(value_name = "FILE", parse(from_os_str))]
     file: PathBuf,
-    #[structopt(value_name = "VALUE", parse(try_from_str))]
-    value: bool,
 }
 
 fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
-    small_lang::run(small_lang::Args {
-        input: read_to_string(&args.file)?,
-        value: Value::Bool(args.value),
-    })
+    small_lang::run(read_to_string(&args.file)?)
 }
 
 fn main() {

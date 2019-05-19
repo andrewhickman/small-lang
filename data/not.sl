@@ -1,7 +1,9 @@
-func arg => (
-  if (arg) then (
-    false
-  ) else (
-    true
+(
+  func arg => (
+    if (arg) then (
+      false
+    ) else (
+      true
+    )
   )
-)
+) (true)
