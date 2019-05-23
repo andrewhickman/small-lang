@@ -14,7 +14,7 @@ struct Args {
 }
 
 fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
-    small_lang::run(read_to_string(&args.file)?)
+    small_lang::run(&read_to_string(&args.file)?)
 }
 
 fn main() {
