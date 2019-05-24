@@ -34,5 +34,6 @@ test_file!(not, Ok(Value::Bool(false)));
 test_file!(not2, Ok(Value::Bool(true)));
 test_file!(xor, Ok(Value::Bool(true)));
 test_file!(shadow, Ok(Value::Bool(false)));
+test_file!(expr, Ok(Value::Bool(true)));
 test_file!(undefined_var, Err("undefined var `x`"));
 test_file!(type_error, Err("inference error"));

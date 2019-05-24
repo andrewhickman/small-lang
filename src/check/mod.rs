@@ -18,7 +18,7 @@ pub fn check(expr: &LocExpr) -> Result<Value, String> {
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
     })?;
 
-    Ok(Value::Func(value.into()))
+    Ok(Value::Func(value.into(), SymbolMap::default()))
 
     // // put scheme into reduced form.
     // let mut states = reduced.reduce(
@@ -103,12 +103,14 @@ impl Context {
         symbol: Symbol,
         expr: &LocExpr,
     ) -> Result<(Scheme, Vec<Command>), Error> {
-
         let pair = self.auto.build_var();
-        self.push_var(symbol, Scheme {
-            expr: pair.pos,
-            env: SymbolMap::default().update(symbol, pair.neg),
-        });
+        self.push_var(
+            symbol,
+            Scheme {
+                expr: pair.pos,
+                env: SymbolMap::default().update(symbol, pair.neg),
+            },
+        );
         let (mut body, mut body_cmds) = self.check_expr(expr)?;
         self.pop_var();
 
@@ -120,7 +122,7 @@ impl Context {
 
         body_cmds.insert(0, Command::Store(symbol));
         body_cmds.push(Command::End);
-        let cmd = Command::Push(Value::Func(body_cmds.into()));
+        let cmd = Command::Capture(body_cmds.into());
 
         Ok((
             Scheme {

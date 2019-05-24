@@ -6,7 +6,7 @@ use std::sync::{RwLock, RwLockWriteGuard};
 use lazy_static::lazy_static;
 use seahash::SeaHasher;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Symbol(u32);
 
 pub type SymbolMap<V> = im::HashMap<Symbol, V, BuildHasherDefault<SeaHasher>>;
@@ -26,6 +26,15 @@ impl AsRef<str> for Symbol {
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.as_str().fmt(f)
+    }
+}
+
+impl fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Symbol")
+            .field(&self.0)
+            .field(&self.as_str())
+            .finish()
     }
 }
 

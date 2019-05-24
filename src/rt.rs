@@ -5,13 +5,14 @@ use crate::syntax::symbol::{Symbol, SymbolMap};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
     Bool(bool),
-    Func(Rc<[Command]>),
+    Func(Rc<[Command]>, SymbolMap<Value>),
     Record(SymbolMap<Value>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Command {
     Push(Value),
+    Capture(Rc<[Command]>),
     App,
     Test(usize),
     Jump(usize),
@@ -36,9 +37,9 @@ impl Value {
         }
     }
 
-    fn unwrap_func(self) -> Rc<[Command]> {
+    fn unwrap_func(self) -> (Rc<[Command]>, SymbolMap<Value>) {
         match self {
-            Value::Func(f) => f,
+            Value::Func(f, e) => (f, e),
             _ => panic!("expected func"),
         }
     }
@@ -58,13 +59,21 @@ impl Command {
                 ctx.stack.push(val.clone());
                 None
             }
+            Command::Capture(ref cmds) => {
+                let env = ctx.vars().clone();
+                ctx.stack.push(Value::Func(cmds.clone(), env));
+                None
+            }
             Command::App => {
-                let func = ctx.stack.pop().unwrap().unwrap_func();
+                let (func, env) = ctx.stack.pop().unwrap().unwrap_func();
+                let env = env.union(ctx.vars().clone());
+                ctx.vars.push(env);
                 let mut idx = 0;
                 while let Some(cmd) = func.get(idx) {
                     idx += cmd.exec(ctx).unwrap_or(0);
                     idx += 1;
                 }
+                ctx.vars.pop();
                 None
             }
             Command::Test(offset) => {
