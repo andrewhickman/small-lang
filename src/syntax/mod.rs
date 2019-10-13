@@ -13,14 +13,14 @@ use parser::ExprParser;
 
 #[derive(Clone, Debug)]
 pub enum Expr {
+    True,
+    False,
+    Cons(SymbolMap<Expr>),
     Var(Symbol),
     Abs(Symbol, Rc<Expr>),
     App(Rc<Expr>, Rc<Expr>),
     Let(Symbol, Rc<Expr>, Rc<Expr>),
-    True,
-    False,
     If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
-    Cons(SymbolMap<Expr>),
     Proj(Rc<Expr>, Symbol),
 }
 

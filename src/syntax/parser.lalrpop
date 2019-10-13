@@ -7,18 +7,48 @@ use crate::syntax::symbol::{Symbol, Interner};
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
 
 pub(crate) Expr: Expr = {
-    Symbol => Expr::Var(<>),
-    "func" <Symbol> "=>" <RcExpr> => Expr::Abs(<>),
-    <RcExpr> <RcExpr> => Expr::App(<>),
-    "let" <Symbol> "=" <RcExpr> "in" <RcExpr> => Expr::Let(<>),
-    "true" => Expr::True,
-    "false" => Expr::False,
-    "if" <RcExpr> "then" <RcExpr> "else" <RcExpr> => Expr::If(<>),
-    "{" <fields:(<Symbol> ":" <Expr> ",")*> "}" => Expr::Cons(fields.into_iter().collect()),
-    <RcExpr> "." <Symbol> => Expr::Proj(<>),
+    AbsExpr,
+    AppExpr,
+    LetExpr,
+    IfExpr,
+    SimpleExpr,
 }
 
-RcExpr: Rc<Expr> = "(" <Expr> ")" => Rc::new(<>);
+AbsExpr: Expr = {
+    "func" <s:Symbol> "=>" <e:Expr> => Expr::Abs(s, Rc::new(e)),
+}
+
+AppExpr: Expr = {
+    <f:SimpleExpr> <v:Expr> => Expr::App(Rc::new(f), Rc::new(v)),
+}
+
+LetExpr: Expr = {
+    "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Rc::new(v), Rc::new(e)),
+}
+
+IfExpr: Expr = {
+    "if" <c:Expr> "then" <t:Expr> "else" <f:Expr> => Expr::If(Rc::new(c), Rc::new(t), Rc::new(f)),
+}
+
+SimpleExpr: Expr = {
+    "true" => Expr::True,
+    "false" => Expr::False,
+    "{" <fields:Comma<(<Symbol> ":" <Expr>)>> "}" => Expr::Cons(fields.into_iter().collect()),
+    Symbol => Expr::Var(<>),
+    <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
+    "(" <Expr> ")",
+}
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+}
 
 Symbol: Symbol = {
    r"[[:alpha:]]+" => interner.intern(<>),
