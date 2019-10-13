@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::BuildHasherDefault;
@@ -35,6 +36,25 @@ impl fmt::Debug for Symbol {
             .field(&self.0)
             .field(&self.as_str())
             .finish()
+    }
+}
+
+impl serde::Serialize for Symbol {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_ref())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Symbol {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: Cow<str> = serde::Deserialize::deserialize(deserializer)?;
+        Ok(Interner::write().intern(s.as_ref()))
     }
 }
 

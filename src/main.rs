@@ -1,11 +1,10 @@
 use std::error::Error;
 use std::fs::read_to_string;
+use std::io;
 use std::path::PathBuf;
 use std::process;
 
 use structopt::StructOpt;
-
-use small_lang::rt::Value;
 
 #[derive(StructOpt)]
 struct Args {
@@ -13,16 +12,15 @@ struct Args {
     file: PathBuf,
 }
 
-fn run(args: &Args) -> Result<Vec<Value>, Box<dyn Error>> {
-    small_lang::run(&read_to_string(&args.file)?)
+fn run(args: &Args) -> Result<(), Box<dyn Error>> {
+    let value = small_lang::run(&read_to_string(&args.file)?)?;
+    serde_json::to_writer_pretty(io::stdout().lock(), &value)?;
+    Ok(())
 }
 
 fn main() {
-    match run(&Args::from_args()) {
-        Ok(stack) => println!("{:#?}", stack),
-        Err(err) => {
-            eprintln!("Error: {}.", err);
-            process::exit(1);
-        }
+    if let Err(err) = run(&Args::from_args()) {
+        eprintln!("Error: {}.", err);
+        process::exit(1);
     }
 }

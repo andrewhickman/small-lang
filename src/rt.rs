@@ -1,15 +1,23 @@
+use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
 use crate::syntax::symbol::{Symbol, SymbolMap};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Value {
     Bool(bool),
-    Func(Rc<[Command]>, SymbolMap<Value>),
     Record(SymbolMap<Value>),
+    Func {
+        #[serde(rename = "$ops")]
+        cmds: Rc<[Command]>,
+        #[serde(rename = "$env")]
+        env: SymbolMap<Value>,
+    },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "op", content = "value", rename_all = "kebab-case")]
 pub enum Command {
     Push(Value),
     Capture(Rc<[Command]>),
@@ -39,7 +47,7 @@ impl Value {
 
     fn unwrap_func(self) -> (Rc<[Command]>, SymbolMap<Value>) {
         match self {
-            Value::Func(f, e) => (f, e),
+            Value::Func { cmds, env } => (cmds, env),
             _ => panic!("expected func"),
         }
     }
@@ -61,7 +69,10 @@ impl Command {
             }
             Command::Capture(ref cmds) => {
                 let env = ctx.vars().clone();
-                ctx.stack.push(Value::Func(cmds.clone(), env));
+                ctx.stack.push(Value::Func {
+                    cmds: cmds.clone(),
+                    env,
+                });
                 None
             }
             Command::App => {

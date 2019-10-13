@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::rt::Value;
 
-fn run_file(file: impl AsRef<Path>) -> Result<Vec<Value>, Box<dyn Error>> {
+fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
     crate::run(&input)
 }
@@ -14,7 +14,7 @@ macro_rules! test_file {
         #[test]
         fn $file() {
             match run_file(stringify!($file)) {
-                Ok(actual) => assert_eq!(actual, vec![$expected]),
+                Ok(actual) => assert_eq!(actual, $expected),
                 Err(err) => panic!("expected success but got error: {}", err),
             }
         }

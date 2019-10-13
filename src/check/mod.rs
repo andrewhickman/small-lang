@@ -18,7 +18,10 @@ pub fn check(expr: &Expr) -> Result<Value, String> {
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
     })?;
 
-    Ok(Value::Func(value.into(), SymbolMap::default()))
+    Ok(Value::Func {
+        cmds: value.into(),
+        env: SymbolMap::default(),
+    })
 
     // // put scheme into reduced form.
     // let mut states = reduced.reduce(
@@ -98,11 +101,7 @@ impl Context {
         Err(Error::UndefinedVar(symbol))
     }
 
-    fn check_func(
-        &mut self,
-        symbol: Symbol,
-        expr: &Expr,
-    ) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
         let pair = self.auto.build_var();
         self.push_var(
             symbol,
@@ -133,11 +132,7 @@ impl Context {
         ))
     }
 
-    fn check_call(
-        &mut self,
-        func: &Expr,
-        arg: &Expr,
-    ) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_call(&mut self, func: &Expr, arg: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
         let (func, fcmd) = self.check_expr(func)?;
         let (arg, mut cmds) = self.check_expr(arg)?;
 
@@ -258,11 +253,7 @@ impl Context {
         Ok((Scheme { expr, env }, cmds))
     }
 
-    fn check_proj(
-        &mut self,
-        expr: &Expr,
-        symbol: Symbol,
-    ) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_proj(&mut self, expr: &Expr, symbol: Symbol) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr, mut cmds) = self.check_expr(expr)?;
 
         let pair = self.auto.build_var();

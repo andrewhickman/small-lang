@@ -7,7 +7,7 @@ build = "build.rs"
 
 [[bin]]
 name = "small-lang"
-required-features = ["structopt"]
+required-features = ["structopt", "serde_json"]
 
 [dependencies]
 lazy_static = "~1"
@@ -27,6 +27,15 @@ rev = "be53df8"
 [dependencies.im]
 package = "im-rc"
 version = "~12"
+features = ["serde"]
+
+[dependencies.serde]
+version = "1.0.101"
+features = ["derive", "rc"]
+
+[dependencies.serde_json]
+version = "1.0.41"
+optional = true
 
 [build-dependencies]
 lalrpop = "0.16.3"
