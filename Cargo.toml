@@ -15,7 +15,6 @@ seahash = "~3"
 lalrpop-util = "0.16.3"
 regex = "~1"
 iter-set = "0.2.0"
-memchr = "2.2.0"
 
 [dependencies.structopt]
 version = "0.2.14"
