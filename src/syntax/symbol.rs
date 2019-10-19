@@ -13,6 +13,10 @@ pub struct Symbol(u32);
 pub type SymbolMap<V> = im::HashMap<Symbol, V, BuildHasherDefault<SeaHasher>>;
 
 impl Symbol {
+    pub fn new(string: impl AsRef<str>) -> Self {
+        Interner::write().intern(string.as_ref())
+    }
+
     pub fn as_str(self) -> &'static str {
         INTERNER.read().unwrap().strings[self.0 as usize]
     }
@@ -54,7 +58,7 @@ impl<'de> serde::Deserialize<'de> for Symbol {
         D: serde::Deserializer<'de>,
     {
         let s: Cow<str> = serde::Deserialize::deserialize(deserializer)?;
-        Ok(Interner::write().intern(s.as_ref()))
+        Ok(Symbol::new(s))
     }
 }
 

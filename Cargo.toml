@@ -39,3 +39,6 @@ optional = true
 
 [build-dependencies]
 lalrpop = "0.16.3"
+
+[dev-dependencies]
+proptest = "0.9.4"

@@ -1,3 +1,5 @@
+#[cfg(test)]
+pub mod tests;
 pub mod symbol;
 lalrpop_mod!(parser, "/syntax/parser.rs");
 

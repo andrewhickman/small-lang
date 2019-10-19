@@ -2,7 +2,11 @@ use std::error::Error;
 use std::fs::read_to_string;
 use std::path::Path;
 
-use crate::rt::Value;
+use proptest::proptest;
+
+use crate::rt::{Command, Value};
+use crate::syntax::tests::arb_expr;
+use crate::check::check;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
@@ -39,3 +43,14 @@ test_file!(undefined_var, Err("undefined var `x`"));
 test_file!(type_error, Err("inference error"));
 test_file!(rec_error, Err("inference error"));
 test_file!(rec_func, Ok(Value::Bool(true)));
+
+proptest! {
+    #[test]
+    fn typecheck_correctness(expr in arb_expr()) {
+        if let Ok(func) = check(&expr) {
+            let mut ctx = vec![func].into();
+            Command::App.exec(&mut ctx);
+            assert_eq!(ctx.stack.len(), 1);
+        }
+    }
+}
