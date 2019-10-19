@@ -37,3 +37,5 @@ test_file!(shadow, Ok(Value::Bool(false)));
 test_file!(expr, Ok(Value::Bool(true)));
 test_file!(undefined_var, Err("undefined var `x`"));
 test_file!(type_error, Err("inference error"));
+test_file!(rec_error, Err("inference error"));
+test_file!(rec_func, Ok(Value::Bool(true)));

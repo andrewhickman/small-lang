@@ -20,6 +20,7 @@ pub enum Expr {
     Abs(Symbol, Rc<Expr>),
     App(Rc<Expr>, Rc<Expr>),
     Let(Symbol, Rc<Expr>, Rc<Expr>),
+    Rec(Symbol, Rc<Expr>, Rc<Expr>),
     If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
     Proj(Rc<Expr>, Symbol),
 }

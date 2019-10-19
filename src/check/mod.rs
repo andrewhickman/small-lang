@@ -84,6 +84,7 @@ impl Context {
             Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
             Expr::App(func, arg) => self.check_call(func, arg),
             Expr::Let(symbol, val, expr) => self.check_let(*symbol, val, expr),
+            Expr::Rec(symbol, val, expr) => self.check_rec(*symbol, val, expr),
             Expr::True => self.check_bool(true),
             Expr::False => self.check_bool(false),
             Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
@@ -113,11 +114,8 @@ impl Context {
         let (mut body, mut body_cmds) = self.check_expr(expr)?;
         self.pop_var();
 
-        let dom = body
-            .env
-            .remove(&symbol)
-            .unwrap_or_else(|| self.auto.build_empty(Polarity::Neg));
-        let func = self.build_func(Polarity::Pos, dom, body.expr);
+        body.env.remove(&symbol);
+        let func = self.build_func(Polarity::Pos, pair.neg, body.expr);
 
         body_cmds.insert(0, Command::Store(symbol));
         body_cmds.push(Command::End);
@@ -171,6 +169,43 @@ impl Context {
             Scheme {
                 env: self.meet_env(val.env, expr.env),
                 expr: expr.expr,
+            },
+            cmds,
+        ))
+    }
+
+    fn check_rec(
+        &mut self,
+        symbol: Symbol,
+        val: &Expr,
+        expr: &Expr,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let pair = self.auto.build_var();
+        self.push_var(
+            symbol,
+            Scheme {
+                expr: pair.pos,
+                env: SymbolMap::default().update(symbol, pair.neg),
+            },
+        );
+        let (mut val_ty, mut cmds) = self.check_expr(val)?;
+        self.pop_var();
+
+        val_ty.env.remove(&symbol);
+        self.auto.biunify(val_ty.expr, pair.neg)?;
+
+        self.push_var(symbol, val_ty.clone());
+        let (expr_ty, expr_cmds) = self.check_expr(expr)?;
+        self.pop_var();
+
+        cmds.push(Command::Store(symbol));
+        cmds.extend(expr_cmds);
+        cmds.push(Command::End);
+
+        Ok((
+            Scheme {
+                env: self.meet_env(val_ty.env, expr_ty.env),
+                expr: expr_ty.expr,
             },
             cmds,
         ))

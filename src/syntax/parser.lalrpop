@@ -24,6 +24,7 @@ AppExpr: Expr = {
 
 LetExpr: Expr = {
     "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Rc::new(v), Rc::new(e)),
+    "let" "rec" <s:Symbol> "=" <v:AbsExpr> "in" <e:Expr> => Expr::Rec(s, Rc::new(v), Rc::new(e)),
 }
 
 IfExpr: Expr = {

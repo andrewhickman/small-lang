@@ -6,6 +6,7 @@ use crate::syntax::symbol::{Symbol, SymbolMap};
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Value {
+    Null,
     Bool(bool),
     Record(SymbolMap<Value>),
     Func {
