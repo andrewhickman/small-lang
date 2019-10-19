@@ -12,21 +12,21 @@ required-features = ["structopt", "serde_json"]
 [dependencies]
 lazy_static = "~1"
 seahash = "~3"
-lalrpop-util = "0.16.3"
+lalrpop-util = "0.17"
 regex = "~1"
 iter-set = "0.2.0"
 
 [dependencies.structopt]
-version = "0.2.14"
+version = "0.3.3"
 optional = true
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
-rev = "be53df8"
+rev = "ff48fb4184064a8c4a8d6a865dd46de5eff4f432"
 
 [dependencies.im]
 package = "im-rc"
-version = "~12"
+version = "~13"
 features = ["serde"]
 
 [dependencies.serde]
@@ -38,7 +38,7 @@ version = "1.0.41"
 optional = true
 
 [build-dependencies]
-lalrpop = "0.16.3"
+lalrpop = "0.17"
 
 [dev-dependencies]
 proptest = "0.9.4"
