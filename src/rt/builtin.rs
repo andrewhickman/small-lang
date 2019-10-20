@@ -28,7 +28,10 @@ impl PartialEq for Builtin {
 }
 
 impl Value {
-    fn builtin(name: &str, f: fn(Value) -> Value) -> Self {
+    fn builtin<F>(name: &str, f: F) -> Self
+    where
+        F: Fn(Value) -> Value + 'static,
+    {
         Value::Builtin {
             name: Symbol::new(name),
             builtin: Builtin(Rc::new(f)),
@@ -37,23 +40,24 @@ impl Value {
 }
 
 pub fn builtins() -> SymbolMap<Value> {
+    let eq = binary_func("eq", |lhs, rhs| Value::Bool(lhs == rhs));
+    let add = binary_func("add", |lhs, rhs| {
+        Value::Int(lhs.unwrap_int() + rhs.unwrap_int())
+    });
+
     SymbolMap::default()
-        .update(Symbol::new("eq"), Value::builtin("eq", eq))
-        .update(Symbol::new("add"), Value::builtin("add", add))
+        .update(Symbol::new("eq"), eq)
+        .update(Symbol::new("add"), add)
 }
 
-fn eq(lhs: Value) -> Value {
-    Value::Builtin {
-        name: Symbol::new("eq-curried"),
-        builtin: Builtin(Rc::new(move |rhs| Value::Bool(lhs == rhs))),
-    }
-}
-
-fn add(lhs: Value) -> Value {
-    Value::Builtin {
-        name: Symbol::new("add-curried"),
-        builtin: Builtin(Rc::new(move |rhs| {
-            Value::Int(lhs.unwrap_int() + rhs.unwrap_int())
-        })),
-    }
+fn binary_func<F>(name: &'static str, f: F) -> Value
+where
+    F: Fn(Value, Value) -> Value + Clone + 'static,
+{
+    Value::builtin(name, move |arg0| {
+        let f = f.clone();
+        Value::builtin(&format!("{}-curried", name), move |arg1| {
+            f(arg0.clone(), arg1.clone())
+        })
+    })
 }

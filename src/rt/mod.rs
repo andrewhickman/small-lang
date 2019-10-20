@@ -53,15 +53,15 @@ pub struct Context {
 }
 
 impl Value {
-    pub fn unwrap_bool(&self) -> bool {
-        match *self {
+    pub fn unwrap_bool(self) -> bool {
+        match self {
             Value::Bool(b) => b,
             _ => panic!("expected bool"),
         }
     }
 
-    pub fn unwrap_int(&self) -> i64 {
-        match *self {
+    pub fn unwrap_int(self) -> i64 {
+        match self {
             Value::Int(i) => i,
             _ => panic!("expected int"),
         }
