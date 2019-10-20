@@ -63,6 +63,8 @@ test_file!(eq_func, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
 test_file!(curry, Ok(Value::Bool(true)));
 test_file!(int, Ok(Value::Int(-300)));
+test_file!(add, Ok(Value::Int(4)));
+test_file!(add_error, Err("inference error"));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

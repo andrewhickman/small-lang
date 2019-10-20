@@ -37,12 +37,23 @@ impl Value {
 }
 
 pub fn builtins() -> SymbolMap<Value> {
-    SymbolMap::default().update(Symbol::new("eq"), Value::builtin("eq", eq))
+    SymbolMap::default()
+        .update(Symbol::new("eq"), Value::builtin("eq", eq))
+        .update(Symbol::new("add"), Value::builtin("add", add))
 }
 
 fn eq(lhs: Value) -> Value {
     Value::Builtin {
         name: Symbol::new("eq-curried"),
         builtin: Builtin(Rc::new(move |rhs| Value::Bool(lhs == rhs))),
+    }
+}
+
+fn add(lhs: Value) -> Value {
+    Value::Builtin {
+        name: Symbol::new("add-curried"),
+        builtin: Builtin(Rc::new(move |rhs| {
+            Value::Int(lhs.unwrap_int() + rhs.unwrap_int())
+        })),
     }
 }
