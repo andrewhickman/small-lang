@@ -4,5 +4,5 @@
       then false
       else true
     in 
-      not not arg
+      not (not arg)
 ) true

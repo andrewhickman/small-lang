@@ -59,6 +59,8 @@ test_file!(eq_bool, Ok(Value::Bool(true)));
 test_file!(eq_record, Ok(Value::Bool(true)));
 test_file!(eq_func, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
+test_file!(curry, Ok(Value::Bool(true)));
+
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
 

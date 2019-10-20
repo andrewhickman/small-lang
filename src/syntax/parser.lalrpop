@@ -19,8 +19,10 @@ AbsExpr: Expr = {
 }
 
 AppExpr: Expr = {
-    <f:SimpleExpr> <v:Expr> => Expr::App(Rc::new(f), Rc::new(v)),
+    <f:AppFuncExpr> <v:SimpleExpr> => Expr::App(Rc::new(f), Rc::new(v)),
 }
+
+AppFuncExpr = { SimpleExpr, AppExpr }
 
 LetExpr: Expr = {
     "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Rc::new(v), Rc::new(e)),
