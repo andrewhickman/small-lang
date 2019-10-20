@@ -4,9 +4,9 @@ use std::path::Path;
 
 use proptest::proptest;
 
+use crate::check::check;
 use crate::rt::{Command, Value};
 use crate::syntax::tests::arb_expr;
-use crate::check::check;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
@@ -56,6 +56,10 @@ test_file!(rec_shadow, Ok(Func));
 test_file!(pr1, Ok(Func));
 test_file!(func_shadow, Ok(Value::Bool(true)));
 test_file!(rec_chain, Ok(Func));
+test_file!(eq_bool, Ok(Value::Bool(true)));
+test_file!(eq_record, Ok(Value::Bool(true)));
+test_file!(eq_func, Ok(Value::Bool(true)));
+test_file!(eq_incomparable, Ok(Value::Bool(false)));
 
 proptest! {
     #[test]

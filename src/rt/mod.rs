@@ -1,18 +1,26 @@
-use serde::{Deserialize, Serialize};
+mod builtin;
+
+use serde::Serialize;
 use std::rc::Rc;
 
+use crate::rt::builtin::Builtin;
 use crate::syntax::symbol::{Symbol, SymbolMap};
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Value {
-    Null,
     Bool(bool),
     Record(SymbolMap<Value>),
     Func(FuncValue),
+    Builtin {
+        #[serde(rename = "$builtin")]
+        name: Symbol,
+        #[serde(skip)]
+        builtin: Builtin,
+    },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct FuncValue {
     #[serde(rename = "$name", skip_serializing_if = "Option::is_none")]
     pub name: Option<Symbol>,
@@ -22,7 +30,7 @@ pub struct FuncValue {
     pub env: SymbolMap<Value>,
 }
 
-#[derive(Eq, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(tag = "op", content = "value", rename_all = "kebab-case")]
 pub enum Command {
     Push(Value),
@@ -93,18 +101,24 @@ impl Command {
                 }));
                 None
             }
-            Command::App => {
-                let func = ctx.stack.pop().unwrap().unwrap_func();
-                let env = func.env().union(ctx.vars().clone());
-                ctx.vars.push(env);
-                let mut idx = 0;
-                while let Some(cmd) = func.cmds.get(idx) {
-                    idx += cmd.exec(ctx).unwrap_or(0);
-                    idx += 1;
+            Command::App => match ctx.stack.pop().unwrap() {
+                Value::Func(func) => {
+                    let env = func.env().union(ctx.vars().clone());
+                    ctx.vars.push(env);
+                    let mut idx = 0;
+                    while let Some(cmd) = func.cmds.get(idx) {
+                        idx += cmd.exec(ctx).unwrap_or(0);
+                        idx += 1;
+                    }
+                    ctx.vars.pop();
+                    None
                 }
-                ctx.vars.pop();
-                None
-            }
+                Value::Builtin { builtin, .. } => {
+                    builtin.exec(ctx);
+                    None
+                }
+                _ => panic!("expected func"),
+            },
             Command::Test(offset) => {
                 if ctx.stack.pop().unwrap().unwrap_bool() {
                     Some(offset)
@@ -155,7 +169,19 @@ impl From<Vec<Value>> for Context {
     fn from(stack: Vec<Value>) -> Self {
         Context {
             stack,
-            vars: vec![SymbolMap::default()],
+            vars: vec![builtin::builtins()],
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Bool(l), Value::Bool(r)) => l == r,
+            (Value::Record(l), Value::Record(r)) => l == r,
+            (Value::Func(l), Value::Func(r)) => Rc::ptr_eq(&l.cmds, &r.cmds),
+            (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,
+            _ => false,
         }
     }
 }

@@ -1,3 +1,4 @@
+mod builtin;
 mod ty;
 
 use std::iter::once;
@@ -11,6 +12,7 @@ use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn check(expr: &Expr) -> Result<Value, String> {
     let mut ctx = Context::default();
+    ctx.set_builtins();
     // let mut reduced = Automaton::new();
 
     let (_, value) = ctx.check_expr(expr).map_err(|err| match err {
@@ -67,6 +69,15 @@ struct Context {
 struct Scheme {
     expr: StateId,
     env: SymbolMap<StateId>,
+}
+
+impl Scheme {
+    fn empty(expr: StateId) -> Self {
+        Scheme {
+            expr,
+            env: SymbolMap::default(),
+        }
+    }
 }
 
 impl Context {
@@ -216,17 +227,9 @@ impl Context {
     }
 
     fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), Error> {
-        let expr = self
-            .auto
-            .build_constructed(Polarity::Pos, Constructor::Bool);
+        let expr = self.build_bool(Polarity::Pos);
         let cmd = vec![Command::Push(Value::Bool(val))];
-        Ok((
-            Scheme {
-                expr,
-                env: SymbolMap::default(),
-            },
-            cmd,
-        ))
+        Ok((Scheme::empty(expr), cmd))
     }
 
     fn check_if(
@@ -316,6 +319,10 @@ impl Context {
         self.vars.push(vars);
     }
 
+    fn set_var(&mut self, symbol: Symbol, scheme: Scheme) {
+        self.vars.last_mut().unwrap().insert(symbol, scheme);
+    }
+
     fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
         self.vars.last().unwrap().get(&symbol).cloned()
     }
@@ -336,6 +343,10 @@ impl Context {
     {
         envs.into_iter()
             .fold(SymbolMap::default(), |l, r| self.meet_env(l, r))
+    }
+
+    fn build_bool(&mut self, pol: Polarity) -> StateId {
+        self.auto.build_constructed(pol, Constructor::Bool)
     }
 
     fn build_func(&mut self, pol: Polarity, dom: StateId, range: StateId) -> StateId {
