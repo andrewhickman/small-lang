@@ -44,10 +44,14 @@ pub fn builtins() -> SymbolMap<Value> {
     let add = binary_func("add", |lhs, rhs| {
         Value::Int(lhs.unwrap_int() + rhs.unwrap_int())
     });
+    let sub = binary_func("sub", |lhs, rhs| {
+        Value::Int(lhs.unwrap_int() - rhs.unwrap_int())
+    });
 
     SymbolMap::default()
         .update(Symbol::new("eq"), eq)
         .update(Symbol::new("add"), add)
+        .update(Symbol::new("sub"), sub)
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value

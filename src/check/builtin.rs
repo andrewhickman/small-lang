@@ -8,8 +8,10 @@ impl Context {
     pub(in crate::check) fn set_builtins(&mut self) {
         let eq = self.build_eq();
         self.set_var(Symbol::new("eq"), eq);
-        let add = self.build_add();
+        let add = self.build_binary_int_op();
         self.set_var(Symbol::new("add"), add);
+        let sub = self.build_binary_int_op();
+        self.set_var(Symbol::new("sub"), sub);
     }
 
     fn build_eq(&mut self) -> Scheme {
@@ -20,7 +22,7 @@ impl Context {
         self.build_binary_func(arg0, arg1, ret)
     }
 
-    fn build_add(&mut self) -> Scheme {
+    fn build_binary_int_op(&mut self) -> Scheme {
         let arg0 = self.build_int(Polarity::Neg);
         let arg1 = self.build_int(Polarity::Neg);
         let ret = self.build_int(Polarity::Pos);

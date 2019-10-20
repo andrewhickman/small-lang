@@ -65,6 +65,8 @@ test_file!(curry, Ok(Value::Bool(true)));
 test_file!(int, Ok(Value::Int(-300)));
 test_file!(add, Ok(Value::Int(4)));
 test_file!(add_error, Err("inference error"));
+test_file!(sub, Ok(Value::Int(4)));
+test_file!(sub_error, Err("inference error"));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
