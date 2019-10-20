@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::fmt;
+use std::rc::Rc;
 
 use crate::rt::{Context, Value};
 use crate::syntax::{Symbol, SymbolMap};

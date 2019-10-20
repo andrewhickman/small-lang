@@ -7,7 +7,7 @@ use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
-use crate::rt::{Command, Value, FuncValue};
+use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn check(expr: &Expr) -> Result<Value, String> {
@@ -97,8 +97,8 @@ impl Context {
             Expr::App(func, arg) => self.check_call(func, arg),
             Expr::Let(symbol, val, expr) => self.check_let(*symbol, val, expr),
             Expr::Rec(symbol, val, expr) => self.check_rec(*symbol, val, expr),
-            Expr::True => self.check_bool(true),
-            Expr::False => self.check_bool(false),
+            Expr::Bool(val) => self.check_bool(*val),
+            Expr::Int(val) => self.check_int(*val),
             Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
             Expr::Cons(map) => self.check_record(map),
             Expr::Proj(expr, label) => self.check_proj(expr, *label),
@@ -114,7 +114,12 @@ impl Context {
         Err(Error::UndefinedVar(symbol))
     }
 
-    fn check_func(&mut self, symbol: Symbol, expr: &Expr, name: Option<Symbol>) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_func(
+        &mut self,
+        symbol: Symbol,
+        expr: &Expr,
+        name: Option<Symbol>,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let pair = self.auto.build_var();
         self.push_var(
             symbol,
@@ -232,6 +237,12 @@ impl Context {
         Ok((Scheme::empty(expr), cmd))
     }
 
+    fn check_int(&mut self, val: i64) -> Result<(Scheme, Vec<Command>), Error> {
+        let expr = self.build_int(Polarity::Pos);
+        let cmd = vec![Command::Push(Value::Int(val))];
+        Ok((Scheme::empty(expr), cmd))
+    }
+
     fn check_if(
         &mut self,
         cond: &Expr,
@@ -243,9 +254,7 @@ impl Context {
         let (alt, alt_cmds) = self.check_expr(alt)?;
 
         let pair = self.auto.build_var();
-        let b = self
-            .auto
-            .build_constructed(Polarity::Neg, Constructor::Bool);
+        let b = self.build_bool(Polarity::Neg);
 
         self.auto.biunify_all(
             [(cond.expr, b), (cons.expr, pair.neg), (alt.expr, pair.neg)]
@@ -347,6 +356,10 @@ impl Context {
 
     fn build_bool(&mut self, pol: Polarity) -> StateId {
         self.auto.build_constructed(pol, Constructor::Bool)
+    }
+
+    fn build_int(&mut self, pol: Polarity) -> StateId {
+        self.auto.build_constructed(pol, Constructor::Int)
     }
 
     fn build_func(&mut self, pol: Polarity, dom: StateId, range: StateId) -> StateId {

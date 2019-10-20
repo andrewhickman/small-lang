@@ -15,10 +15,10 @@ use parser::ExprParser;
 
 #[derive(Clone, Debug)]
 pub enum Expr {
-    True,
-    False,
-    Cons(SymbolMap<Expr>),
+    Bool(bool),
+    Int(i64),
     Var(Symbol),
+    Cons(SymbolMap<Expr>),
     Abs(Symbol, Rc<Expr>),
     App(Rc<Expr>, Rc<Expr>),
     Let(Symbol, Rc<Expr>, Rc<Expr>),

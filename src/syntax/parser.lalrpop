@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::sync::RwLockWriteGuard;
+use std::str::FromStr;
 
 use crate::syntax::Expr;
 use crate::syntax::symbol::{Symbol, Interner};
@@ -34,10 +35,11 @@ IfExpr: Expr = {
 }
 
 SimpleExpr: Expr = {
-    "true" => Expr::True,
-    "false" => Expr::False,
-    "{" <fields:Comma<(<Symbol> ":" <Expr>)>> "}" => Expr::Cons(fields.into_iter().collect()),
+    "true" => Expr::Bool(true),
+    "false" => Expr::Bool(false),
     Symbol => Expr::Var(<>),
+    Int => Expr::Int(<>),
+    "{" <fields:Comma<(<Symbol> ":" <Expr>)>> "}" => Expr::Cons(fields.into_iter().collect()),
     <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
     "(" <Expr> ")",
 }
@@ -54,6 +56,9 @@ Comma<T>: Vec<T> = {
 }
 
 Symbol: Symbol = {
-   r"[[:alpha:]]+" => interner.intern(<>),
+    r"[[:alpha:]]+" => interner.intern(<>),
 }
 
+Int: i64 = {
+    r"-?\d+" => i64::from_str(<>).unwrap(),
+}

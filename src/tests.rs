@@ -18,7 +18,9 @@ macro_rules! test_file {
         #[test]
         fn $file() {
             match run_file(stringify!($file)) {
-                Ok(actual) => { actual.unwrap_func(); },
+                Ok(actual) => {
+                    actual.unwrap_func();
+                }
                 Err(err) => panic!("expected success but got error: {}", err),
             }
         }
@@ -60,6 +62,7 @@ test_file!(eq_record, Ok(Value::Bool(true)));
 test_file!(eq_func, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
 test_file!(curry, Ok(Value::Bool(true)));
+test_file!(int, Ok(Value::Int(-300)));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

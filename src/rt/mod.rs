@@ -10,6 +10,7 @@ use crate::syntax::symbol::{Symbol, SymbolMap};
 #[serde(untagged)]
 pub enum Value {
     Bool(bool),
+    Int(i64),
     Record(SymbolMap<Value>),
     Func(FuncValue),
     Builtin {
@@ -178,6 +179,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Bool(l), Value::Bool(r)) => l == r,
+            (Value::Int(l), Value::Int(r)) => l == r,
             (Value::Record(l), Value::Record(r)) => l == r,
             (Value::Func(l), Value::Func(r)) => Rc::ptr_eq(&l.cmds, &r.cmds),
             (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,

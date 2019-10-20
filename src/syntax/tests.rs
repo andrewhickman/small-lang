@@ -6,8 +6,8 @@ use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn arb_expr() -> impl Strategy<Value = Expr> {
     prop_oneof![
-        Just(Expr::True),
-        Just(Expr::False),
+        any::<bool>().prop_map(Expr::Bool),
+        any::<i64>().prop_map(Expr::Int),
         arb_symbol().prop_map(Expr::Var),
     ]
     .prop_recursive(8, 128, 4, |expr| {

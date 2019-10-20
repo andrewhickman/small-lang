@@ -11,6 +11,7 @@ use crate::syntax::Symbol;
 #[derive(Clone, Debug)]
 pub enum Constructor {
     Bool,
+    Int,
     Func(StateSet, StateSet),
     Record(OrdMap<Symbol, StateSet>),
 }
@@ -27,6 +28,7 @@ impl mlsub::Constructor for Constructor {
     fn join(&mut self, other: &Self, pol: Polarity) {
         match (self, other) {
             (Constructor::Bool, Constructor::Bool) => (),
+            (Constructor::Int, Constructor::Int) => (),
             (Constructor::Func(ld, lr), Constructor::Func(rd, rr)) => {
                 ld.union(rd);
                 lr.union(rr);
@@ -51,7 +53,7 @@ impl mlsub::Constructor for Constructor {
 
     fn params(&self) -> Self::Params {
         match self {
-            Constructor::Bool => vec![],
+            Constructor::Bool | Constructor::Int => vec![],
             Constructor::Func(d, r) => vec![(Label::Domain, d.clone()), (Label::Range, r.clone())],
             Constructor::Record(fields) => fields
                 .clone()
@@ -67,7 +69,6 @@ impl mlsub::Constructor for Constructor {
         F: FnMut(Self::Label, StateSet) -> StateSet,
     {
         match self {
-            Constructor::Bool => Constructor::Bool,
             Constructor::Func(d, r) => {
                 Constructor::Func(mapper(Label::Domain, d), mapper(Label::Range, r))
             }
@@ -77,6 +78,7 @@ impl mlsub::Constructor for Constructor {
                     .map(|(label, set)| (label.clone(), mapper(Label::Label(label), set)))
                     .collect(),
             ),
+            scalar => scalar,
         }
     }
 }
@@ -85,6 +87,7 @@ impl PartialOrd for Constructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Constructor::Bool, Constructor::Bool) => Some(Ordering::Equal),
+            (Constructor::Int, Constructor::Int) => Some(Ordering::Equal),
             (Constructor::Func(..), Constructor::Func(..)) => Some(Ordering::Equal),
             (Constructor::Record(ref lhs), Constructor::Record(ref rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
