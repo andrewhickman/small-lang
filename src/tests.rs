@@ -52,6 +52,7 @@ test_file!(undefined_var, Err("undefined var `x`"));
 test_file!(type_error, Err("inference error"));
 test_file!(rec_error, Err("inference error"));
 test_file!(rec_func, Ok(Value::Bool(true)));
+test_file!(rec_shadow, Ok(Func));
 test_file!(pr1, Ok(Func));
 
 proptest! {
