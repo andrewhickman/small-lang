@@ -14,6 +14,15 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
 }
 
 macro_rules! test_file {
+    ($file:ident, Ok(Func)) => {
+        #[test]
+        fn $file() {
+            match run_file(stringify!($file)) {
+                Ok(actual) => { actual.unwrap_func(); },
+                Err(err) => panic!("expected success but got error: {}", err),
+            }
+        }
+    };
     ($file:ident, Ok($expected:expr)) => {
         #[test]
         fn $file() {
@@ -43,6 +52,7 @@ test_file!(undefined_var, Err("undefined var `x`"));
 test_file!(type_error, Err("inference error"));
 test_file!(rec_error, Err("inference error"));
 test_file!(rec_func, Ok(Value::Bool(true)));
+test_file!(pr1, Ok(Func));
 
 proptest! {
     #[test]

@@ -9,19 +9,24 @@ pub enum Value {
     Null,
     Bool(bool),
     Record(SymbolMap<Value>),
-    Func {
-        #[serde(rename = "$ops")]
-        cmds: Rc<[Command]>,
-        #[serde(rename = "$env")]
-        env: SymbolMap<Value>,
-    },
+    Func(FuncValue),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FuncValue {
+    #[serde(rename = "$name", skip_serializing_if = "Option::is_none")]
+    pub name: Option<Symbol>,
+    #[serde(rename = "$ops")]
+    pub cmds: Rc<[Command]>,
+    #[serde(rename = "$env")]
+    pub env: SymbolMap<Value>,
 }
 
 #[derive(Eq, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", content = "value", rename_all = "kebab-case")]
 pub enum Command {
     Push(Value),
-    Capture(Rc<[Command]>),
+    Capture(Option<Symbol>, Rc<[Command]>),
     App,
     Test(usize),
     Jump(usize),
@@ -39,24 +44,37 @@ pub struct Context {
 }
 
 impl Value {
-    fn unwrap_bool(self) -> bool {
+    pub fn unwrap_bool(self) -> bool {
         match self {
             Value::Bool(b) => b,
             _ => panic!("expected bool"),
         }
     }
 
-    fn unwrap_func(self) -> (Rc<[Command]>, SymbolMap<Value>) {
+    pub fn unwrap_func(self) -> FuncValue {
         match self {
-            Value::Func { cmds, env } => (cmds, env),
+            Value::Func(f) => f,
             _ => panic!("expected func"),
         }
     }
 
-    fn unwrap_record(self) -> SymbolMap<Value> {
+    pub fn unwrap_record(self) -> SymbolMap<Value> {
         match self {
             Value::Record(r) => r,
             _ => panic!("expected record"),
+        }
+    }
+}
+
+impl FuncValue {
+    fn env(&self) -> SymbolMap<Value> {
+        let env = self.env.clone();
+        if let Some(name) = self.name {
+            SymbolMap::default()
+                .update(name, Value::Func(self.clone()))
+                .union(env)
+        } else {
+            env
         }
     }
 }
@@ -68,20 +86,21 @@ impl Command {
                 ctx.stack.push(val.clone());
                 None
             }
-            Command::Capture(ref cmds) => {
+            Command::Capture(name, ref cmds) => {
                 let env = ctx.vars().clone();
-                ctx.stack.push(Value::Func {
+                ctx.stack.push(Value::Func(FuncValue {
+                    name,
                     cmds: cmds.clone(),
                     env,
-                });
+                }));
                 None
             }
             Command::App => {
-                let (func, env) = ctx.stack.pop().unwrap().unwrap_func();
-                let env = env.union(ctx.vars().clone());
+                let func = ctx.stack.pop().unwrap().unwrap_func();
+                let env = func.env().union(ctx.vars().clone());
                 ctx.vars.push(env);
                 let mut idx = 0;
-                while let Some(cmd) = func.get(idx) {
+                while let Some(cmd) = func.cmds.get(idx) {
                     idx += cmd.exec(ctx).unwrap_or(0);
                     idx += 1;
                 }

@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc f10d18d75b2f873ccf87316649d2276fa5943f95060b75d4ebd06626e23596ea # shrinks to expr = Rec(Symbol(1, "b"), Var(Symbol(1, "b")), True)
+cc 12e4377dce51838ead1f5b722e39bddffdaaa0bcc9a6b5caad655cde02463546 # shrinks to expr = App(Rec(Symbol(14, "c"), Abs(Symbol(15, "d"), Var(Symbol(14, "c"))), Var(Symbol(14, "c"))), Let(Symbol(6, "a"), True, True))
+cc 19957ba678070f32e0edaf61db86b0d421b47428283c6c54f5a0a7ace34535c2 # shrinks to expr = App(Rec(Symbol(9, "b"), Abs(Symbol(5, "c"), Var(Symbol(9, "b"))), Var(Symbol(9, "b"))), True)

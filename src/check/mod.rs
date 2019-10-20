@@ -6,7 +6,7 @@ use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
-use crate::rt::{Command, Value};
+use crate::rt::{Command, Value, FuncValue};
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn check(expr: &Expr) -> Result<Value, String> {
@@ -18,10 +18,11 @@ pub fn check(expr: &Expr) -> Result<Value, String> {
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
     })?;
 
-    Ok(Value::Func {
+    Ok(Value::Func(FuncValue {
+        name: None,
         cmds: value.into(),
         env: SymbolMap::default(),
-    })
+    }))
 
     // // put scheme into reduced form.
     // let mut states = reduced.reduce(
@@ -81,7 +82,7 @@ impl Context {
     fn check_expr(&mut self, expr: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
         match &expr {
             Expr::Var(symbol) => self.check_var(*symbol),
-            Expr::Abs(symbol, expr) => self.check_func(*symbol, expr),
+            Expr::Abs(symbol, expr) => self.check_func(*symbol, expr, None),
             Expr::App(func, arg) => self.check_call(func, arg),
             Expr::Let(symbol, val, expr) => self.check_let(*symbol, val, expr),
             Expr::Rec(symbol, val, expr) => self.check_rec(*symbol, val, expr),
@@ -102,7 +103,7 @@ impl Context {
         Err(Error::UndefinedVar(symbol))
     }
 
-    fn check_func(&mut self, symbol: Symbol, expr: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_func(&mut self, symbol: Symbol, expr: &Expr, name: Option<Symbol>) -> Result<(Scheme, Vec<Command>), Error> {
         let pair = self.auto.build_var();
         self.push_var(
             symbol,
@@ -119,7 +120,7 @@ impl Context {
 
         body_cmds.insert(0, Command::Store(symbol));
         body_cmds.push(Command::End);
-        let cmd = Command::Capture(body_cmds.into());
+        let cmd = Command::Capture(name, body_cmds.into());
 
         Ok((
             Scheme {
@@ -188,7 +189,10 @@ impl Context {
                 env: SymbolMap::default().update(symbol, pair.neg),
             },
         );
-        let (mut val_ty, mut cmds) = self.check_expr(val)?;
+        let (mut val_ty, mut cmds) = match val {
+            Expr::Abs(arg, body) => self.check_func(*arg, body, Some(symbol))?,
+            _ => unreachable!(),
+        };
         self.pop_var();
 
         val_ty.env.remove(&symbol);
