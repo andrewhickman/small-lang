@@ -53,13 +53,14 @@ test_file!(type_error, Err("inference error"));
 test_file!(rec_error, Err("inference error"));
 test_file!(rec_func, Ok(Value::Bool(true)));
 test_file!(rec_shadow, Ok(Func));
-test_file!(pr1, Ok(Func));
 test_file!(func_shadow, Ok(Value::Bool(true)));
 test_file!(rec_chain, Ok(Func));
 test_file!(eq_bool, Ok(Value::Bool(true)));
 test_file!(eq_record, Ok(Value::Bool(true)));
 test_file!(eq_func, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
+test_file!(pr1, Ok(Func));
+test_file!(pr2, Ok(Value::Bool(true)));
 
 proptest! {
     #[test]
