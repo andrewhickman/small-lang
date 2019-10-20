@@ -6,6 +6,6 @@ in let or = func args => if args.l
   else args.r
 in
   and {
-    l: eq { l: true, r: eq { l: and, r: and } },
-    r: eq { l: false, r: eq { l: or, r: and } },
+    l: eq true (eq and and),
+    r: eq false (eq and or),
   }

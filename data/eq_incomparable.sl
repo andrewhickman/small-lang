@@ -1,1 +1,1 @@
-eq { l: true, r: { a: false } }
+eq true { a: false }

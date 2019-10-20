@@ -3,6 +3,6 @@ let and = func args => if args.l
   else false
 in
   and {
-    l: eq { l: true, r: eq { l: false, r: false } },
-    r: eq { l: false, r: eq { l: true, r: false } },
+    l: eq true (eq false false),
+    r: eq false (eq true false),
   }

@@ -11,16 +11,11 @@ impl Context {
 
     fn build_eq(&mut self) -> Scheme {
         let pair = self.auto.build_var();
-        let dom = self.build_record(
-            Polarity::Neg,
-            [(Symbol::new("l"), pair.neg), (Symbol::new("r"), pair.neg)]
-                .iter()
-                .copied(),
-        );
 
         let range = self.build_bool(Polarity::Pos);
+        let curried_func = self.build_func(Polarity::Pos, pair.neg, range);
+        let func = self.build_func(Polarity::Pos, pair.neg, curried_func);
 
-        let func = self.build_func(Polarity::Pos, dom, range);
         Scheme::empty(func)
     }
 }

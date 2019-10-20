@@ -3,7 +3,4 @@ let and = func l =>
     then r
     else false
 in
-  eq {
-    l: and true false,
-    r: false,
-  }
+  eq (and true false) false
