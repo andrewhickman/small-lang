@@ -54,6 +54,7 @@ test_file!(rec_error, Err("inference error"));
 test_file!(rec_func, Ok(Value::Bool(true)));
 test_file!(rec_shadow, Ok(Func));
 test_file!(pr1, Ok(Func));
+test_file!(func_shadow, Ok(Value::Bool(true)));
 
 proptest! {
     #[test]

@@ -70,9 +70,7 @@ impl FuncValue {
     fn env(&self) -> SymbolMap<Value> {
         let env = self.env.clone();
         if let Some(name) = self.name {
-            SymbolMap::default()
-                .update(name, Value::Func(self.clone()))
-                .union(env)
+            env.update(name, Value::Func(self.clone()))
         } else {
             env
         }
