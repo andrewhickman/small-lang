@@ -6,6 +6,16 @@ use std::rc::Rc;
 use crate::rt::builtin::Builtin;
 use crate::syntax::symbol::{Symbol, SymbolMap};
 
+pub fn run(func: FuncValue) -> Value {
+    let mut ctx = Runtime {
+        stack: vec![Value::Func(func)],
+        vars: vec![builtin::builtins()],
+    };
+    Command::App.exec(&mut ctx);
+    assert_eq!(ctx.stack.len(), 1);
+    ctx.stack.into_iter().next().unwrap()
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Value {
@@ -47,7 +57,7 @@ pub enum Command {
 }
 
 #[derive(Debug)]
-pub struct Context {
+struct Runtime {
     pub stack: Vec<Value>,
     pub vars: Vec<SymbolMap<Value>>,
 }
@@ -83,6 +93,8 @@ impl Value {
 }
 
 impl FuncValue {
+    // HACK: to avoid making function types self referential, add them to their own environment
+    // lazily.
     fn env(&self) -> SymbolMap<Value> {
         let env = self.env.clone();
         if let Some(name) = self.name {
@@ -94,7 +106,7 @@ impl FuncValue {
 }
 
 impl Command {
-    pub fn exec(&self, ctx: &mut Context) -> Option<usize> {
+    fn exec(&self, ctx: &mut Runtime) -> Option<usize> {
         match *self {
             Command::Push(ref val) => {
                 ctx.stack.push(val.clone());
@@ -167,18 +179,9 @@ impl Command {
     }
 }
 
-impl Context {
+impl Runtime {
     fn vars(&mut self) -> &mut SymbolMap<Value> {
         self.vars.last_mut().unwrap()
-    }
-}
-
-impl From<Vec<Value>> for Context {
-    fn from(stack: Vec<Value>) -> Self {
-        Context {
-            stack,
-            vars: vec![builtin::builtins()],
-        }
     }
 }
 

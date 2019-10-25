@@ -5,7 +5,7 @@ use std::path::Path;
 use proptest::proptest;
 
 use crate::check::check;
-use crate::rt::{Command, Value};
+use crate::rt::{self, Value};
 use crate::syntax::tests::arb_expr;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
@@ -73,12 +73,12 @@ test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
 
 proptest! {
+    // TODO: this doesn't handle stack overflows / infinite loops.
+    // Runtime needs to bound stack height and operation count
     #[test]
     fn typecheck_correctness(expr in arb_expr()) {
         if let Ok(func) = check(&expr) {
-            let mut ctx = vec![func].into();
-            Command::App.exec(&mut ctx);
-            assert_eq!(ctx.stack.len(), 1);
+            rt::run(func);
         }
     }
 }

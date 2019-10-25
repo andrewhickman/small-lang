@@ -1,14 +1,14 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::rt::{Context, Value};
+use crate::rt::{Runtime, Value};
 use crate::syntax::{Symbol, SymbolMap};
 
 #[derive(Clone)]
 pub struct Builtin(Rc<dyn Fn(Value) -> Value>);
 
 impl Builtin {
-    pub fn exec(&self, ctx: &mut Context) {
+    pub(in crate::rt) fn exec(&self, ctx: &mut Runtime) {
         let arg = ctx.stack.pop().unwrap();
         let ret = (self.0)(arg);
         ctx.stack.push(ret);

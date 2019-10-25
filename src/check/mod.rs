@@ -10,7 +10,7 @@ use crate::check::ty::Constructor;
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
-pub fn check(expr: &Expr) -> Result<Value, String> {
+pub fn check(expr: &Expr) -> Result<FuncValue, String> {
     let mut ctx = Context::default();
     ctx.set_builtins();
     // let mut reduced = Automaton::new();
@@ -20,11 +20,11 @@ pub fn check(expr: &Expr) -> Result<Value, String> {
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
     })?;
 
-    Ok(Value::Func(FuncValue {
+    Ok(FuncValue {
         name: None,
         cmds: value.into(),
         env: SymbolMap::default(),
-    }))
+    })
 
     // // put scheme into reduced form.
     // let mut states = reduced.reduce(
