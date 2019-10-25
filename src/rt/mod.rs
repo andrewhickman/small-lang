@@ -81,6 +81,7 @@ pub enum Command {
 pub enum Error {
     StackOverflow,
     TooManyOps,
+    IntegerOverflow,
 }
 
 #[derive(Debug)]
@@ -169,7 +170,7 @@ impl Command {
                     None
                 }
                 Value::Builtin { builtin, .. } => {
-                    builtin.exec(ctx);
+                    builtin.exec(ctx)?;
                     None
                 }
                 _ => panic!("expected func"),
@@ -250,6 +251,7 @@ impl fmt::Display for Error {
         match self {
             Error::StackOverflow => "stack overflow".fmt(f),
             Error::TooManyOps => "max operations reached".fmt(f),
+            Error::IntegerOverflow => "integer overflow".fmt(f),
         }
     }
 }

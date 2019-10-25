@@ -1,17 +1,18 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::rt::{Runtime, Value};
+use crate::rt::{Error, Runtime, Value};
 use crate::syntax::{Symbol, SymbolMap};
 
 #[derive(Clone)]
-pub struct Builtin(Rc<dyn Fn(Value) -> Value>);
+pub struct Builtin(Rc<dyn Fn(Value) -> Result<Value, Error>>);
 
 impl Builtin {
-    pub(in crate::rt) fn exec(&self, ctx: &mut Runtime) {
+    pub(in crate::rt) fn exec(&self, ctx: &mut Runtime) -> Result<(), Error> {
         let arg = ctx.stack.pop().unwrap();
-        let ret = (self.0)(arg);
+        let ret = (self.0)(arg)?;
         ctx.stack.push(ret);
+        Ok(())
     }
 }
 
@@ -30,7 +31,7 @@ impl PartialEq for Builtin {
 impl Value {
     fn builtin<F>(name: &str, f: F) -> Self
     where
-        F: Fn(Value) -> Value + 'static,
+        F: Fn(Value) -> Result<Value, Error> + 'static,
     {
         Value::Builtin {
             name: Symbol::new(name),
@@ -40,28 +41,40 @@ impl Value {
 }
 
 pub fn builtins() -> SymbolMap<Value> {
-    let eq = binary_func("eq", |lhs, rhs| Value::Bool(lhs == rhs));
-    let add = binary_func("add", |lhs, rhs| {
-        Value::Int(lhs.unwrap_int() + rhs.unwrap_int())
-    });
-    let sub = binary_func("sub", |lhs, rhs| {
-        Value::Int(lhs.unwrap_int() - rhs.unwrap_int())
-    });
-
     SymbolMap::default()
-        .update(Symbol::new("eq"), eq)
-        .update(Symbol::new("add"), add)
-        .update(Symbol::new("sub"), sub)
+        .update(Symbol::new("eq"), binary_func("eq", eq))
+        .update(Symbol::new("add"), binary_func("add", add))
+        .update(Symbol::new("sub"), binary_func("sub", sub))
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value
 where
-    F: Fn(Value, Value) -> Value + Clone + 'static,
+    F: Fn(Value, Value) -> Result<Value, Error> + Clone + 'static,
 {
     Value::builtin(name, move |arg0| {
         let f = f.clone();
-        Value::builtin(&format!("{}-curried", name), move |arg1| {
+        Ok(Value::builtin(&format!("{}-curried", name), move |arg1| {
             f(arg0.clone(), arg1.clone())
-        })
+        }))
     })
+}
+
+fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    Ok(Value::Bool(lhs == rhs))
+}
+
+fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    if let Some(result) = i64::checked_add(lhs.unwrap_int(), rhs.unwrap_int()) {
+        Ok(Value::Int(result))
+    } else {
+        Err(Error::IntegerOverflow)
+    }
+}
+
+fn sub(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    if let Some(result) = i64::checked_sub(lhs.unwrap_int(), rhs.unwrap_int()) {
+        Ok(Value::Int(result))
+    } else {
+        Err(Error::IntegerOverflow)
+    }
 }

@@ -50,5 +50,7 @@ fn arb_symbol() -> impl Strategy<Value = Symbol> {
         Just(Symbol::new("c")),
         Just(Symbol::new("d")),
         Just(Symbol::new("eq")),
+        Just(Symbol::new("add")),
+        Just(Symbol::new("sub")),
     ]
 }
