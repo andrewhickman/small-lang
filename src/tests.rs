@@ -10,7 +10,7 @@ use crate::syntax::tests::arb_expr;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
-    crate::run(&input)
+    crate::run(&input, rt::Opts::default())
 }
 
 macro_rules! test_file {
@@ -73,12 +73,13 @@ test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
 
 proptest! {
-    // TODO: this doesn't handle stack overflows / infinite loops.
-    // Runtime needs to bound stack height and operation count
     #[test]
-    fn typecheck_correctness(expr in arb_expr()) {
+    fn typecheck_soundness(expr in arb_expr()) {
         if let Ok(func) = check(&expr) {
-            rt::run(func);
+            rt::run(func, rt::Opts {
+                max_stack: 1024,
+                max_ops: Some(1_048_576),
+            }).ok();
         }
     }
 }

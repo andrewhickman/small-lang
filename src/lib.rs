@@ -11,9 +11,9 @@ use std::str::FromStr;
 use crate::check::check;
 use crate::syntax::Expr;
 
-pub fn run(input: &str) -> Result<rt::Value, Box<dyn Error>> {
+pub fn run(input: &str, opts: rt::Opts) -> Result<rt::Value, Box<dyn Error>> {
     let expr = Expr::from_str(input)?;
     let func = check(&expr)?;
-    let result = rt::run(func);
+    let result = rt::run(func, opts)?;
     Ok(result)
 }

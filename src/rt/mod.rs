@@ -1,19 +1,40 @@
 mod builtin;
 
+use std::fmt;
+
 use serde::Serialize;
 use std::rc::Rc;
 
 use crate::rt::builtin::Builtin;
 use crate::syntax::symbol::{Symbol, SymbolMap};
 
-pub fn run(func: FuncValue) -> Value {
+pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
     let mut ctx = Runtime {
         stack: vec![Value::Func(func)],
         vars: vec![builtin::builtins()],
+        opts,
     };
-    Command::App.exec(&mut ctx);
+    Command::App.exec(&mut ctx)?;
     assert_eq!(ctx.stack.len(), 1);
-    ctx.stack.into_iter().next().unwrap()
+    Ok(ctx.stack.into_iter().next().unwrap())
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "structopt", derive(structopt::StructOpt))]
+pub struct Opts {
+    #[cfg_attr(feature = "structopt", structopt(long, default_value = "512"))]
+    pub max_stack: u64,
+    #[cfg_attr(feature = "structopt", structopt(long))]
+    pub max_ops: Option<u64>,
+}
+
+impl Default for Opts {
+    fn default() -> Self {
+        Opts {
+            max_stack: 512,
+            max_ops: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,9 +78,16 @@ pub enum Command {
 }
 
 #[derive(Debug)]
+pub enum Error {
+    StackOverflow,
+    TooManyOps,
+}
+
+#[derive(Debug)]
 struct Runtime {
-    pub stack: Vec<Value>,
-    pub vars: Vec<SymbolMap<Value>>,
+    stack: Vec<Value>,
+    vars: Vec<SymbolMap<Value>>,
+    opts: Opts,
 }
 
 impl Value {
@@ -106,8 +134,16 @@ impl FuncValue {
 }
 
 impl Command {
-    fn exec(&self, ctx: &mut Runtime) -> Option<usize> {
-        match *self {
+    fn exec(&self, ctx: &mut Runtime) -> Result<Option<usize>, Error> {
+        if let Some(ref mut remaining_ops) = ctx.opts.max_ops {
+            if *remaining_ops > 1 {
+                *remaining_ops -= 1;
+            } else {
+                return Err(Error::TooManyOps);
+            }
+        }
+
+        Ok(match *self {
             Command::Push(ref val) => {
                 ctx.stack.push(val.clone());
                 None
@@ -123,14 +159,13 @@ impl Command {
             }
             Command::App => match ctx.stack.pop().unwrap() {
                 Value::Func(func) => {
-                    let env = func.env().union(ctx.vars().clone());
-                    ctx.vars.push(env);
+                    ctx.push_vars(func.env())?;
                     let mut idx = 0;
                     while let Some(cmd) = func.cmds.get(idx) {
-                        idx += cmd.exec(ctx).unwrap_or(0);
+                        idx += cmd.exec(ctx)?.unwrap_or(0);
                         idx += 1;
                     }
-                    ctx.vars.pop();
+                    ctx.pop_vars();
                     None
                 }
                 Value::Builtin { builtin, .. } => {
@@ -167,21 +202,33 @@ impl Command {
             }
             Command::Store(symbol) => {
                 let val = ctx.stack.pop().unwrap();
-                let vars = ctx.vars().update(symbol, val);
-                ctx.vars.push(vars);
+                ctx.push_vars(SymbolMap::default().update(symbol, val))?;
                 None
             }
             Command::End => {
-                ctx.vars.pop().unwrap();
+                ctx.pop_vars();
                 None
             }
-        }
+        })
     }
 }
 
 impl Runtime {
+    fn push_vars(&mut self, new_vars: SymbolMap<Value>) -> Result<(), Error> {
+        if self.vars.len() as u64 >= self.opts.max_stack {
+            return Err(Error::StackOverflow);
+        }
+        let all_vars = new_vars.union(self.vars().clone());
+        self.vars.push(all_vars);
+        Ok(())
+    }
+
     fn vars(&mut self) -> &mut SymbolMap<Value> {
         self.vars.last_mut().unwrap()
+    }
+
+    fn pop_vars(&mut self) {
+        self.vars.pop().unwrap();
     }
 }
 
@@ -197,3 +244,14 @@ impl PartialEq for Value {
         }
     }
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::StackOverflow => "stack overflow".fmt(f),
+            Error::TooManyOps => "max operations reached".fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
