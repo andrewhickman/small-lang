@@ -1,0 +1,6 @@
+language: rust
+rust:
+  - stable
+env:
+  - PROPTEST_CASES=8192
+cache: cargo
