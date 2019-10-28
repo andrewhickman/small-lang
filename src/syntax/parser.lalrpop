@@ -12,6 +12,7 @@ pub(crate) Expr: Expr = {
     AppExpr,
     LetExpr,
     IfExpr,
+    ImportExpr,
     SimpleExpr,
 }
 
@@ -34,15 +35,24 @@ IfExpr: Expr = {
     "if" <c:Expr> "then" <t:Expr> "else" <f:Expr> => Expr::If(Rc::new(c), Rc::new(t), Rc::new(f)),
 }
 
+ImportExpr: Expr = {
+    "import" <path:String> => Expr::Import(path),
+}
+
 SimpleExpr: Expr = {
     "true" => Expr::Bool(true),
     "false" => Expr::Bool(false),
     Symbol => Expr::Var(<>),
     Int => Expr::Int(<>),
     String => Expr::String(<>),
-    "{" <fields:Comma<(<Symbol> ":" <Expr>)>> "}" => Expr::Cons(fields.into_iter().collect()),
+    "{" <fields:Comma<RecordEntry>> "}" => Expr::Cons(fields.into_iter().collect()),
     <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
     "(" <Expr> ")",
+}
+
+RecordEntry: (Symbol, Expr) = {
+    <s:Symbol> ":" <e:Expr> => (s, e),   
+    <s:Symbol> => (s, Expr::Var(s)),
 }
 
 Comma<T>: Vec<T> = {
@@ -57,7 +67,7 @@ Comma<T>: Vec<T> = {
 }
 
 Symbol: Symbol = {
-    r"[[:alpha:]]+" => interner.intern(<>),
+    r"[[:alpha:]_]+" => interner.intern(<>),
 }
 
 Int: i64 = {

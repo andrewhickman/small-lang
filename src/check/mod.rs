@@ -2,6 +2,7 @@ mod builtin;
 mod ty;
 
 use std::iter::once;
+use std::str::FromStr;
 
 use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
@@ -18,6 +19,7 @@ pub fn check(expr: &Expr) -> Result<FuncValue, String> {
     let (_, value) = ctx.check_expr(expr).map_err(|err| match err {
         Error::TypeError => "inference error".to_owned(),
         Error::UndefinedVar(symbol) => format!("undefined var `{}`", symbol),
+        Error::ImportError(path, err) => format!("failed to import module `{}`: `{}`", path, err),
     })?;
 
     Ok(FuncValue {
@@ -52,6 +54,7 @@ pub fn check(expr: &Expr) -> Result<FuncValue, String> {
 enum Error {
     UndefinedVar(Symbol),
     TypeError,
+    ImportError(String, Box<dyn std::error::Error>),
 }
 
 impl From<()> for Error {
@@ -103,6 +106,7 @@ impl Context {
             Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
             Expr::Cons(map) => self.check_record(map),
             Expr::Proj(expr, label) => self.check_proj(expr, *label),
+            Expr::Import(path) => self.check_import(path),
         }
     }
 
@@ -327,6 +331,30 @@ impl Context {
             },
             cmds,
         ))
+    }
+
+    fn check_import(&mut self, path: &str) -> Result<(Scheme, Vec<Command>), Error> {
+        match self.resolve_import(path) {
+            Ok(expr) => self.check_expr(&expr),
+            Err(err) => Err(Error::ImportError(path.to_owned(), err)),
+        }
+    }
+
+    fn resolve_import(&mut self, path: &str) -> Result<Expr, Box<dyn std::error::Error>> {
+        let expr = if path == "std" {
+            Expr::from_str(include_str!("../../std/std.sl"))?
+        } else {
+            unimplemented!()
+            // let mut path: PathBuf = path.split('.').collect();
+            // if path.is_dir() {
+            //     path.join("mod");
+            // }
+            // path.set_extension("sl");
+
+            // let data = fs::read_to_string(path)?;
+            // Expr::from_str(&data)?
+        };
+        Ok(expr)
     }
 
     fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {

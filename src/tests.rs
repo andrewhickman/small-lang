@@ -67,9 +67,12 @@ test_file!(add, Ok(Value::Int(4)));
 test_file!(add_error, Err("inference error"));
 test_file!(sub, Ok(Value::Int(4)));
 test_file!(sub_error, Err("inference error"));
-test_file!(fibonacci, Ok(Value::Int(28657)));
+test_file!(fibonacci, Ok(Value::Int(377)));
 test_file!(string, Ok(Value::String("hello".to_owned())));
-test_file!(string_escape, Ok(Value::String("hel\\lo \"world\"".to_owned())));
+test_file!(
+    string_escape,
+    Ok(Value::String("hel\\lo \"world\"".to_owned()))
+);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

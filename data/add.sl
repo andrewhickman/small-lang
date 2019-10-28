@@ -1,1 +1,3 @@
-add 2 2
+let std = import "std" in
+
+std.add 2 2

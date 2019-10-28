@@ -26,6 +26,7 @@ pub enum Expr {
     Rec(Symbol, Rc<Expr>, Rc<Expr>),
     If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
     Proj(Rc<Expr>, Symbol),
+    Import(String),
 }
 
 impl FromStr for Expr {

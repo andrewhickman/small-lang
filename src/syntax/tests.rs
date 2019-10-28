@@ -5,10 +5,27 @@ use proptest::prelude::*;
 use crate::syntax::{Expr, Symbol, SymbolMap};
 
 pub fn arb_expr() -> impl Strategy<Value = Expr> {
+    arb_expr_impl().prop_map(|expr| {
+        Expr::Let(
+            Symbol::new("std"),
+            Rc::new(Expr::Import("std".to_owned())),
+            Rc::new(expr),
+        )
+    })
+}
+
+fn arb_expr_impl() -> impl Strategy<Value = Expr> {
     prop_oneof![
-        any::<bool>().prop_map(Expr::Bool),
-        any::<i64>().prop_map(Expr::Int),
-        arb_symbol().prop_map(Expr::Var),
+        3 => any::<bool>().prop_map(Expr::Bool),
+        3 => any::<i64>().prop_map(Expr::Int),
+        2 => arb_symbol().prop_map(Expr::Var),
+        2 => prop_oneof![
+            "eq",
+            "add",
+            "sub",
+        ].prop_map(|item| {
+            Expr::Proj(Rc::new(Expr::Var(Symbol::new("std"))), Symbol::new(item))
+        }),
     ]
     .prop_recursive(8, 128, 4, |expr| {
         prop_oneof![
@@ -49,8 +66,5 @@ fn arb_symbol() -> impl Strategy<Value = Symbol> {
         Just(Symbol::new("b")),
         Just(Symbol::new("c")),
         Just(Symbol::new("d")),
-        Just(Symbol::new("eq")),
-        Just(Symbol::new("add")),
-        Just(Symbol::new("sub")),
     ]
 }

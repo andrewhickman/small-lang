@@ -42,20 +42,27 @@ impl Value {
 
 pub fn builtins() -> SymbolMap<Value> {
     SymbolMap::default()
-        .update(Symbol::new("eq"), binary_func("eq", eq))
-        .update(Symbol::new("add"), binary_func("add", add))
-        .update(Symbol::new("sub"), binary_func("sub", sub))
+        .update(Symbol::new("__builtin_eq"), binary_func("__builtin_eq", eq))
+        .update(
+            Symbol::new("__builtin_add"),
+            binary_func("__builtin_add", add),
+        )
+        .update(
+            Symbol::new("__builtin_sub"),
+            binary_func("__builtin_sub", sub),
+        )
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value
 where
     F: Fn(Value, Value) -> Result<Value, Error> + Clone + 'static,
 {
-    Value::builtin(name, move |arg0| {
-        let f = f.clone();
-        Ok(Value::builtin(&format!("{}-curried", name), move |arg1| {
-            f(arg0.clone(), arg1.clone())
-        }))
+    Value::builtin(name, move |arg| {
+        let record = arg.unwrap_record();
+        f(
+            record[&Symbol::new("l")].clone(),
+            record[&Symbol::new("r")].clone(),
+        )
     })
 }
 

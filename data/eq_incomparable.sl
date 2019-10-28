@@ -1,1 +1,3 @@
-eq true { a: false }
+let std = import "std" in
+
+std.eq true { a: false }

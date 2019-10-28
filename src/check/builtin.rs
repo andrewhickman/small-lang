@@ -7,11 +7,11 @@ use crate::syntax::Symbol;
 impl Context {
     pub(in crate::check) fn set_builtins(&mut self) {
         let eq = self.build_eq();
-        self.set_var(Symbol::new("eq"), eq);
+        self.set_var(Symbol::new("__builtin_eq"), eq);
         let add = self.build_binary_int_op();
-        self.set_var(Symbol::new("add"), add);
+        self.set_var(Symbol::new("__builtin_add"), add);
         let sub = self.build_binary_int_op();
-        self.set_var(Symbol::new("sub"), sub);
+        self.set_var(Symbol::new("__builtin_sub"), sub);
     }
 
     fn build_eq(&mut self) -> Scheme {
@@ -30,10 +30,13 @@ impl Context {
         self.build_binary_func(arg0, arg1, ret)
     }
 
-    fn build_binary_func(&mut self, arg0: StateId, arg1: StateId, ret: StateId) -> Scheme {
-        let func0 = self.build_func(Polarity::Pos, arg1, ret);
-        let func1 = self.build_func(Polarity::Pos, arg0, func0);
-
-        Scheme::empty(func1)
+    fn build_binary_func(&mut self, lhs: StateId, rhs: StateId, ret: StateId) -> Scheme {
+        let arg = self.build_record(
+            Polarity::Neg,
+            [(Symbol::new("l"), lhs), (Symbol::new("r"), rhs)]
+                .iter()
+                .copied(),
+        );
+        Scheme::empty(self.build_func(Polarity::Pos, arg, ret))
     }
 }
