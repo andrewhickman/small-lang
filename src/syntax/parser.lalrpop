@@ -39,6 +39,7 @@ SimpleExpr: Expr = {
     "false" => Expr::Bool(false),
     Symbol => Expr::Var(<>),
     Int => Expr::Int(<>),
+    String => Expr::String(<>),
     "{" <fields:Comma<(<Symbol> ":" <Expr>)>> "}" => Expr::Cons(fields.into_iter().collect()),
     <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
     "(" <Expr> ")",
@@ -61,4 +62,12 @@ Symbol: Symbol = {
 
 Int: i64 = {
     r"-?\d+" => i64::from_str(<>).unwrap(),
+}
+
+String: String = {
+    <s:r##""(?:[^\\"]|(?:\\")|(?:\\\\))*""##> => {
+        s[1..(s.len() - 1)]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+    },
 }

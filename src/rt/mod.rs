@@ -42,6 +42,7 @@ impl Default for Opts {
 pub enum Value {
     Bool(bool),
     Int(i64),
+    String(String),
     Record(SymbolMap<Value>),
     Func(FuncValue),
     Builtin {
@@ -238,6 +239,7 @@ impl PartialEq for Value {
         match (self, other) {
             (Value::Bool(l), Value::Bool(r)) => l == r,
             (Value::Int(l), Value::Int(r)) => l == r,
+            (Value::String(l), Value::String(r)) => l == r,
             (Value::Record(l), Value::Record(r)) => l == r,
             (Value::Func(l), Value::Func(r)) => Rc::ptr_eq(&l.cmds, &r.cmds),
             (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,

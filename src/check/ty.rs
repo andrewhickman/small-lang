@@ -12,6 +12,7 @@ use crate::syntax::Symbol;
 pub enum Constructor {
     Bool,
     Int,
+    String,
     Func(StateSet, StateSet),
     Record(OrdMap<Symbol, StateSet>),
 }
@@ -29,6 +30,7 @@ impl mlsub::Constructor for Constructor {
         match (self, other) {
             (Constructor::Bool, Constructor::Bool) => (),
             (Constructor::Int, Constructor::Int) => (),
+            (Constructor::String, Constructor::String) => (),
             (Constructor::Func(ld, lr), Constructor::Func(rd, rr)) => {
                 ld.union(rd);
                 lr.union(rr);
@@ -53,7 +55,7 @@ impl mlsub::Constructor for Constructor {
 
     fn params(&self) -> Self::Params {
         match self {
-            Constructor::Bool | Constructor::Int => vec![],
+            Constructor::Bool | Constructor::Int | Constructor::String => vec![],
             Constructor::Func(d, r) => vec![(Label::Domain, d.clone()), (Label::Range, r.clone())],
             Constructor::Record(fields) => fields
                 .clone()

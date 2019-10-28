@@ -17,6 +17,7 @@ use parser::ExprParser;
 pub enum Expr {
     Bool(bool),
     Int(i64),
+    String(String),
     Var(Symbol),
     Cons(SymbolMap<Expr>),
     Abs(Symbol, Rc<Expr>),

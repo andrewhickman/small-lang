@@ -91,7 +91,7 @@ impl Context {
 
 impl Context {
     fn check_expr(&mut self, expr: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
-        match &expr {
+        match expr {
             Expr::Var(symbol) => self.check_var(*symbol),
             Expr::Abs(symbol, expr) => self.check_func(*symbol, expr, None),
             Expr::App(func, arg) => self.check_call(func, arg),
@@ -99,6 +99,7 @@ impl Context {
             Expr::Rec(symbol, val, expr) => self.check_rec(*symbol, val, expr),
             Expr::Bool(val) => self.check_bool(*val),
             Expr::Int(val) => self.check_int(*val),
+            Expr::String(val) => self.check_string(val.clone()),
             Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
             Expr::Cons(map) => self.check_record(map),
             Expr::Proj(expr, label) => self.check_proj(expr, *label),
@@ -243,6 +244,12 @@ impl Context {
         Ok((Scheme::empty(expr), cmd))
     }
 
+    fn check_string(&mut self, val: String) -> Result<(Scheme, Vec<Command>), Error> {
+        let expr = self.build_string(Polarity::Pos);
+        let cmd = vec![Command::Push(Value::String(val))];
+        Ok((Scheme::empty(expr), cmd))
+    }
+
     fn check_if(
         &mut self,
         cond: &Expr,
@@ -360,6 +367,10 @@ impl Context {
 
     fn build_int(&mut self, pol: Polarity) -> StateId {
         self.auto.build_constructed(pol, Constructor::Int)
+    }
+
+    fn build_string(&mut self, pol: Polarity) -> StateId {
+        self.auto.build_constructed(pol, Constructor::String)
     }
 
     fn build_func(&mut self, pol: Polarity, dom: StateId, range: StateId) -> StateId {
