@@ -29,9 +29,9 @@ fn arb_expr_impl() -> impl Strategy<Value = Expr> {
     ]
     .prop_recursive(8, 128, 4, |expr| {
         prop_oneof![
-            arb_symbol_map(expr.clone()).prop_map(Expr::Cons),
+            arb_symbol_map(expr.clone()).prop_map(Expr::Record),
             arb_func(expr.clone()),
-            (expr.clone(), expr.clone()).prop_map(|(f, e)| Expr::App(Rc::new(f), Rc::new(e))),
+            (expr.clone(), expr.clone()).prop_map(|(f, e)| Expr::Call(Rc::new(f), Rc::new(e))),
             (arb_symbol(), expr.clone(), expr.clone()).prop_map(|(s, v, e)| Expr::Let(
                 s,
                 Rc::new(v),
@@ -53,7 +53,7 @@ fn arb_expr_impl() -> impl Strategy<Value = Expr> {
 }
 
 fn arb_func(expr: BoxedStrategy<Expr>) -> impl Strategy<Value = Expr> {
-    (arb_symbol(), expr).prop_map(|(s, e)| Expr::Abs(s, Rc::new(e)))
+    (arb_symbol(), expr).prop_map(|(s, e)| Expr::Func(s, Rc::new(e)))
 }
 
 fn arb_symbol_map(expr: BoxedStrategy<Expr>) -> impl Strategy<Value = SymbolMap<Expr>> {

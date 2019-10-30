@@ -96,15 +96,15 @@ impl Context {
     fn check_expr(&mut self, expr: &Expr) -> Result<(Scheme, Vec<Command>), Error> {
         match expr {
             Expr::Var(symbol) => self.check_var(*symbol),
-            Expr::Abs(symbol, expr) => self.check_func(*symbol, expr, None),
-            Expr::App(func, arg) => self.check_call(func, arg),
+            Expr::Func(symbol, expr) => self.check_func(*symbol, expr, None),
+            Expr::Call(func, arg) => self.check_call(func, arg),
             Expr::Let(symbol, val, expr) => self.check_let(*symbol, val, expr),
             Expr::Rec(symbol, val, expr) => self.check_rec(*symbol, val, expr),
             Expr::Bool(val) => self.check_bool(*val),
             Expr::Int(val) => self.check_int(*val),
             Expr::String(val) => self.check_string(val.clone()),
             Expr::If(cond, cons, alt) => self.check_if(cond, cons, alt),
-            Expr::Cons(map) => self.check_record(map),
+            Expr::Record(map) => self.check_record(map),
             Expr::Proj(expr, label) => self.check_proj(expr, *label),
             Expr::Import(path) => self.check_import(path),
         }
@@ -161,7 +161,7 @@ impl Context {
         self.auto.biunify(func.expr, f)?;
 
         cmds.extend(fcmd);
-        cmds.push(Command::App);
+        cmds.push(Command::Call);
         Ok((
             Scheme {
                 expr: pair.pos,
@@ -211,7 +211,7 @@ impl Context {
             },
         );
         let (mut val_ty, mut cmds) = match val {
-            Expr::Abs(arg, body) => self.check_func(*arg, body, Some(symbol))?,
+            Expr::Func(arg, body) => self.check_func(*arg, body, Some(symbol))?,
             _ => unreachable!(),
         };
         self.pop_var();

@@ -14,7 +14,7 @@ pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
         vars: vec![builtin::builtins()],
         opts,
     };
-    Command::App.exec(&mut ctx)?;
+    Command::Call.exec(&mut ctx)?;
     assert_eq!(ctx.stack.len(), 1);
     Ok(ctx.stack.into_iter().next().unwrap())
 }
@@ -68,7 +68,7 @@ pub struct FuncValue {
 pub enum Command {
     Push(Value),
     Capture(Option<Symbol>, Rc<[Command]>),
-    App,
+    Call,
     Test(usize),
     Jump(usize),
     Set(Symbol),
@@ -159,7 +159,7 @@ impl Command {
                 }));
                 None
             }
-            Command::App => match ctx.stack.pop().unwrap() {
+            Command::Call => match ctx.stack.pop().unwrap() {
                 Value::Func(func) => {
                     ctx.push_vars(func.env())?;
                     let mut idx = 0;

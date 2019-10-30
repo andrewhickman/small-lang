@@ -8,7 +8,7 @@ use crate::syntax::symbol::{Symbol, Interner};
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
 
 pub(crate) Expr: Expr = {
-    AbsExpr,
+    FuncExpr,
     AppExpr,
     LetExpr,
     IfExpr,
@@ -16,19 +16,19 @@ pub(crate) Expr: Expr = {
     SimpleExpr,
 }
 
-AbsExpr: Expr = {
-    "func" <s:Symbol> "=>" <e:Expr> => Expr::Abs(s, Rc::new(e)),
+FuncExpr: Expr = {
+    "func" <s:Symbol> "=>" <e:Expr> => Expr::Func(s, Rc::new(e)),
 }
 
 AppExpr: Expr = {
-    <f:AppFuncExpr> <v:SimpleExpr> => Expr::App(Rc::new(f), Rc::new(v)),
+    <f:AppFuncExpr> <v:SimpleExpr> => Expr::Call(Rc::new(f), Rc::new(v)),
 }
 
 AppFuncExpr = { SimpleExpr, AppExpr }
 
 LetExpr: Expr = {
     "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Rc::new(v), Rc::new(e)),
-    "let" "rec" <s:Symbol> "=" <v:AbsExpr> "in" <e:Expr> => Expr::Rec(s, Rc::new(v), Rc::new(e)),
+    "let" "rec" <s:Symbol> "=" <v:FuncExpr> "in" <e:Expr> => Expr::Rec(s, Rc::new(v), Rc::new(e)),
 }
 
 IfExpr: Expr = {
@@ -45,7 +45,7 @@ SimpleExpr: Expr = {
     Symbol => Expr::Var(<>),
     Int => Expr::Int(<>),
     String => Expr::String(<>),
-    "{" <fields:Comma<RecordEntry>> "}" => Expr::Cons(fields.into_iter().collect()),
+    "{" <fields:Comma<RecordEntry>> "}" => Expr::Record(fields.into_iter().collect()),
     <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
     "(" <Expr> ")",
 }
