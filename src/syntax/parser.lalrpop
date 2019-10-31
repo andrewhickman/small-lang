@@ -1,37 +1,52 @@
 use std::sync::RwLockWriteGuard;
 use std::str::FromStr;
 
-use crate::syntax::Expr;
+use codespan::{Span, RawIndex};
+
+use crate::syntax::{Expr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr, Spanned};
 use crate::syntax::symbol::{Symbol, Interner};
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
 
-pub(crate) Expr: Expr = {
-    FuncExpr,
-    AppExpr,
-    LetExpr,
-    IfExpr,
+pub(crate) SpannedExpr = Spanned<Expr>;
+
+Expr: Expr = {
+    FuncExpr => Expr::Func(Box::new(<>)),
+    CallExpr => Expr::Call(Box::new(<>)),
+    LetExpr => Expr::Let(Box::new(<>)),
+    RecExpr => Expr::Rec(Box::new(<>)),
+    IfExpr => Expr::If(Box::new(<>)),
     ImportExpr,
     SimpleExpr,
 }
 
-FuncExpr: Expr = {
-    "func" <s:Symbol> "=>" <e:Expr> => Expr::Func(s, Box::new(e)),
+FuncExpr: FuncExpr = {
+    "func" <arg:Spanned<Symbol>> "=>" <body:Spanned<Expr>> => FuncExpr { <> },
 }
 
-AppExpr: Expr = {
-    <f:AppFuncExpr> <v:SimpleExpr> => Expr::Call(Box::new(f), Box::new(v)),
+CallExpr: CallExpr = {
+    <func:Spanned<CallFuncExpr>> <arg:Spanned<SimpleExpr>> => CallExpr { <> },
 }
 
-AppFuncExpr = { SimpleExpr, AppExpr }
-
-LetExpr: Expr = {
-    "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Box::new(v), Box::new(e)),
-    "let" "rec" <s:Symbol> "=" <v:FuncExpr> "in" <e:Expr> => Expr::Rec(s, Box::new(v), Box::new(e)),
+CallFuncExpr: Expr = {
+    SimpleExpr,
+    CallExpr => Expr::Call(Box::new(<>)),
 }
 
-IfExpr: Expr = {
-    "if" <c:Expr> "then" <t:Expr> "else" <f:Expr> => Expr::If(Box::new(c), Box::new(t), Box::new(f)),
+LetExpr: LetExpr = {
+    "let" <name:Spanned<Symbol>> "=" <val:Spanned<Expr>> "in" <body:Spanned<Expr>> => LetExpr { <> },
+}
+
+RecExpr: RecExpr = {
+    "let" "rec" <name:Spanned<Symbol>> "=" <func:Spanned<FuncExpr>> "in" <body:Spanned<Expr>> => RecExpr { <> },
+}
+
+IfExpr: IfExpr = {
+    "if" <cond:Spanned<Expr>> "then" <cons:Spanned<Expr>> "else" <alt:Spanned<Expr>> => IfExpr { <> },
+}
+
+ProjExpr: ProjExpr = {
+    <expr:Spanned<SimpleExpr>> "." <field:Spanned<Symbol>> => ProjExpr { <> },
 }
 
 ImportExpr: Expr = {
@@ -45,13 +60,22 @@ SimpleExpr: Expr = {
     Int => Expr::Int(<>),
     String => Expr::String(<>),
     "{" <fields:Comma<RecordEntry>> "}" => Expr::Record(fields.into_iter().collect()),
-    <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Box::new(e), s),
+    ProjExpr => Expr::Proj(Box::new(<>)),
     "(" <Expr> ")",
 }
 
-RecordEntry: (Symbol, Expr) = {
-    <s:Symbol> ":" <e:Expr> => (s, e),
-    <s:Symbol> => (s, Expr::Var(s)),
+RecordEntry: (Symbol, Spanned<Expr>) = {
+    <s:Symbol> ":" <e:Spanned<Expr>> => (s, e),
+    <s:Spanned<Symbol>> => (s.val, Spanned {
+        val: Expr::Var(s.val),
+        span: s.span,
+    }),
+}
+
+Spanned<T>: Spanned<T> = {
+    <l:@L> <val:T> <r:@R> => Spanned {
+        val, span: Span::new(l as RawIndex, r as RawIndex)
+    }
 }
 
 Comma<T>: Vec<T> = {

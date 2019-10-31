@@ -1,16 +1,17 @@
 pub mod symbol;
 #[cfg(test)]
 pub mod tests;
-lalrpop_mod!(parser, "/syntax/parser.rs");
 
+lalrpop_mod!(parser, "/syntax/parser.rs");
+mod source;
+
+pub use source::SourceMap;
 pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
-use std::str::FromStr;
-use std::string::ToString;
-
-use lalrpop_util::lalrpop_mod;
+use codespan::{ByteIndex, RawIndex, Span};
+use lalrpop_util::{lalrpop_mod, ParseError};
 use lazy_static::lazy_static;
-use parser::ExprParser;
+use parser::{SpannedExprParser, Token};
 
 #[derive(Debug)]
 pub enum Expr {
@@ -18,26 +19,71 @@ pub enum Expr {
     Int(i64),
     String(String),
     Var(Symbol),
-    Record(SymbolMap<Expr>),
-    Func(Symbol, Box<Expr>),
-    Call(Box<Expr>, Box<Expr>),
-    Let(Symbol, Box<Expr>, Box<Expr>),
-    Rec(Symbol, Box<Expr>, Box<Expr>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
-    Proj(Box<Expr>, Symbol),
+    Record(SymbolMap<Spanned<Expr>>),
+    Func(Box<FuncExpr>),
+    Call(Box<CallExpr>),
+    Let(Box<LetExpr>),
+    Rec(Box<RecExpr>),
+    If(Box<IfExpr>),
+    Proj(Box<ProjExpr>),
     Import(String),
 }
 
-impl FromStr for Expr {
-    type Err = String;
+#[derive(Debug)]
+pub struct Spanned<T> {
+    pub val: T,
+    pub span: Span,
+}
 
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
+#[derive(Debug)]
+pub struct FuncExpr {
+    pub arg: Spanned<Symbol>,
+    pub body: Spanned<Expr>,
+}
+
+#[derive(Debug)]
+pub struct CallExpr {
+    pub func: Spanned<Expr>,
+    pub arg: Spanned<Expr>,
+}
+
+#[derive(Debug)]
+pub struct LetExpr {
+    pub name: Spanned<Symbol>,
+    pub val: Spanned<Expr>,
+    pub body: Spanned<Expr>,
+}
+
+#[derive(Debug)]
+pub struct RecExpr {
+    pub name: Spanned<Symbol>,
+    pub func: Spanned<FuncExpr>,
+    pub body: Spanned<Expr>,
+}
+
+#[derive(Debug)]
+pub struct IfExpr {
+    pub cond: Spanned<Expr>,
+    pub cons: Spanned<Expr>,
+    pub alt: Spanned<Expr>,
+}
+
+#[derive(Debug)]
+pub struct ProjExpr {
+    pub expr: Spanned<Expr>,
+    pub field: Spanned<Symbol>,
+}
+
+impl Expr {
+    pub(crate) fn parse<'a>(
+        input: &'a str,
+    ) -> Result<Spanned<Expr>, ParseError<ByteIndex, Token<'a>, &'static str>> {
         lazy_static! {
-            static ref PARSER: ExprParser = ExprParser::new();
+            static ref PARSER: SpannedExprParser = SpannedExprParser::new();
         }
 
         PARSER
             .parse(&mut symbol::Interner::write(), input)
-            .map_err(|e| e.to_string())
+            .map_err(|err| err.map_location(|idx| ByteIndex(idx as RawIndex)))
     }
 }

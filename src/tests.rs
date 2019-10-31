@@ -4,13 +4,13 @@ use std::path::Path;
 
 use proptest::proptest;
 
-use crate::check::check;
+use crate::check::check_expr;
 use crate::rt::{self, Value};
 use crate::syntax::tests::arb_expr;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
-    crate::run(&input, rt::Opts::default())
+    crate::run_source(input, rt::Opts::default())
 }
 
 macro_rules! test_file {
@@ -80,7 +80,7 @@ test_file!(pr2, Ok(Value::Bool(true)));
 proptest! {
     #[test]
     fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok(func) = check(&expr) {
+        if let Ok(func) = check_expr(&expr) {
             rt::run(func, rt::Opts {
                 max_stack: 1024,
                 max_ops: Some(1_048_576),

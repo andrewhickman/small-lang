@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::fs::read_to_string;
 use std::io;
 use std::path::PathBuf;
 use std::process;
@@ -15,7 +14,7 @@ struct Args {
 }
 
 fn run(args: &Args) -> Result<(), Box<dyn Error>> {
-    let value = small_lang::run(&read_to_string(&args.file)?, args.rt_opts)?;
+    let value = small_lang::run_file(&args.file, args.rt_opts)?;
     serde_json::to_writer_pretty(io::stdout().lock(), &value)?;
     Ok(())
 }
