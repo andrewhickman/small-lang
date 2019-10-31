@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use proptest::prelude::*;
 
 use crate::syntax::{Expr, Symbol, SymbolMap};
@@ -8,8 +6,8 @@ pub fn arb_expr() -> impl Strategy<Value = Expr> {
     arb_expr_impl().prop_map(|expr| {
         Expr::Let(
             Symbol::new("std"),
-            Rc::new(Expr::Import("std".to_owned())),
-            Rc::new(expr),
+            Box::new(Expr::Import("std".to_owned())),
+            Box::new(expr),
         )
     })
 }
@@ -24,36 +22,36 @@ fn arb_expr_impl() -> impl Strategy<Value = Expr> {
             "add",
             "sub",
         ].prop_map(|item| {
-            Expr::Proj(Rc::new(Expr::Var(Symbol::new("std"))), Symbol::new(item))
+            Expr::Proj(Box::new(Expr::Var(Symbol::new("std"))), Symbol::new(item))
         }),
     ]
     .prop_recursive(8, 128, 4, |expr| {
         prop_oneof![
             arb_symbol_map(expr.clone()).prop_map(Expr::Record),
             arb_func(expr.clone()),
-            (expr.clone(), expr.clone()).prop_map(|(f, e)| Expr::Call(Rc::new(f), Rc::new(e))),
+            (expr.clone(), expr.clone()).prop_map(|(f, e)| Expr::Call(Box::new(f), Box::new(e))),
             (arb_symbol(), expr.clone(), expr.clone()).prop_map(|(s, v, e)| Expr::Let(
                 s,
-                Rc::new(v),
-                Rc::new(e)
+                Box::new(v),
+                Box::new(e)
             )),
             (arb_symbol(), arb_func(expr.clone()), expr.clone()).prop_map(|(s, v, e)| Expr::Rec(
                 s,
-                Rc::new(v),
-                Rc::new(e)
+                Box::new(v),
+                Box::new(e)
             )),
             (expr.clone(), expr.clone(), expr.clone()).prop_map(|(a, b, c)| Expr::If(
-                Rc::new(a),
-                Rc::new(b),
-                Rc::new(c)
+                Box::new(a),
+                Box::new(b),
+                Box::new(c)
             )),
-            (expr.clone(), arb_symbol()).prop_map(|(e, s)| Expr::Proj(Rc::new(e), s)),
+            (expr.clone(), arb_symbol()).prop_map(|(e, s)| Expr::Proj(Box::new(e), s)),
         ]
     })
 }
 
 fn arb_func(expr: BoxedStrategy<Expr>) -> impl Strategy<Value = Expr> {
-    (arb_symbol(), expr).prop_map(|(s, e)| Expr::Func(s, Rc::new(e)))
+    (arb_symbol(), expr).prop_map(|(s, e)| Expr::Func(s, Box::new(e)))
 }
 
 fn arb_symbol_map(expr: BoxedStrategy<Expr>) -> impl Strategy<Value = SymbolMap<Expr>> {

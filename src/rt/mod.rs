@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::rc::Rc;
 
 use crate::rt::builtin::Builtin;
-use crate::syntax::symbol::{Symbol, SymbolMap};
+use crate::syntax::symbol::{ImSymbolMap, Symbol};
 
 pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
     let mut ctx = Runtime {
@@ -43,7 +43,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     String(String),
-    Record(SymbolMap<Value>),
+    Record(ImSymbolMap<Value>),
     Func(FuncValue),
     Builtin {
         #[serde(rename = "$builtin")]
@@ -60,7 +60,7 @@ pub struct FuncValue {
     #[serde(rename = "$ops")]
     pub cmds: Rc<[Command]>,
     #[serde(rename = "$env")]
-    pub env: SymbolMap<Value>,
+    pub env: ImSymbolMap<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,7 +88,7 @@ pub enum Error {
 #[derive(Debug)]
 struct Runtime {
     stack: Vec<Value>,
-    vars: Vec<SymbolMap<Value>>,
+    vars: Vec<ImSymbolMap<Value>>,
     opts: Opts,
 }
 
@@ -114,7 +114,7 @@ impl Value {
         }
     }
 
-    pub fn unwrap_record(self) -> SymbolMap<Value> {
+    pub fn unwrap_record(self) -> ImSymbolMap<Value> {
         match self {
             Value::Record(r) => r,
             _ => panic!("expected record"),
@@ -125,7 +125,7 @@ impl Value {
 impl FuncValue {
     // HACK: to avoid making function types self referential, add them to their own environment
     // lazily.
-    fn env(&self) -> SymbolMap<Value> {
+    fn env(&self) -> ImSymbolMap<Value> {
         let env = self.env.clone();
         if let Some(name) = self.name {
             env.update(name, Value::Func(self.clone()))
@@ -204,7 +204,7 @@ impl Command {
             }
             Command::Store(symbol) => {
                 let val = ctx.stack.pop().unwrap();
-                ctx.push_vars(SymbolMap::default().update(symbol, val))?;
+                ctx.push_vars(ImSymbolMap::default().update(symbol, val))?;
                 None
             }
             Command::End => {
@@ -216,7 +216,7 @@ impl Command {
 }
 
 impl Runtime {
-    fn push_vars(&mut self, new_vars: SymbolMap<Value>) -> Result<(), Error> {
+    fn push_vars(&mut self, new_vars: ImSymbolMap<Value>) -> Result<(), Error> {
         if self.vars.len() as u64 >= self.opts.max_stack {
             return Err(Error::StackOverflow);
         }
@@ -225,7 +225,7 @@ impl Runtime {
         Ok(())
     }
 
-    fn vars(&mut self) -> &mut SymbolMap<Value> {
+    fn vars(&mut self) -> &mut ImSymbolMap<Value> {
         self.vars.last_mut().unwrap()
     }
 

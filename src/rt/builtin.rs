@@ -2,7 +2,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::rt::{Error, Runtime, Value};
-use crate::syntax::{Symbol, SymbolMap};
+use crate::syntax::{ImSymbolMap, Symbol};
 
 #[derive(Clone)]
 pub struct Builtin(Rc<dyn Fn(Value) -> Result<Value, Error>>);
@@ -40,8 +40,8 @@ impl Value {
     }
 }
 
-pub fn builtins() -> SymbolMap<Value> {
-    SymbolMap::default()
+pub fn builtins() -> ImSymbolMap<Value> {
+    ImSymbolMap::default()
         .update(Symbol::new("__builtin_eq"), binary_func("__builtin_eq", eq))
         .update(
             Symbol::new("__builtin_add"),

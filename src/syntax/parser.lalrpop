@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::RwLockWriteGuard;
 use std::str::FromStr;
 
@@ -17,22 +16,22 @@ pub(crate) Expr: Expr = {
 }
 
 FuncExpr: Expr = {
-    "func" <s:Symbol> "=>" <e:Expr> => Expr::Func(s, Rc::new(e)),
+    "func" <s:Symbol> "=>" <e:Expr> => Expr::Func(s, Box::new(e)),
 }
 
 AppExpr: Expr = {
-    <f:AppFuncExpr> <v:SimpleExpr> => Expr::Call(Rc::new(f), Rc::new(v)),
+    <f:AppFuncExpr> <v:SimpleExpr> => Expr::Call(Box::new(f), Box::new(v)),
 }
 
 AppFuncExpr = { SimpleExpr, AppExpr }
 
 LetExpr: Expr = {
-    "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Rc::new(v), Rc::new(e)),
-    "let" "rec" <s:Symbol> "=" <v:FuncExpr> "in" <e:Expr> => Expr::Rec(s, Rc::new(v), Rc::new(e)),
+    "let" <s:Symbol> "=" <v:Expr> "in" <e:Expr> => Expr::Let(s, Box::new(v), Box::new(e)),
+    "let" "rec" <s:Symbol> "=" <v:FuncExpr> "in" <e:Expr> => Expr::Rec(s, Box::new(v), Box::new(e)),
 }
 
 IfExpr: Expr = {
-    "if" <c:Expr> "then" <t:Expr> "else" <f:Expr> => Expr::If(Rc::new(c), Rc::new(t), Rc::new(f)),
+    "if" <c:Expr> "then" <t:Expr> "else" <f:Expr> => Expr::If(Box::new(c), Box::new(t), Box::new(f)),
 }
 
 ImportExpr: Expr = {
@@ -46,12 +45,12 @@ SimpleExpr: Expr = {
     Int => Expr::Int(<>),
     String => Expr::String(<>),
     "{" <fields:Comma<RecordEntry>> "}" => Expr::Record(fields.into_iter().collect()),
-    <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Rc::new(e), s),
+    <e:SimpleExpr> "." <s:Symbol> => Expr::Proj(Box::new(e), s),
     "(" <Expr> ")",
 }
 
 RecordEntry: (Symbol, Expr) = {
-    <s:Symbol> ":" <e:Expr> => (s, e),   
+    <s:Symbol> ":" <e:Expr> => (s, e),
     <s:Symbol> => (s, Expr::Var(s)),
 }
 

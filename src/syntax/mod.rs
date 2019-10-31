@@ -3,9 +3,8 @@ pub mod symbol;
 pub mod tests;
 lalrpop_mod!(parser, "/syntax/parser.rs");
 
-pub use symbol::{Symbol, SymbolMap};
+pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
-use std::rc::Rc;
 use std::str::FromStr;
 use std::string::ToString;
 
@@ -13,19 +12,19 @@ use lalrpop_util::lalrpop_mod;
 use lazy_static::lazy_static;
 use parser::ExprParser;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Expr {
     Bool(bool),
     Int(i64),
     String(String),
     Var(Symbol),
     Record(SymbolMap<Expr>),
-    Func(Symbol, Rc<Expr>),
-    Call(Rc<Expr>, Rc<Expr>),
-    Let(Symbol, Rc<Expr>, Rc<Expr>),
-    Rec(Symbol, Rc<Expr>, Rc<Expr>),
-    If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
-    Proj(Rc<Expr>, Symbol),
+    Func(Symbol, Box<Expr>),
+    Call(Box<Expr>, Box<Expr>),
+    Let(Symbol, Box<Expr>, Box<Expr>),
+    Rec(Symbol, Box<Expr>, Box<Expr>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
+    Proj(Box<Expr>, Symbol),
     Import(String),
 }
 

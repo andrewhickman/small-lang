@@ -9,7 +9,7 @@ use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
 use crate::rt::{Command, FuncValue, Value};
-use crate::syntax::{Expr, Symbol, SymbolMap};
+use crate::syntax::{Expr, ImSymbolMap, Symbol, SymbolMap};
 
 pub fn check(expr: &Expr) -> Result<FuncValue, String> {
     let mut ctx = Context::default();
@@ -25,7 +25,7 @@ pub fn check(expr: &Expr) -> Result<FuncValue, String> {
     Ok(FuncValue {
         name: None,
         cmds: value.into(),
-        env: SymbolMap::default(),
+        env: ImSymbolMap::default(),
     })
 
     // // put scheme into reduced form.
@@ -65,20 +65,20 @@ impl From<()> for Error {
 
 struct Context {
     auto: Automaton<Constructor>,
-    vars: Vec<SymbolMap<Scheme>>,
+    vars: Vec<ImSymbolMap<Scheme>>,
 }
 
 #[derive(Debug, Clone)]
 struct Scheme {
     expr: StateId,
-    env: SymbolMap<StateId>,
+    env: ImSymbolMap<StateId>,
 }
 
 impl Scheme {
     fn empty(expr: StateId) -> Self {
         Scheme {
             expr,
-            env: SymbolMap::default(),
+            env: ImSymbolMap::default(),
         }
     }
 }
@@ -87,7 +87,7 @@ impl Context {
     fn default() -> Self {
         Context {
             auto: Automaton::new(),
-            vars: vec![SymbolMap::default()],
+            vars: vec![ImSymbolMap::default()],
         }
     }
 }
@@ -130,7 +130,7 @@ impl Context {
             symbol,
             Scheme {
                 expr: pair.pos,
-                env: SymbolMap::default().update(symbol, pair.neg),
+                env: ImSymbolMap::default().update(symbol, pair.neg),
             },
         );
         let (mut body, mut body_cmds) = self.check_expr(expr)?;
@@ -207,7 +207,7 @@ impl Context {
             symbol,
             Scheme {
                 expr: pair.pos,
-                env: SymbolMap::default().update(symbol, pair.neg),
+                env: ImSymbolMap::default().update(symbol, pair.neg),
             },
         );
         let (mut val_ty, mut cmds) = match val {
@@ -298,7 +298,7 @@ impl Context {
             .collect::<Result<Vec<(Symbol, Scheme, Vec<Command>)>, Error>>()?;
 
         let cmds = ids.iter_mut().fold(
-            vec![Command::Push(Value::Record(SymbolMap::default()))],
+            vec![Command::Push(Value::Record(ImSymbolMap::default()))],
             |mut cmds, (symbol, _, val_cmds)| {
                 cmds.append(val_cmds);
                 cmds.push(Command::Set(*symbol));
@@ -375,18 +375,22 @@ impl Context {
         self.vars.pop();
     }
 
-    fn meet_env(&mut self, lhs: SymbolMap<StateId>, rhs: SymbolMap<StateId>) -> SymbolMap<StateId> {
-        SymbolMap::union_with(lhs, rhs, |l, r| {
+    fn meet_env(
+        &mut self,
+        lhs: ImSymbolMap<StateId>,
+        rhs: ImSymbolMap<StateId>,
+    ) -> ImSymbolMap<StateId> {
+        ImSymbolMap::union_with(lhs, rhs, |l, r| {
             self.auto.build_add(Polarity::Neg, [l, r].iter().cloned())
         })
     }
 
-    fn meet_envs<I>(&mut self, envs: I) -> SymbolMap<StateId>
+    fn meet_envs<I>(&mut self, envs: I) -> ImSymbolMap<StateId>
     where
-        I: IntoIterator<Item = SymbolMap<StateId>>,
+        I: IntoIterator<Item = ImSymbolMap<StateId>>,
     {
         envs.into_iter()
-            .fold(SymbolMap::default(), |l, r| self.meet_env(l, r))
+            .fold(ImSymbolMap::default(), |l, r| self.meet_env(l, r))
     }
 
     fn build_bool(&mut self, pol: Polarity) -> StateId {

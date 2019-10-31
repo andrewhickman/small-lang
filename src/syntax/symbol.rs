@@ -10,7 +10,8 @@ use seahash::SeaHasher;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Symbol(u32);
 
-pub type SymbolMap<V> = im::HashMap<Symbol, V, BuildHasherDefault<SeaHasher>>;
+pub type SymbolMap<V> = HashMap<Symbol, V, BuildHasherDefault<SeaHasher>>;
+pub type ImSymbolMap<V> = im::HashMap<Symbol, V, BuildHasherDefault<SeaHasher>>;
 
 impl Symbol {
     pub fn new(string: impl AsRef<str>) -> Self {
