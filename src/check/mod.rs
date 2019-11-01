@@ -4,6 +4,7 @@ mod ty;
 use std::fmt;
 use std::iter::once;
 
+use codespan::FileId;
 use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::Polarity;
 
@@ -14,54 +15,13 @@ use crate::syntax::{
     Symbol, SymbolMap,
 };
 
-pub fn check(source: SourceMap) -> Result<FuncValue, Box<dyn std::error::Error>> {
+pub fn check(
+    source: SourceMap,
+    expr: &Spanned<Expr>,
+) -> Result<FuncValue, Box<dyn std::error::Error>> {
     let mut ctx = Context::new(source);
-    // let mut reduced = Automaton::new();
-
-    let expr = ctx.source.parse_root()?;
-
-    let (_, value) = ctx.check_expr(&expr)?;
-
-    Ok(FuncValue {
-        name: None,
-        cmds: value.into(),
-        env: ImSymbolMap::default(),
-    })
-
-    // // put scheme into reduced form.
-    // let mut states = reduced.reduce(
-    //     &ctx.auto,
-    //     once((scheme.expr, Polarity::Pos)).chain(scheme.env.values().map(|&v| (v, Polarity::Neg))),
-    // );
-    // let actual = states.next().unwrap();
-
-    // // build expected type, bool -> unit
-    // let b = reduced.build_constructed(Polarity::Pos, Constructor::Bool);
-    // let u = reduced.build_empty(Polarity::Neg);
-    // let expected = reduced.build_constructed(
-    //     Polarity::Neg,
-    //     Constructor::Func(StateSet::new(b), StateSet::new(u)),
-    // );
-
-    // reduced
-    //     .biunify(actual, expected)
-    //     .map_err(|()| "invalid main type".to_owned())?;
-
-    // assert_eq!(value.len(), 1);
-    // Ok(Value::Func(value.into()))
-}
-
-#[cfg(test)]
-pub fn check_expr(expr: &Spanned<Expr>) -> Result<FuncValue, Box<dyn std::error::Error>> {
-    let mut ctx = Context::new(SourceMap::empty());
-
-    let (_, value) = ctx.check_expr(expr)?;
-
-    Ok(FuncValue {
-        name: None,
-        cmds: value.into(),
-        env: ImSymbolMap::default(),
-    })
+    let (_, cmds) = ctx.check_expr(expr)?;
+    Ok(FuncValue::new(cmds))
 }
 
 #[derive(Debug)]
@@ -327,27 +287,30 @@ impl Context {
     }
 
     fn check_import(&mut self, path: &str) -> Result<(Scheme, Vec<Command>), Error> {
-        match self.resolve_import(path) {
-            Ok(expr) => self.check_expr(&expr),
-            Err(err) => Err(Error::ImportError(path.to_owned(), err)),
+        let (file, expr) = match self.resolve_import(path) {
+            Ok(expr) => expr,
+            Err(err) => return Err(Error::ImportError(path.to_owned(), err)),
+        };
+        let result = self.check_expr(&expr);
+        if let Some(_) = file {
+            self.source.end_file();
         }
+        result
     }
 
-    fn resolve_import(&mut self, path: &str) -> Result<Spanned<Expr>, Box<dyn std::error::Error>> {
-        let expr = if path == "std" {
-            Expr::parse(include_str!("../../std/std.sl")).expect("syntax error in std")
+    fn resolve_import(
+        &mut self,
+        path: &str,
+    ) -> Result<(Option<FileId>, Spanned<Expr>), Box<dyn std::error::Error>> {
+        Ok(if path == "std" {
+            (
+                None,
+                Expr::parse(include_str!("../../std/std.sl")).expect("syntax error in std"),
+            )
         } else {
-            unimplemented!()
-            // let mut path: PathBuf = path.split('.').collect();
-            // if path.is_dir() {
-            //     path.join("mod");
-            // }
-            // path.set_extension("sl");
-
-            // let data = fs::read_to_string(path)?;
-            // Expr::from_str(&data)?
-        };
-        Ok(expr)
+            let (file, expr) = self.source.parse_file(path)?;
+            (Some(file), expr)
+        })
     }
 
     fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), Error> {

@@ -1,16 +1,16 @@
 use std::error::Error;
-use std::fs::read_to_string;
 use std::path::Path;
 
 use proptest::proptest;
 
-use crate::check::check_expr;
+use crate::check::check;
 use crate::rt::{self, Value};
 use crate::syntax::tests::arb_expr;
+use crate::syntax::SourceMap;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
-    let input = read_to_string(Path::new("data").join(file).with_extension("sl"))?;
-    crate::run_source(input, rt::Opts::default())
+    let file = Path::new("data").join(file).with_extension("sl");
+    crate::run_file(&file, rt::Opts::default())
 }
 
 macro_rules! test_file {
@@ -73,6 +73,7 @@ test_file!(
     string_escape,
     Ok(Value::String("hel\\lo \"world\"".to_owned()))
 );
+test_file!(import, Ok(Value::Bool(true)));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
@@ -80,7 +81,7 @@ test_file!(pr2, Ok(Value::Bool(true)));
 proptest! {
     #[test]
     fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok(func) = check_expr(&expr) {
+        if let Ok(func) = check(SourceMap::new(), &expr) {
             rt::run(func, rt::Opts {
                 max_stack: 1024,
                 max_ops: Some(1_048_576),

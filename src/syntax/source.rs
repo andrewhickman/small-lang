@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 
 use codespan::{FileId, Files, Location};
-use lalrpop_util::ParseError;
 
 use crate::syntax::{Expr, Spanned};
 
@@ -10,56 +9,62 @@ use crate::syntax::{Expr, Spanned};
 pub struct SourceMap {
     files: Files,
     dir: Vec<PathBuf>,
-    root: FileId,
 }
 
 #[derive(Debug)]
 pub struct SourceLocation(Location);
 
 impl SourceMap {
-    #[cfg(test)]
-    pub fn empty() -> Self {
-        SourceMap::from_source(String::new())
-    }
-
-    pub fn new(root: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let (name, dir) = match (root.file_name(), root.parent()) {
-            (Some(name), Some(dir)) => (name.to_string_lossy(), dir.to_owned()),
-            _ => return Err("invalid path".into()),
-        };
-        let source = fs::read_to_string(root)?;
-
-        let mut files = Files::new();
-        let root = files.add(name, source);
-        Ok(SourceMap {
-            files,
-            dir: vec![dir],
-            root,
-        })
-    }
-
-    pub fn from_source(source: String) -> Self {
-        let mut files = Files::new();
-        let root = files.add("root", source);
+    pub fn new() -> Self {
         SourceMap {
-            files,
+            files: Files::new(),
             dir: vec![],
-            root,
         }
     }
 
-    pub fn parse_root(
-        &self,
-    ) -> Result<Spanned<Expr>, ParseError<SourceLocation, String, &'static str>> {
-        Expr::parse(self.files.source(self.root)).map_err(|err| {
-            err.map_location(|idx| SourceLocation(self.files.location(self.root, idx).unwrap()))
+    pub fn parse_file(
+        &mut self,
+        path: impl AsRef<Path>,
+    ) -> Result<(FileId, Spanned<Expr>), Box<dyn std::error::Error>> {
+        let path = match self.dir.last() {
+            Some(dir) => dir.join(path),
+            None => path.as_ref().to_owned(),
+        };
+        match path.parent() {
+            Some(dir) => self.dir.push(dir.to_owned()),
+            None => return Err("invalid path".into()),
+        }
+        let source = fs::read_to_string(&path)?;
+        self.add_file(path.to_string_lossy(), source)
+    }
+
+    pub fn parse_source(
+        &mut self,
+        source: String,
+    ) -> Result<(FileId, Spanned<Expr>), Box<dyn std::error::Error>> {
+        self.add_file("root", source)
+    }
+
+    fn add_file(
+        &mut self,
+        name: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Result<(FileId, Spanned<Expr>), Box<dyn std::error::Error>> {
+        let file = self.files.add(name, source);
+        let expr = Expr::parse(self.files.source(file)).map_err(|err| {
+            err.map_location(|idx| SourceLocation(self.files.location(file, idx).unwrap()))
                 .map_token(|tok| tok.to_string())
-        })
+        })?;
+        Ok((file, expr))
+    }
+
+    pub fn end_file(&mut self) {
+        self.dir.pop();
     }
 }
 
 impl fmt::Display for SourceLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.0.line, self.0.column)
+        write!(f, "{}:{}", self.0.line.number(), self.0.column.number())
     }
 }

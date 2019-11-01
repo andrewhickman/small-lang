@@ -92,6 +92,16 @@ struct Runtime {
     opts: Opts,
 }
 
+impl FuncValue {
+    pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
+        FuncValue {
+            name: None,
+            cmds: cmds.into(),
+            env: ImSymbolMap::default(),
+        }
+    }
+}
+
 impl Value {
     pub fn unwrap_bool(self) -> bool {
         match self {
