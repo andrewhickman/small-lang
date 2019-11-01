@@ -89,13 +89,13 @@ impl Context {
         }
     }
 
-    fn check_var(&mut self, symbol: Symbol) -> Result<(Scheme, Vec<Command>), Error> {
-        let cmd = Command::Load(symbol);
-        if let Some(scheme) = self.get_var(symbol) {
+    fn check_var(&mut self, var: Symbol) -> Result<(Scheme, Vec<Command>), Error> {
+        let cmd = Command::Load { var };
+        if let Some(scheme) = self.get_var(var) {
             return Ok((scheme, vec![cmd]));
         }
 
-        Err(Error::UndefinedVar(symbol))
+        Err(Error::UndefinedVar(var))
     }
 
     fn check_func(
@@ -117,9 +117,12 @@ impl Context {
         body_ty.env.remove(&func.arg.val);
         let func_ty = self.build_func(Polarity::Pos, pair.neg, body_ty.expr);
 
-        body_cmds.insert(0, Command::Store(func.arg.val));
+        body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
-        let cmd = Command::Capture(name, body_cmds.into());
+        let cmd = Command::Capture {
+            name,
+            cmds: body_cmds.into(),
+        };
 
         Ok((
             Scheme {
@@ -158,7 +161,9 @@ impl Context {
         self.pop_var();
 
         let mut cmds = val_cmds;
-        cmds.push(Command::Store(let_expr.name.val));
+        cmds.push(Command::Store {
+            var: let_expr.name.val,
+        });
         cmds.extend(body_cmds);
         cmds.push(Command::End);
 
@@ -191,7 +196,7 @@ impl Context {
         self.pop_var();
 
         let mut cmds = func_cmds;
-        cmds.push(Command::Store(rec.name.val));
+        cmds.push(Command::Store { var: rec.name.val });
         cmds.extend(body_cmds);
         cmds.push(Command::End);
 
@@ -224,9 +229,13 @@ impl Context {
         let env = self.meet_envs([cond_ty.env, cons_ty.env, alt_ty.env].iter().cloned());
 
         let mut cmds = cond_cmds;
-        cmds.push(Command::Test(alt_cmds.len() + 1));
+        cmds.push(Command::Test {
+            jump_offset: alt_cmds.len() + 1,
+        });
         cmds.extend(alt_cmds);
-        cmds.push(Command::Jump(cons_cmds.len()));
+        cmds.push(Command::Jump {
+            jump_offset: cons_cmds.len(),
+        });
         cmds.extend(cons_cmds);
 
         Ok((
@@ -251,10 +260,12 @@ impl Context {
             .collect::<Result<Vec<(Symbol, Scheme, Vec<Command>)>, Error>>()?;
 
         let cmds = ids.iter_mut().fold(
-            vec![Command::Push(Value::Record(ImSymbolMap::default()))],
-            |mut cmds, (symbol, _, val_cmds)| {
+            vec![Command::Push {
+                value: Value::Record(ImSymbolMap::default()),
+            }],
+            |mut cmds, &mut (field, _, ref mut val_cmds)| {
                 cmds.append(val_cmds);
-                cmds.push(Command::Set(*symbol));
+                cmds.push(Command::Set { field });
                 cmds
             },
         );
@@ -272,7 +283,7 @@ impl Context {
         let (expr_ty, expr_cmds) = self.check_expr(&enum_expr.expr)?;
 
         let mut cmds = expr_cmds;
-        cmds.push(Command::WrapEnum(enum_expr.tag));
+        cmds.push(Command::WrapEnum { tag: enum_expr.tag });
 
         let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag, expr_ty.expr);
 
@@ -293,7 +304,9 @@ impl Context {
         self.auto.biunify(expr_ty.expr, record)?;
 
         let mut cmds = expr_cmds;
-        cmds.push(Command::Get(proj.field.val));
+        cmds.push(Command::Get {
+            field: proj.field.val,
+        });
 
         Ok((
             Scheme {
@@ -333,19 +346,25 @@ impl Context {
 
     fn check_bool(&mut self, val: bool) -> Result<(Scheme, Vec<Command>), Error> {
         let expr = self.build_bool(Polarity::Pos);
-        let cmd = vec![Command::Push(Value::Bool(val))];
+        let cmd = vec![Command::Push {
+            value: Value::Bool(val),
+        }];
         Ok((Scheme::empty(expr), cmd))
     }
 
     fn check_int(&mut self, val: i64) -> Result<(Scheme, Vec<Command>), Error> {
         let expr = self.build_int(Polarity::Pos);
-        let cmd = vec![Command::Push(Value::Int(val))];
+        let cmd = vec![Command::Push {
+            value: Value::Int(val),
+        }];
         Ok((Scheme::empty(expr), cmd))
     }
 
     fn check_string(&mut self, val: String) -> Result<(Scheme, Vec<Command>), Error> {
         let expr = self.build_string(Polarity::Pos);
-        let cmd = vec![Command::Push(Value::String(val))];
+        let cmd = vec![Command::Push {
+            value: Value::String(val),
+        }];
         Ok((Scheme::empty(expr), cmd))
     }
 

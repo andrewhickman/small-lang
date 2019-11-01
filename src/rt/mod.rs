@@ -73,18 +73,37 @@ pub struct EnumValue {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(tag = "op", content = "value", rename_all = "kebab-case")]
+#[serde(tag = "op", rename_all = "kebab-case")]
 pub enum Command {
-    Push(Value),
-    Capture(Option<Symbol>, Rc<[Command]>),
+    Push {
+        value: Value,
+    },
+    Capture {
+        name: Option<Symbol>,
+        cmds: Rc<[Command]>,
+    },
     Call,
-    Test(usize),
-    Jump(usize),
-    Set(Symbol),
-    Get(Symbol),
-    Load(Symbol),
-    Store(Symbol),
-    WrapEnum(Symbol),
+    Test {
+        jump_offset: usize,
+    },
+    Jump {
+        jump_offset: usize,
+    },
+    Set {
+        field: Symbol,
+    },
+    Get {
+        field: Symbol,
+    },
+    Load {
+        var: Symbol,
+    },
+    Store {
+        var: Symbol,
+    },
+    WrapEnum {
+        tag: Symbol,
+    },
     End,
 }
 
@@ -166,11 +185,11 @@ impl Command {
         }
 
         Ok(match *self {
-            Command::Push(ref val) => {
-                ctx.stack.push(val.clone());
+            Command::Push { ref value } => {
+                ctx.stack.push(value.clone());
                 None
             }
-            Command::Capture(name, ref cmds) => {
+            Command::Capture { name, ref cmds } => {
                 let env = ctx.vars().clone();
                 ctx.stack.push(Value::Func(FuncValue {
                     name,
@@ -196,38 +215,38 @@ impl Command {
                 }
                 _ => panic!("expected func"),
             },
-            Command::Test(offset) => {
+            Command::Test { jump_offset } => {
                 if ctx.stack.pop().unwrap().unwrap_bool() {
-                    Some(offset)
+                    Some(jump_offset)
                 } else {
                     None
                 }
             }
-            Command::Jump(offset) => Some(offset),
-            Command::Set(label) => {
+            Command::Jump { jump_offset } => Some(jump_offset),
+            Command::Set { field } => {
                 let val = ctx.stack.pop().unwrap();
                 let mut rec = ctx.stack.pop().unwrap().unwrap_record();
-                rec.insert(label, val);
+                rec.insert(field, val);
                 ctx.stack.push(Value::Record(rec));
                 None
             }
-            Command::Get(label) => {
+            Command::Get { field } => {
                 let rec = ctx.stack.pop().unwrap().unwrap_record();
-                let val = rec[&label].clone();
+                let val = rec[&field].clone();
                 ctx.stack.push(val);
                 None
             }
-            Command::Load(symbol) => {
-                let val = ctx.vars()[&symbol].clone();
+            Command::Load { var } => {
+                let val = ctx.vars()[&var].clone();
                 ctx.stack.push(val);
                 None
             }
-            Command::Store(symbol) => {
+            Command::Store { var } => {
                 let val = ctx.stack.pop().unwrap();
-                ctx.push_vars(ImSymbolMap::default().update(symbol, val))?;
+                ctx.push_vars(ImSymbolMap::default().update(var, val))?;
                 None
             }
-            Command::WrapEnum(tag) => {
+            Command::WrapEnum { tag } => {
                 let val = ctx.stack.pop().unwrap();
                 let variant = Value::Enum(EnumValue {
                     tag,
