@@ -24,6 +24,7 @@ pub enum Expr {
     String(String),
     Var(Symbol),
     Record(SymbolMap<Spanned<Expr>>),
+    Enum(Box<EnumExpr>),
     Func(Box<FuncExpr>),
     Call(Box<CallExpr>),
     Let(Box<LetExpr>),
@@ -76,6 +77,12 @@ pub struct IfExpr {
 pub struct ProjExpr {
     pub expr: Spanned<Expr>,
     pub field: Spanned<Symbol>,
+}
+
+#[derive(Debug)]
+pub struct EnumExpr {
+    pub tag: Symbol,
+    pub expr: Spanned<Expr>,
 }
 
 impl Expr {

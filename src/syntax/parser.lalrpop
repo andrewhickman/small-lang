@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use codespan::{Span, RawIndex};
 
-use crate::syntax::{Expr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr, Spanned};
+use crate::syntax::{Expr, EnumExpr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr, Spanned};
 use crate::syntax::symbol::{Symbol, Interner};
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
@@ -59,12 +59,16 @@ SimpleExpr: Expr = {
     Symbol => Expr::Var(<>),
     Int => Expr::Int(<>),
     String => Expr::String(<>),
-    "{" <fields:Comma<RecordEntry>> "}" => Expr::Record(fields.into_iter().collect()),
+    "{" <fields:Comma<Entry>> "}" => Expr::Record(fields.into_iter().collect()),
+    "[" <entry:Entry> "]" => Expr::Enum(Box::new(EnumExpr {
+        tag: entry.0,
+        expr: entry.1,
+    })),
     ProjExpr => Expr::Proj(Box::new(<>)),
     "(" <Expr> ")",
 }
 
-RecordEntry: (Symbol, Spanned<Expr>) = {
+Entry: (Symbol, Spanned<Expr>) = {
     <s:Symbol> ":" <e:Spanned<Expr>> => (s, e),
     <s:Spanned<Symbol>> => (s.val, Spanned {
         val: Expr::Var(s.val),

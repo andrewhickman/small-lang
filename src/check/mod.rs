@@ -11,8 +11,8 @@ use mlsub::Polarity;
 use crate::check::ty::Constructor;
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
-    CallExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, ProjExpr, RecExpr, SourceMap, Spanned,
-    Symbol, SymbolMap,
+    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, ProjExpr, RecExpr, SourceMap,
+    Spanned, Symbol, SymbolMap,
 };
 
 pub fn check(
@@ -83,6 +83,7 @@ impl Context {
             Expr::String(val) => self.check_string(val.clone()),
             Expr::If(if_expr) => self.check_if(if_expr),
             Expr::Record(map) => self.check_record(map),
+            Expr::Enum(enum_expr) => self.check_enum(enum_expr),
             Expr::Proj(proj) => self.check_proj(proj),
             Expr::Import(path) => self.check_import(path),
         }
@@ -267,6 +268,23 @@ impl Context {
         Ok((Scheme { expr, env }, cmds))
     }
 
+    fn check_enum(&mut self, enum_expr: &EnumExpr) -> Result<(Scheme, Vec<Command>), Error> {
+        let (expr_ty, expr_cmds) = self.check_expr(&enum_expr.expr)?;
+
+        let mut cmds = expr_cmds;
+        cmds.push(Command::WrapEnum(enum_expr.tag));
+
+        let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag, expr_ty.expr);
+
+        Ok((
+            Scheme {
+                expr: enum_ty,
+                env: expr_ty.env,
+            },
+            cmds,
+        ))
+    }
+
     fn check_proj(&mut self, proj: &ProjExpr) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr_ty, expr_cmds) = self.check_expr(&proj.expr)?;
 
@@ -397,6 +415,13 @@ impl Context {
                     .map(|(sym, id)| (sym, StateSet::new(id)))
                     .collect(),
             ),
+        )
+    }
+
+    fn build_enum_variant(&mut self, pol: Polarity, field: Symbol, expr: StateId) -> StateId {
+        self.auto.build_constructed(
+            pol,
+            Constructor::Enum(once((field, StateSet::new(expr))).collect()),
         )
     }
 }

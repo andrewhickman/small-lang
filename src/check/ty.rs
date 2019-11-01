@@ -15,6 +15,7 @@ pub enum Constructor {
     String,
     Func(StateSet, StateSet),
     Record(OrdMap<Symbol, StateSet>),
+    Enum(OrdMap<Symbol, StateSet>),
 }
 
 impl mlsub::Constructor for Constructor {
@@ -49,6 +50,20 @@ impl mlsub::Constructor for Constructor {
                     })
                 }
             },
+            (Constructor::Enum(ref mut lhs), Constructor::Enum(ref rhs)) => match pol {
+                Polarity::Neg => {
+                    *lhs = lhs.clone().intersection_with(rhs.clone(), |mut l, r| {
+                        l.union(&r);
+                        l
+                    })
+                }
+                Polarity::Pos => {
+                    *lhs = lhs.clone().union_with(rhs.clone(), |mut l, r| {
+                        l.union(&r);
+                        l
+                    })
+                }
+            },
             _ => unreachable!(),
         }
     }
@@ -58,6 +73,11 @@ impl mlsub::Constructor for Constructor {
             Constructor::Bool | Constructor::Int | Constructor::String => vec![],
             Constructor::Func(d, r) => vec![(Label::Domain, d.clone()), (Label::Range, r.clone())],
             Constructor::Record(fields) => fields
+                .clone()
+                .into_iter()
+                .map(|(label, set)| (Label::Label(label), set))
+                .collect(),
+            Constructor::Enum(fields) => fields
                 .clone()
                 .into_iter()
                 .map(|(label, set)| (Label::Label(label), set))
@@ -80,6 +100,12 @@ impl mlsub::Constructor for Constructor {
                     .map(|(label, set)| (label, mapper(Label::Label(label), set)))
                     .collect(),
             ),
+            Constructor::Enum(fields) => Constructor::Enum(
+                fields
+                    .into_iter()
+                    .map(|(label, set)| (label, mapper(Label::Label(label), set)))
+                    .collect(),
+            ),
             scalar => scalar,
         }
     }
@@ -93,6 +119,9 @@ impl PartialOrd for Constructor {
             (Constructor::Func(..), Constructor::Func(..)) => Some(Ordering::Equal),
             (Constructor::Record(ref lhs), Constructor::Record(ref rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
+            }
+            (Constructor::Enum(ref lhs), Constructor::Enum(ref rhs)) => {
+                iter_set::cmp(lhs.keys(), rhs.keys())
             }
             _ => None,
         }

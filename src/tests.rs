@@ -1,12 +1,13 @@
 use std::error::Error;
 use std::path::Path;
+use std::rc::Rc;
 
 use proptest::proptest;
 
 use crate::check::check;
-use crate::rt::{self, Value};
+use crate::rt::{self, EnumValue, Value};
 use crate::syntax::tests::arb_expr;
-use crate::syntax::SourceMap;
+use crate::syntax::{SourceMap, Symbol};
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let file = Path::new("data").join(file).with_extension("sl");
@@ -74,6 +75,13 @@ test_file!(
     Ok(Value::String("hel\\lo \"world\"".to_owned()))
 );
 test_file!(import, Ok(Value::Bool(true)));
+test_file!(
+    enum_variant,
+    Ok(Value::Enum(EnumValue {
+        tag: Symbol::new("a"),
+        value: Rc::new(Value::Bool(true)),
+    }))
+);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

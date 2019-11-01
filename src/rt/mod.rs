@@ -44,6 +44,7 @@ pub enum Value {
     Int(i64),
     String(String),
     Record(ImSymbolMap<Value>),
+    Enum(EnumValue),
     Func(FuncValue),
     Builtin {
         #[serde(rename = "$builtin")]
@@ -63,6 +64,14 @@ pub struct FuncValue {
     pub env: ImSymbolMap<Value>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct EnumValue {
+    #[serde(rename = "$tag")]
+    pub tag: Symbol,
+    #[serde(rename = "$value")]
+    pub value: Rc<Value>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "op", content = "value", rename_all = "kebab-case")]
 pub enum Command {
@@ -75,6 +84,7 @@ pub enum Command {
     Get(Symbol),
     Load(Symbol),
     Store(Symbol),
+    WrapEnum(Symbol),
     End,
 }
 
@@ -217,6 +227,15 @@ impl Command {
                 ctx.push_vars(ImSymbolMap::default().update(symbol, val))?;
                 None
             }
+            Command::WrapEnum(tag) => {
+                let val = ctx.stack.pop().unwrap();
+                let variant = Value::Enum(EnumValue {
+                    tag,
+                    value: Rc::new(val),
+                });
+                ctx.stack.push(variant);
+                None
+            }
             Command::End => {
                 ctx.pop_vars();
                 None
@@ -251,6 +270,7 @@ impl PartialEq for Value {
             (Value::Int(l), Value::Int(r)) => l == r,
             (Value::String(l), Value::String(r)) => l == r,
             (Value::Record(l), Value::Record(r)) => l == r,
+            (Value::Enum(l), Value::Enum(r)) => l == r,
             (Value::Func(l), Value::Func(r)) => Rc::ptr_eq(&l.cmds, &r.cmds),
             (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,
             _ => false,
