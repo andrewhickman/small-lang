@@ -2,7 +2,11 @@ pub mod symbol;
 #[cfg(test)]
 pub mod tests;
 
-lalrpop_mod!(parser, "/syntax/parser.rs");
+lalrpop_mod!(
+    #[allow(clippy::all)]
+    parser,
+    "/syntax/parser.rs"
+);
 mod source;
 
 pub use source::SourceMap;

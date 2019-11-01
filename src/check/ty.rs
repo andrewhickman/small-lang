@@ -77,7 +77,7 @@ impl mlsub::Constructor for Constructor {
             Constructor::Record(fields) => Constructor::Record(
                 fields
                     .into_iter()
-                    .map(|(label, set)| (label.clone(), mapper(Label::Label(label), set)))
+                    .map(|(label, set)| (label, mapper(Label::Label(label), set)))
                     .collect(),
             ),
             scalar => scalar,

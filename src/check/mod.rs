@@ -27,13 +27,13 @@ pub fn check(
 #[derive(Debug)]
 enum Error {
     UndefinedVar(Symbol),
-    TypeError,
-    ImportError(String, Box<dyn std::error::Error>),
+    TypeCheck,
+    Import(String, Box<dyn std::error::Error>),
 }
 
 impl From<()> for Error {
     fn from((): ()) -> Self {
-        Error::TypeError
+        Error::TypeCheck
     }
 }
 
@@ -289,10 +289,10 @@ impl Context {
     fn check_import(&mut self, path: &str) -> Result<(Scheme, Vec<Command>), Error> {
         let (file, expr) = match self.resolve_import(path) {
             Ok(expr) => expr,
-            Err(err) => return Err(Error::ImportError(path.to_owned(), err)),
+            Err(err) => return Err(Error::Import(path.to_owned(), err)),
         };
         let result = self.check_expr(&expr);
-        if let Some(_) = file {
+        if file.is_some() {
             self.source.end_file();
         }
         result
@@ -404,11 +404,9 @@ impl Context {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::TypeError => "inference error".fmt(f),
+            Error::TypeCheck => "inference error".fmt(f),
             Error::UndefinedVar(symbol) => write!(f, "undefined var `{}`", symbol),
-            Error::ImportError(path, err) => {
-                write!(f, "failed to import module `{}`: `{}`", path, err)
-            }
+            Error::Import(path, err) => write!(f, "failed to import module `{}`: `{}`", path, err),
         }
     }
 }
