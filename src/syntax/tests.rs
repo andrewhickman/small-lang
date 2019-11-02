@@ -1,6 +1,7 @@
-use proptest::prelude::*;
+use std::fmt::Debug;
 
 use codespan::Span;
+use proptest::prelude::*;
 
 use crate::syntax::*;
 
@@ -53,6 +54,13 @@ fn arb_expr_impl() -> impl Strategy<Value = Spanned<Expr>> {
                 .prop_map(|(cond, cons, alt)| Expr::If(Box::new(IfExpr { cond, cons, alt }))),
             (expr.clone(), arb_symbol().prop_map(spanned))
                 .prop_map(|(expr, field)| Expr::Proj(Box::new(ProjExpr { expr, field }))),
+            (arb_symbol(), expr.clone())
+                .prop_map(|(tag, expr)| Expr::Enum(Box::new(EnumExpr { tag, expr }))),
+            (
+                expr.clone(),
+                arb_symbol_map(arb_match_case(expr.clone()).boxed())
+            )
+                .prop_map(|(expr, cases)| Expr::Match(Box::new(MatchExpr { expr, cases }))),
         ]
         .prop_map(spanned)
     })
@@ -62,10 +70,16 @@ fn arb_func(expr: BoxedStrategy<Spanned<Expr>>) -> impl Strategy<Value = FuncExp
     (arb_symbol().prop_map(spanned), expr).prop_map(|(arg, body)| FuncExpr { arg, body })
 }
 
-fn arb_symbol_map(
+fn arb_match_case(
     expr: BoxedStrategy<Spanned<Expr>>,
-) -> impl Strategy<Value = SymbolMap<Spanned<Expr>>> {
-    prop::collection::hash_map(arb_symbol(), expr, 0..4).prop_map(|map| map.into_iter().collect())
+) -> impl Strategy<Value = Spanned<MatchExprCase>> {
+    (prop::option::of(arb_symbol().prop_map(spanned)), expr)
+        .prop_map(|(name, expr)| MatchExprCase { name, expr })
+        .prop_map(spanned)
+}
+
+fn arb_symbol_map<T: Debug>(strat: BoxedStrategy<T>) -> impl Strategy<Value = SymbolMap<T>> {
+    prop::collection::hash_map(arb_symbol(), strat, 0..4).prop_map(|map| map.into_iter().collect())
 }
 
 fn arb_symbol() -> impl Strategy<Value = Symbol> {

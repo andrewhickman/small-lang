@@ -31,10 +31,11 @@ pub enum Expr {
     Rec(Box<RecExpr>),
     If(Box<IfExpr>),
     Proj(Box<ProjExpr>),
+    Match(Box<MatchExpr>),
     Import(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Spanned<T> {
     pub val: T,
     pub span: Span,
@@ -77,6 +78,18 @@ pub struct IfExpr {
 pub struct ProjExpr {
     pub expr: Spanned<Expr>,
     pub field: Spanned<Symbol>,
+}
+
+#[derive(Debug)]
+pub struct MatchExpr {
+    pub expr: Spanned<Expr>,
+    pub cases: SymbolMap<Spanned<MatchExprCase>>,
+}
+
+#[derive(Debug)]
+pub struct MatchExprCase {
+    pub name: Option<Spanned<Symbol>>,
+    pub expr: Spanned<Expr>,
 }
 
 #[derive(Debug)]

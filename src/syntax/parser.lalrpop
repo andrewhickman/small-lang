@@ -3,7 +3,9 @@ use std::str::FromStr;
 
 use codespan::{Span, RawIndex};
 
-use crate::syntax::{Expr, EnumExpr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr, Spanned};
+use crate::syntax::{Expr, EnumExpr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr,
+    MatchExpr, MatchExprCase, Spanned
+};
 use crate::syntax::symbol::{Symbol, Interner};
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
@@ -16,6 +18,7 @@ Expr: Expr = {
     LetExpr => Expr::Let(Box::new(<>)),
     RecExpr => Expr::Rec(Box::new(<>)),
     IfExpr => Expr::If(Box::new(<>)),
+    MatchExpr => Expr::Match(Box::new(<>)),
     ImportExpr,
     SimpleExpr,
 }
@@ -47,6 +50,24 @@ IfExpr: IfExpr = {
 
 ProjExpr: ProjExpr = {
     <expr:Spanned<SimpleExpr>> "." <field:Spanned<Symbol>> => ProjExpr { <> },
+}
+
+MatchExpr: MatchExpr = {
+    "match" <expr:Spanned<Expr>> "with" "[" <cases:Comma<Spanned<MatchCase>>> "]" => MatchExpr {
+        expr, cases: cases.into_iter().map(|spanned| (spanned.val.0, Spanned {
+            val: spanned.val.1,
+            span: spanned.span,
+        })).collect(),
+    }
+}
+
+MatchCase: (Symbol, MatchExprCase) = {
+    <tag:Symbol> "=>" <expr:Spanned<Expr>> => (tag, MatchExprCase {
+        name: None, expr,
+    }),
+    <tag:Symbol> ":" <name:Spanned<Symbol>> "=>" <expr:Spanned<Expr>> => (tag, MatchExprCase {
+        name: Some(name), expr,
+    }),
 }
 
 ImportExpr: Expr = {

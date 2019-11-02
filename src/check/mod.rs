@@ -11,8 +11,8 @@ use mlsub::Polarity;
 use crate::check::ty::Constructor;
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
-    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, ProjExpr, RecExpr, SourceMap,
-    Spanned, Symbol, SymbolMap,
+    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
+    SourceMap, Spanned, Symbol, SymbolMap,
 };
 
 pub fn check(
@@ -69,6 +69,7 @@ impl Context {
             Expr::If(if_expr) => self.check_if(if_expr),
             Expr::Record(map) => self.check_record(map),
             Expr::Enum(enum_expr) => self.check_enum(enum_expr),
+            Expr::Match(match_expr) => self.check_match(match_expr),
             Expr::Proj(proj) => self.check_proj(proj),
             Expr::Import(path) => self.check_import(path),
         }
@@ -122,7 +123,7 @@ impl Context {
     fn check_let(&mut self, let_expr: &LetExpr) -> Result<(StateId, Vec<Command>), Error> {
         let (val_ty, val_cmds) = self.check_expr(&let_expr.val)?;
 
-        self.push_var(let_expr.name.val, val_ty.clone());
+        self.push_var(let_expr.name.val, val_ty);
         let (body_ty, body_cmds) = self.check_expr(&let_expr.body)?;
         self.pop_var();
 
@@ -144,7 +145,7 @@ impl Context {
 
         self.auto.biunify(func_ty, pair.neg)?;
 
-        self.push_var(rec.name.val, func_ty.clone());
+        self.push_var(rec.name.val, func_ty);
         let (body_ty, body_cmds) = self.check_expr(&rec.body)?;
         self.pop_var();
 
@@ -187,7 +188,7 @@ impl Context {
         &mut self,
         rec: &SymbolMap<Spanned<Expr>>,
     ) -> Result<(StateId, Vec<Command>), Error> {
-        let mut ids = rec
+        let fields = rec
             .iter()
             .map(|(symbol, expr)| {
                 let (expr, cmds) = self.check_expr(expr)?;
@@ -195,19 +196,21 @@ impl Context {
             })
             .collect::<Result<Vec<(Symbol, StateId, Vec<Command>)>, Error>>()?;
 
-        let cmds = ids.iter_mut().fold(
+        let record_ty = self.build_record(
+            Polarity::Pos,
+            fields.iter().map(|&(field, id, _)| (field, id)),
+        );
+
+        let cmds = fields.into_iter().fold(
             vec![Command::Push {
                 value: Value::Record(ImSymbolMap::default()),
             }],
-            |mut cmds, &mut (field, _, ref mut val_cmds)| {
-                cmds.append(val_cmds);
+            |mut cmds, (field, _, val_cmds)| {
+                cmds.extend(val_cmds);
                 cmds.push(Command::Set { field });
                 cmds
             },
         );
-
-        let record_ty =
-            self.build_record(Polarity::Pos, ids.iter().map(|&(field, id, _)| (field, id)));
 
         Ok((record_ty, cmds))
     }
@@ -221,6 +224,62 @@ impl Context {
         let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag, expr_ty);
 
         Ok((enum_ty, cmds))
+    }
+
+    fn check_match(&mut self, match_expr: &MatchExpr) -> Result<(StateId, Vec<Command>), Error> {
+        let (expr_ty, expr_cmds) = self.check_expr(&match_expr.expr)?;
+
+        let result_pair = self.auto.build_var();
+
+        let cases = match_expr
+            .cases
+            .iter()
+            .map(|(&tag, case)| {
+                let name = case.val.name.map(|name| name.val).unwrap_or(tag);
+                let case_var = self.auto.build_var();
+
+                self.push_var(name, case_var.pos);
+                let (case_ty, mut case_cmds) = self.check_expr(&case.val.expr)?;
+                self.pop_var();
+
+                case_cmds.insert(0, Command::Store { var: name });
+                Ok((tag, case_var.neg, case_ty, case_cmds))
+            })
+            .collect::<Result<Vec<(Symbol, StateId, StateId, Vec<Command>)>, Error>>()?;
+        let enum_ty = self.build_enum(
+            Polarity::Neg,
+            cases.iter().map(|&(tag, in_ty, _, _)| (tag, in_ty)),
+        );
+
+        self.auto.biunify(expr_ty, enum_ty)?;
+        self.auto.biunify_all(
+            cases
+                .iter()
+                .map(|&(_, _, out_ty, _)| (out_ty, result_pair.neg)),
+        )?;
+
+        let (jump_offsets, mut cmds_total_len) = cases.iter().fold(
+            (ImSymbolMap::default(), 0),
+            |(jump_offsets, cmds_len), &(tag, _, _, ref val_cmds)| {
+                (
+                    jump_offsets.update(tag, cmds_len),
+                    cmds_len + val_cmds.len() + 1,
+                )
+            },
+        );
+
+        let mut cmds = expr_cmds;
+        cmds.push(Command::Match { jump_offsets });
+        cmds_total_len += cmds.len();
+
+        for (_, _, _, val_cmds) in cases {
+            cmds.extend(val_cmds);
+            cmds.push(Command::Jump {
+                jump_offset: cmds_total_len - cmds.len() - 1,
+            });
+        }
+
+        Ok((result_pair.pos, cmds))
     }
 
     fn check_proj(&mut self, proj: &ProjExpr) -> Result<(StateId, Vec<Command>), Error> {
@@ -340,11 +399,22 @@ impl Context {
         )
     }
 
-    fn build_enum_variant(&mut self, pol: Polarity, field: Symbol, expr: StateId) -> StateId {
+    fn build_enum<I>(&mut self, pol: Polarity, iter: I) -> StateId
+    where
+        I: IntoIterator<Item = (Symbol, StateId)>,
+    {
         self.auto.build_constructed(
             pol,
-            Constructor::Enum(once((field, StateSet::new(expr))).collect()),
+            Constructor::Enum(
+                iter.into_iter()
+                    .map(|(tag, ty)| (tag, StateSet::new(ty)))
+                    .collect(),
+            ),
         )
+    }
+
+    fn build_enum_variant(&mut self, pol: Polarity, field: Symbol, expr: StateId) -> StateId {
+        self.build_enum(pol, once((field, expr)))
     }
 }
 

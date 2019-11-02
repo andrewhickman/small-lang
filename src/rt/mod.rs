@@ -15,7 +15,6 @@ pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
         opts,
     };
     Command::Call.exec(&mut ctx)?;
-    assert_eq!(ctx.stack.len(), 1);
     Ok(ctx.stack.into_iter().next().unwrap())
 }
 
@@ -69,7 +68,7 @@ pub struct EnumValue {
     #[serde(rename = "$tag")]
     pub tag: Symbol,
     #[serde(rename = "$value")]
-    pub value: Rc<Value>,
+    pub value: Box<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -85,6 +84,9 @@ pub enum Command {
     Call,
     Test {
         jump_offset: usize,
+    },
+    Match {
+        jump_offsets: ImSymbolMap<usize>,
     },
     Jump {
         jump_offset: usize,
@@ -159,6 +161,13 @@ impl Value {
             _ => panic!("expected record"),
         }
     }
+
+    pub fn unwrap_enum_variant(self) -> EnumValue {
+        match self {
+            Value::Enum(e) => e,
+            _ => panic!("expected enum variant"),
+        }
+    }
 }
 
 impl FuncValue {
@@ -222,6 +231,11 @@ impl Command {
                     None
                 }
             }
+            Command::Match { ref jump_offsets } => {
+                let variant = ctx.stack.pop().unwrap().unwrap_enum_variant();
+                ctx.stack.push(*variant.value);
+                Some(jump_offsets[&variant.tag])
+            }
             Command::Jump { jump_offset } => Some(jump_offset),
             Command::Set { field } => {
                 let val = ctx.stack.pop().unwrap();
@@ -250,7 +264,7 @@ impl Command {
                 let val = ctx.stack.pop().unwrap();
                 let variant = Value::Enum(EnumValue {
                     tag,
-                    value: Rc::new(val),
+                    value: Box::new(val),
                 });
                 ctx.stack.push(variant);
                 None

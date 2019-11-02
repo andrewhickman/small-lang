@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::path::Path;
-use std::rc::Rc;
 
 use proptest::proptest;
 
@@ -79,9 +78,12 @@ test_file!(
     enum_variant,
     Ok(Value::Enum(EnumValue {
         tag: Symbol::new("a"),
-        value: Rc::new(Value::Bool(true)),
+        value: Box::new(Value::Bool(true)),
     }))
 );
+test_file!(match_simple, Ok(Value::Int(1)));
+test_file!(match_error, Err("inference error"));
+test_file!(match_subtyping, Ok(Value::Bool(true)));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
