@@ -56,6 +56,13 @@ impl Scheme {
             env: ImSymbolMap::default(),
         }
     }
+
+    fn singleton(expr: StateId, var: (Symbol, StateId)) -> Self {
+        Scheme {
+            expr,
+            env: once(var).collect(),
+        }
+    }
 }
 
 impl Context {
@@ -106,10 +113,7 @@ impl Context {
         let pair = self.auto.build_var();
         self.push_var(
             func.arg.val,
-            Scheme {
-                expr: pair.pos,
-                env: ImSymbolMap::default().update(func.arg.val, pair.neg),
-            },
+            Scheme::singleton(pair.pos, (func.arg.val, pair.neg)),
         );
         let (mut body_ty, mut body_cmds) = self.check_expr(&func.body)?;
         self.pop_var();
@@ -180,10 +184,7 @@ impl Context {
         let pair = self.auto.build_var();
         self.push_var(
             rec.name.val,
-            Scheme {
-                expr: pair.pos,
-                env: ImSymbolMap::default().update(rec.name.val, pair.neg),
-            },
+            Scheme::singleton(pair.pos, (rec.name.val, pair.neg)),
         );
         let (mut func_ty, func_cmds) = self.check_func(&rec.func.val, Some(rec.name.val))?;
         self.pop_var();
