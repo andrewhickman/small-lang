@@ -338,6 +338,7 @@ impl Context {
         Ok(match path {
             "cmp" => stdlib_module!("cmp"),
             "math" => stdlib_module!("math"),
+            "iter" => stdlib_module!("iter"),
             path => {
                 let (file, expr) = self.source.parse_file(path)?;
                 (Some(file), expr)
