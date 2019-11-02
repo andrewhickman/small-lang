@@ -16,7 +16,15 @@ let rec map = func iter => func f => {
   next: func _ => map (iter.next null) f,
 } in
 
+let rec find = func iter => func f => match iter.value with [
+  some: value => if f value
+    then [some: value]
+    else find (iter.next null) f,
+  none => [none]
+] in
+
 {
   range,
   map,
+  find,
 }

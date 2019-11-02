@@ -89,6 +89,13 @@ test_file!(null_error, Err("inference error"));
 test_file!(enum_null_variant, Ok(Value::Bool(true)));
 test_file!(iter_range, Ok(Value::Bool(true)));
 test_file!(iter_range_map, Ok(Value::Bool(true)));
+test_file!(
+    iter_range_find,
+    Ok(Value::Enum(EnumValue {
+        tag: Symbol::new("some"),
+        value: Box::new(Value::Int(4)),
+    }))
+);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
