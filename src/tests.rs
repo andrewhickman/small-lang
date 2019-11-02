@@ -86,6 +86,7 @@ test_file!(match_error, Err("inference error"));
 test_file!(match_subtyping, Ok(Value::Bool(true)));
 test_file!(null, Ok(Value::Null));
 test_file!(null_error, Err("inference error"));
+test_file!(enum_null_variant, Ok(Value::Bool(true)));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

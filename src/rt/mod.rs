@@ -75,6 +75,7 @@ pub struct EnumValue {
 #[derive(Debug, Serialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
 pub enum Command {
+    Pop,
     Push {
         value: Value,
     },
@@ -195,6 +196,10 @@ impl Command {
         }
 
         Ok(match *self {
+            Command::Pop => {
+                ctx.stack.pop();
+                None
+            }
             Command::Push { ref value } => {
                 ctx.stack.push(value.clone());
                 None

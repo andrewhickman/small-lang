@@ -95,8 +95,8 @@ pub struct MatchExprCase {
 
 #[derive(Debug)]
 pub struct EnumExpr {
-    pub tag: Symbol,
-    pub expr: Spanned<Expr>,
+    pub tag: Spanned<Symbol>,
+    pub expr: Option<Spanned<Expr>>,
 }
 
 impl Expr {

@@ -61,6 +61,10 @@ MatchExpr: MatchExpr = {
     }
 }
 
+EnumExpr: EnumExpr = {
+    "[" <tag:Spanned<Symbol>> <expr:(":" <Spanned<Expr>>)?> "]" => EnumExpr { <> },
+}
+
 MatchCase: (Symbol, MatchExprCase) = {
     <tag:Symbol> "=>" <expr:Spanned<Expr>> => (tag, MatchExprCase {
         name: None, expr,
@@ -82,10 +86,7 @@ SimpleExpr: Expr = {
     Int => Expr::Int(<>),
     String => Expr::String(<>),
     "{" <fields:Comma<Entry>> "}" => Expr::Record(fields.into_iter().collect()),
-    "[" <entry:Entry> "]" => Expr::Enum(Box::new(EnumExpr {
-        tag: entry.0,
-        expr: entry.1,
-    })),
+    EnumExpr => Expr::Enum(Box::new(<>)),
     ProjExpr => Expr::Proj(Box::new(<>)),
     "(" <Expr> ")",
 }

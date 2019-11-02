@@ -217,12 +217,17 @@ impl Context {
     }
 
     fn check_enum(&mut self, enum_expr: &EnumExpr) -> Result<(StateId, Vec<Command>), Error> {
-        let (expr_ty, expr_cmds) = self.check_expr(&enum_expr.expr)?;
+        let (expr_ty, expr_cmds) = match &enum_expr.expr {
+            Some(expr) => self.check_expr(expr)?,
+            None => self.check_null()?,
+        };
 
         let mut cmds = expr_cmds;
-        cmds.push(Command::WrapEnum { tag: enum_expr.tag });
+        cmds.push(Command::WrapEnum {
+            tag: enum_expr.tag.val,
+        });
 
-        let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag, expr_ty);
+        let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag.val, expr_ty);
 
         Ok((enum_ty, cmds))
     }
@@ -236,14 +241,20 @@ impl Context {
             .cases
             .iter()
             .map(|(&tag, case)| {
-                let name = case.val.name.map(|name| name.val).unwrap_or(tag);
                 let case_var = self.auto.build_var();
 
-                self.push_var(name, case_var.pos);
+                if let Some(name) = case.val.name {
+                    self.push_var(name.val, case_var.pos);
+                }
                 let (case_ty, mut case_cmds) = self.check_expr(&case.val.expr)?;
-                self.pop_var();
+                if let Some(name) = case.val.name {
+                    self.pop_var();
 
-                case_cmds.insert(0, Command::Store { var: name });
+                    case_cmds.insert(0, Command::Store { var: name.val });
+                } else {
+                    case_cmds.insert(0, Command::Pop);
+                }
+
                 Ok((tag, case_var.neg, case_ty, case_cmds))
             })
             .collect::<Result<Vec<(Symbol, StateId, StateId, Vec<Command>)>, Error>>()?;

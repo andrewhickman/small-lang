@@ -35,7 +35,10 @@ pub fn arb_expr() -> impl Strategy<Value = Spanned<Expr>> {
                 .prop_map(|(cond, cons, alt)| Expr::If(Box::new(IfExpr { cond, cons, alt }))),
             (expr.clone(), arb_symbol().prop_map(spanned))
                 .prop_map(|(expr, field)| Expr::Proj(Box::new(ProjExpr { expr, field }))),
-            (arb_symbol(), expr.clone())
+            (
+                arb_symbol().prop_map(spanned),
+                prop::option::weighted(0.8, expr.clone())
+            )
                 .prop_map(|(tag, expr)| Expr::Enum(Box::new(EnumExpr { tag, expr }))),
             (
                 expr.clone(),
