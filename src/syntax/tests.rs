@@ -7,6 +7,7 @@ use crate::syntax::*;
 
 pub fn arb_expr() -> impl Strategy<Value = Spanned<Expr>> {
     prop_oneof![
+        2 => prop::strategy::LazyJust::new(|| Expr::Null),
         3 => any::<bool>().prop_map(Expr::Bool),
         3 => any::<i64>().prop_map(Expr::Int),
         2 => arb_symbol().prop_map(Expr::Var),

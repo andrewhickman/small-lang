@@ -19,6 +19,7 @@ use parser::{SpannedExprParser, Token};
 
 #[derive(Debug)]
 pub enum Expr {
+    Null,
     Bool(bool),
     Int(i64),
     String(String),

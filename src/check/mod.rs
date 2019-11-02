@@ -58,6 +58,7 @@ impl Context {
 impl Context {
     fn check_expr(&mut self, expr: &Spanned<Expr>) -> Result<(StateId, Vec<Command>), Error> {
         match &expr.val {
+            Expr::Null => self.check_null(),
             Expr::Var(symbol) => self.check_var(*symbol),
             Expr::Func(func) => self.check_func(func, None),
             Expr::Call(call_expr) => self.check_call(call_expr),
@@ -333,6 +334,12 @@ impl Context {
         })
     }
 
+    fn check_null(&mut self) -> Result<(StateId, Vec<Command>), Error> {
+        let ty = self.build_null(Polarity::Pos);
+        let cmd = vec![Command::Push { value: Value::Null }];
+        Ok((ty, cmd))
+    }
+
     fn check_bool(&mut self, val: bool) -> Result<(StateId, Vec<Command>), Error> {
         let ty = self.build_bool(Polarity::Pos);
         let cmd = vec![Command::Push {
@@ -373,6 +380,10 @@ impl Context {
 
     fn pop_var(&mut self) {
         self.vars.pop();
+    }
+
+    fn build_null(&mut self, pol: Polarity) -> StateId {
+        self.auto.build_constructed(pol, Constructor::Null)
     }
 
     fn build_bool(&mut self, pol: Polarity) -> StateId {

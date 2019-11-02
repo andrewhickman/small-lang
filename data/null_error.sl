@@ -1,0 +1,1 @@
+if null then true else false

@@ -10,6 +10,7 @@ use crate::syntax::Symbol;
 
 #[derive(Clone, Debug)]
 pub enum Constructor {
+    Null,
     Bool,
     Int,
     String,
@@ -29,6 +30,7 @@ impl mlsub::Constructor for Constructor {
 
     fn join(&mut self, other: &Self, pol: Polarity) {
         match (self, other) {
+            (Constructor::Null, Constructor::Null) => (),
             (Constructor::Bool, Constructor::Bool) => (),
             (Constructor::Int, Constructor::Int) => (),
             (Constructor::String, Constructor::String) => (),
@@ -70,7 +72,7 @@ impl mlsub::Constructor for Constructor {
 
     fn params(&self) -> Self::Params {
         match self {
-            Constructor::Bool | Constructor::Int | Constructor::String => vec![],
+            Constructor::Null | Constructor::Bool | Constructor::Int | Constructor::String => vec![],
             Constructor::Func(d, r) => vec![(Label::Domain, d.clone()), (Label::Range, r.clone())],
             Constructor::Record(fields) => fields
                 .clone()
@@ -114,6 +116,7 @@ impl mlsub::Constructor for Constructor {
 impl PartialOrd for Constructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
+            (Constructor::Null, Constructor::Null) => Some(Ordering::Equal),
             (Constructor::Bool, Constructor::Bool) => Some(Ordering::Equal),
             (Constructor::Int, Constructor::Int) => Some(Ordering::Equal),
             (Constructor::Func(..), Constructor::Func(..)) => Some(Ordering::Equal),

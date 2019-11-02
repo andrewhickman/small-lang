@@ -39,6 +39,7 @@ impl Default for Opts {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Value {
+    Null,
     Bool(bool),
     Int(i64),
     String(String),
@@ -299,6 +300,7 @@ impl Runtime {
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Value::Null, Value::Null) => true,
             (Value::Bool(l), Value::Bool(r)) => l == r,
             (Value::Int(l), Value::Int(r)) => l == r,
             (Value::String(l), Value::String(r)) => l == r,
