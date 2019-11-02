@@ -1,8 +1,8 @@
-let std = import "std" in
+let cmp = import "cmp" in
 
-let and = func l => 
+let and = func l =>
   func r => if l
     then r
     else false
 in
-  std.eq (and true false) false
+  cmp.eq (and true false) false

@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::Path;
 
-use proptest::proptest;
+use proptest::{prelude::*, proptest};
 
 use crate::check::check;
 use crate::rt::{self, EnumValue, Value};
@@ -90,12 +90,14 @@ test_file!(pr2, Ok(Value::Bool(true)));
 
 proptest! {
     #[test]
-    fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok(func) = check(SourceMap::new(), &expr) {
-            rt::run(func, rt::Opts {
-                max_stack: 1024,
-                max_ops: Some(1_048_576),
-            }).ok();
-        }
+    fn typecheck_soundness(func in arb_valid_expr()) {
+        rt::run(func, rt::Opts {
+            max_stack: 1024,
+            max_ops: Some(1_048_576),
+        }).ok();
     }
+}
+
+fn arb_valid_expr() -> impl Strategy<Value = rt::FuncValue> {
+    arb_expr().prop_filter_map("type error", |expr| check(SourceMap::new(), &expr).ok())
 }

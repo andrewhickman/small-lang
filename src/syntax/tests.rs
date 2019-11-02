@@ -6,30 +6,10 @@ use proptest::prelude::*;
 use crate::syntax::*;
 
 pub fn arb_expr() -> impl Strategy<Value = Spanned<Expr>> {
-    arb_expr_impl().prop_map(|expr| {
-        spanned(Expr::Let(Box::new(LetExpr {
-            name: spanned(Symbol::new("std")),
-            val: spanned(Expr::Import("std".to_owned())),
-            body: expr,
-        })))
-    })
-}
-
-fn arb_expr_impl() -> impl Strategy<Value = Spanned<Expr>> {
     prop_oneof![
         3 => any::<bool>().prop_map(Expr::Bool),
         3 => any::<i64>().prop_map(Expr::Int),
         2 => arb_symbol().prop_map(Expr::Var),
-        2 => prop_oneof![
-            "eq",
-            "add",
-            "sub",
-        ].prop_map(|item| {
-            Expr::Proj(Box::new(ProjExpr {
-                expr: spanned(Expr::Var(Symbol::new("std"))),
-                field: spanned(Symbol::new(item)),
-            }))
-        }),
     ]
     .prop_map(spanned)
     .prop_recursive(8, 128, 4, |expr| {
@@ -84,10 +64,13 @@ fn arb_symbol_map<T: Debug>(strat: BoxedStrategy<T>) -> impl Strategy<Value = Sy
 
 fn arb_symbol() -> impl Strategy<Value = Symbol> {
     prop_oneof![
-        Just(Symbol::new("a")),
-        Just(Symbol::new("b")),
-        Just(Symbol::new("c")),
-        Just(Symbol::new("d")),
+        5 => Just(Symbol::new("a")),
+        4 => Just(Symbol::new("b")),
+        3 => Just(Symbol::new("l")),
+        3 => Just(Symbol::new("r")),
+        1 => Just(Symbol::new("__builtin_eq")),
+        1 => Just(Symbol::new("__builtin_add")),
+        1 => Just(Symbol::new("__builtin_sub")),
     ]
 }
 

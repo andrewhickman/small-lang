@@ -78,10 +78,10 @@ impl Context {
     fn check_var(&mut self, var: Symbol) -> Result<(StateId, Vec<Command>), Error> {
         let cmd = Command::Load { var };
         if let Some(id) = self.get_var(var) {
-            return Ok((id, vec![cmd]));
+            Ok((id, vec![cmd]))
+        } else {
+            Err(Error::UndefinedVar(var))
         }
-
-        Err(Error::UndefinedVar(var))
     }
 
     fn check_func(
@@ -313,14 +313,23 @@ impl Context {
         &mut self,
         path: &str,
     ) -> Result<(Option<FileId>, Spanned<Expr>), Box<dyn std::error::Error>> {
-        Ok(if path == "std" {
-            (
-                None,
-                Expr::parse(include_str!("../../std/std.sl")).expect("syntax error in std"),
-            )
-        } else {
-            let (file, expr) = self.source.parse_file(path)?;
-            (Some(file), expr)
+        macro_rules! stdlib_module {
+            ($name:expr) => {
+                (
+                    None,
+                    Expr::parse(include_str!(concat!("../../std/", $name, ".sl")))
+                        .expect("syntax error in std"),
+                )
+            };
+        }
+
+        Ok(match path {
+            "cmp" => stdlib_module!("cmp"),
+            "math" => stdlib_module!("math"),
+            path => {
+                let (file, expr) = self.source.parse_file(path)?;
+                (Some(file), expr)
+            }
         })
     }
 

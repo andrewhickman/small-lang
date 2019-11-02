@@ -1,4 +1,4 @@
-let std = import "std" in
+let cmp = import "cmp" in
 
 let and = func args => if args.l
   then args.r
@@ -8,6 +8,6 @@ in let or = func args => if args.l
   else args.r
 in
   and {
-    l: std.eq true (std.eq and and),
-    r: std.eq false (std.eq and or),
+    l: cmp.eq true (cmp.eq and and),
+    r: cmp.eq false (cmp.eq and or),
   }

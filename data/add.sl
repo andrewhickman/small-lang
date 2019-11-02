@@ -1,3 +1,3 @@
-let std = import "std" in
+let math = import "math" in
 
-std.add 2 2
+math.add 2 2

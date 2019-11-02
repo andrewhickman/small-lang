@@ -1,3 +1,3 @@
-let std = import "std" in
+let cmp = import "cmp" in
 
-std.eq true { a: false }
+cmp.eq true { a: false }
