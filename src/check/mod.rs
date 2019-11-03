@@ -255,6 +255,7 @@ impl Context {
                     self.pop_var();
 
                     case_cmds.insert(0, Command::Store { var: name.val });
+                    case_cmds.push(Command::End);
                 } else {
                     case_cmds.insert(0, Command::Pop);
                 }

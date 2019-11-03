@@ -19,6 +19,7 @@ impl Runtime {
 
     pub fn finish(self) -> Value {
         assert_eq!(self.stack.len(), 1);
+        assert_eq!(self.vars.len(), 1);
         self.stack.into_iter().next().unwrap()
     }
 
