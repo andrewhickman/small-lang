@@ -32,6 +32,18 @@ let rec filter = func iter => func f => {
   ]
 } in
 
+let rec take = func iter => func n => {
+  next: func _ => match iter.next {} with [
+    none => [none],
+    some: result => if cmp.eq n 0
+      then [none]
+      else [some: {
+        value: result.value,
+        tail: take result.tail (math.sub n 1)
+      }]
+  ]
+} in
+
 let first = func iter => match iter.next {} with [
   some: result => [some: result.value],
   none => [none],
@@ -45,4 +57,5 @@ let find = func iter => func f => first (filter iter f) in
   filter,
   first,
   find,
+  take,
 }

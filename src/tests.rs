@@ -105,6 +105,7 @@ test_file!(
     Err("recursive import of module `recursive_import_b.sl`")
 );
 test_file!(list_from_iter, Ok(Value::Bool(true)));
+test_file!(list_from_iter_take, Ok(Value::Bool(true)));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

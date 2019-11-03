@@ -239,7 +239,7 @@ impl Command {
             Command::Set { field } => {
                 let val = ctx.pop_stack();
                 let mut rec = ctx.pop_stack().unwrap_record();
-                rec.insert(field, val);
+                assert!(rec.insert(field, val).is_none());
                 ctx.push_stack(Value::Record(rec));
                 None
             }
@@ -304,42 +304,39 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+fn write_debug_json<T: Serialize>(val: &T, f: &mut fmt::Formatter) -> fmt::Result {
+    let s = if f.alternate() {
+        serde_json::to_string_pretty(val).unwrap()
+    } else {
+        serde_json::to_string(val).unwrap()
+    };
+    if s.len() < 256 {
+        write!(f, "{}", s)
+    } else {
+        write!(f, "...")
+    }
+}
+
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
-        } else {
-            write!(f, "{}", serde_json::to_string(self).unwrap())
-        }
+        write_debug_json(self, f)
     }
 }
 
 impl fmt::Debug for FuncValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
-        } else {
-            write!(f, "{}", serde_json::to_string(self).unwrap())
-        }
+        write_debug_json(self, f)
     }
 }
 
 impl fmt::Debug for EnumValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
-        } else {
-            write!(f, "{}", serde_json::to_string(self).unwrap())
-        }
+        write_debug_json(self, f)
     }
 }
 
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
-        } else {
-            write!(f, "{}", serde_json::to_string(self).unwrap())
-        }
+        write_debug_json(self, f)
     }
 }
