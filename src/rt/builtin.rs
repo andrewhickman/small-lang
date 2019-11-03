@@ -9,9 +9,9 @@ pub struct Builtin(Rc<dyn Fn(Value) -> Result<Value, Error>>);
 
 impl Builtin {
     pub(in crate::rt) fn exec(&self, ctx: &mut Runtime) -> Result<(), Error> {
-        let arg = ctx.stack.pop().unwrap();
+        let arg = ctx.pop_stack();
         let ret = (self.0)(arg)?;
-        ctx.stack.push(ret);
+        ctx.push_stack(ret);
         Ok(())
     }
 }

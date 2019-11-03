@@ -1,4 +1,5 @@
 mod builtin;
+mod state;
 
 use std::fmt;
 
@@ -6,16 +7,13 @@ use serde::Serialize;
 use std::rc::Rc;
 
 use crate::rt::builtin::Builtin;
+use crate::rt::state::Runtime;
 use crate::syntax::symbol::{ImSymbolMap, Symbol};
 
 pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
-    let mut ctx = Runtime {
-        stack: vec![Value::Func(func)],
-        vars: vec![builtin::builtins()],
-        opts,
-    };
+    let mut ctx = Runtime::new(func, builtin::builtins(), opts);
     Command::Call.exec(&mut ctx)?;
-    Ok(ctx.stack.into_iter().next().unwrap())
+    Ok(ctx.finish())
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -36,7 +34,14 @@ impl Default for Opts {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug)]
+pub enum Error {
+    StackOverflow,
+    TooManyOps,
+    IntegerOverflow,
+}
+
+#[derive(Clone, Serialize)]
 #[serde(untagged)]
 pub enum Value {
     Null,
@@ -54,7 +59,7 @@ pub enum Value {
     },
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct FuncValue {
     #[serde(rename = "$name", skip_serializing_if = "Option::is_none")]
     pub name: Option<Symbol>,
@@ -64,7 +69,7 @@ pub struct FuncValue {
     pub env: ImSymbolMap<Value>,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Serialize, PartialEq)]
 pub struct EnumValue {
     #[serde(rename = "$tag")]
     pub tag: Symbol,
@@ -72,7 +77,7 @@ pub struct EnumValue {
     pub value: Box<Value>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
 pub enum Command {
     Pop,
@@ -109,20 +114,6 @@ pub enum Command {
         tag: Symbol,
     },
     End,
-}
-
-#[derive(Debug)]
-pub enum Error {
-    StackOverflow,
-    TooManyOps,
-    IntegerOverflow,
-}
-
-#[derive(Debug)]
-struct Runtime {
-    stack: Vec<Value>,
-    vars: Vec<ImSymbolMap<Value>>,
-    opts: Opts,
 }
 
 impl FuncValue {
@@ -187,6 +178,8 @@ impl FuncValue {
 
 impl Command {
     fn exec(&self, ctx: &mut Runtime) -> Result<Option<usize>, Error> {
+        log::trace!("exec {:?}", self);
+
         if let Some(ref mut remaining_ops) = ctx.opts.max_ops {
             if *remaining_ops > 1 {
                 *remaining_ops -= 1;
@@ -197,23 +190,23 @@ impl Command {
 
         Ok(match *self {
             Command::Pop => {
-                ctx.stack.pop();
+                ctx.pop_stack();
                 None
             }
             Command::Push { ref value } => {
-                ctx.stack.push(value.clone());
+                ctx.push_stack(value.clone());
                 None
             }
             Command::Capture { name, ref cmds } => {
                 let env = ctx.vars().clone();
-                ctx.stack.push(Value::Func(FuncValue {
+                ctx.push_stack(Value::Func(FuncValue {
                     name,
                     cmds: cmds.clone(),
                     env,
                 }));
                 None
             }
-            Command::Call => match ctx.stack.pop().unwrap() {
+            Command::Call => match ctx.pop_stack() {
                 Value::Func(func) => {
                     ctx.push_vars(func.env())?;
                     let mut idx = 0;
@@ -231,48 +224,48 @@ impl Command {
                 _ => panic!("expected func"),
             },
             Command::Test { jump_offset } => {
-                if ctx.stack.pop().unwrap().unwrap_bool() {
+                if ctx.pop_stack().unwrap_bool() {
                     Some(jump_offset)
                 } else {
                     None
                 }
             }
             Command::Match { ref jump_offsets } => {
-                let variant = ctx.stack.pop().unwrap().unwrap_enum_variant();
-                ctx.stack.push(*variant.value);
+                let variant = ctx.pop_stack().unwrap_enum_variant();
+                ctx.push_stack(*variant.value);
                 Some(jump_offsets[&variant.tag])
             }
             Command::Jump { jump_offset } => Some(jump_offset),
             Command::Set { field } => {
-                let val = ctx.stack.pop().unwrap();
-                let mut rec = ctx.stack.pop().unwrap().unwrap_record();
+                let val = ctx.pop_stack();
+                let mut rec = ctx.pop_stack().unwrap_record();
                 rec.insert(field, val);
-                ctx.stack.push(Value::Record(rec));
+                ctx.push_stack(Value::Record(rec));
                 None
             }
             Command::Get { field } => {
-                let rec = ctx.stack.pop().unwrap().unwrap_record();
+                let rec = ctx.pop_stack().unwrap_record();
                 let val = rec[&field].clone();
-                ctx.stack.push(val);
+                ctx.push_stack(val);
                 None
             }
             Command::Load { var } => {
                 let val = ctx.vars()[&var].clone();
-                ctx.stack.push(val);
+                ctx.push_stack(val);
                 None
             }
             Command::Store { var } => {
-                let val = ctx.stack.pop().unwrap();
+                let val = ctx.pop_stack();
                 ctx.push_vars(ImSymbolMap::default().update(var, val))?;
                 None
             }
             Command::WrapEnum { tag } => {
-                let val = ctx.stack.pop().unwrap();
+                let val = ctx.pop_stack();
                 let variant = Value::Enum(EnumValue {
                     tag,
                     value: Box::new(val),
                 });
-                ctx.stack.push(variant);
+                ctx.push_stack(variant);
                 None
             }
             Command::End => {
@@ -280,25 +273,6 @@ impl Command {
                 None
             }
         })
-    }
-}
-
-impl Runtime {
-    fn push_vars(&mut self, new_vars: ImSymbolMap<Value>) -> Result<(), Error> {
-        if self.vars.len() as u64 >= self.opts.max_stack {
-            return Err(Error::StackOverflow);
-        }
-        let all_vars = new_vars.union(self.vars().clone());
-        self.vars.push(all_vars);
-        Ok(())
-    }
-
-    fn vars(&mut self) -> &mut ImSymbolMap<Value> {
-        self.vars.last_mut().unwrap()
-    }
-
-    fn pop_vars(&mut self) {
-        self.vars.pop().unwrap();
     }
 }
 
@@ -329,3 +303,43 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+        } else {
+            write!(f, "{}", serde_json::to_string(self).unwrap())
+        }
+    }
+}
+
+impl fmt::Debug for FuncValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+        } else {
+            write!(f, "{}", serde_json::to_string(self).unwrap())
+        }
+    }
+}
+
+impl fmt::Debug for EnumValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+        } else {
+            write!(f, "{}", serde_json::to_string(self).unwrap())
+        }
+    }
+}
+
+impl fmt::Debug for Command {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", serde_json::to_string_pretty(self).unwrap())
+        } else {
+            write!(f, "{}", serde_json::to_string(self).unwrap())
+        }
+    }
+}

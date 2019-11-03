@@ -20,6 +20,7 @@ fn run(args: &Args) -> Result<(), Box<dyn Error>> {
 }
 
 fn main() {
+    env_logger::init();
     if let Err(err) = run(&Args::from_args()) {
         eprintln!("Error: {}.", err);
         process::exit(1);
