@@ -44,6 +44,11 @@ let rec take = func iter => func n => {
   ]
 } in
 
+let rec length = func iter => match iter.next {} with [
+  some: result => math.add 1 (length result.tail),
+  none => 0,
+] in
+
 let first = func iter => match iter.next {} with [
   some: result => [some: result.value],
   none => [none],
@@ -55,6 +60,7 @@ let find = func iter => func f => first (filter iter f) in
   range,
   map,
   filter,
+  length,
   first,
   find,
   take,
