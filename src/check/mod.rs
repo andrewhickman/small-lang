@@ -344,6 +344,9 @@ impl Context {
             "math" => self
                 .source
                 .parse_source("math", include_str!("../../std/math.sl")),
+            "list" => self
+                .source
+                .parse_source("list", include_str!("../../std/list.sl")),
             path => self.source.parse_file(path),
         }
     }
