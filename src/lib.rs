@@ -14,11 +14,13 @@ use crate::check::check;
 use crate::syntax::{Expr, SourceMap, Spanned};
 
 pub fn run_input(input: String, opts: rt::Opts) -> Result<rt::Value, Box<dyn Error>> {
-    run(opts, |source| source.parse_source(input))
+    run(opts, |source| {
+        Ok(source.parse_source("root", input)?.unwrap_miss())
+    })
 }
 
 pub fn run_file(path: &Path, opts: rt::Opts) -> Result<rt::Value, Box<dyn Error>> {
-    run(opts, |source| source.parse_file(path))
+    run(opts, |source| Ok(source.parse_file(path)?.unwrap_miss()))
 }
 
 fn run<F>(opts: rt::Opts, parse: F) -> Result<rt::Value, Box<dyn Error>>

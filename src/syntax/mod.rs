@@ -9,7 +9,7 @@ lalrpop_mod!(
 );
 mod source;
 
-pub use source::SourceMap;
+pub use source::{SourceCacheResult, SourceLocation, SourceMap};
 pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
 use codespan::{ByteIndex, RawIndex, Span};

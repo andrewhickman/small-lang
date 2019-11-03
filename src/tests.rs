@@ -96,6 +96,14 @@ test_file!(
         value: Box::new(Value::Int(4)),
     }))
 );
+test_file!(
+    recursive_import_a,
+    Err("recursive import of module `recursive_import_a.sl`")
+);
+test_file!(
+    recursive_import_b,
+    Err("recursive import of module `recursive_import_b.sl`")
+);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

@@ -1,6 +1,7 @@
 mod builtin;
 mod ty;
 
+use std::collections::HashMap;
 use std::fmt;
 use std::iter::once;
 
@@ -12,7 +13,7 @@ use crate::check::ty::Constructor;
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
-    SourceMap, Spanned, Symbol, SymbolMap,
+    SourceCacheResult, SourceMap, Spanned, Symbol, SymbolMap,
 };
 
 pub fn check(
@@ -29,6 +30,7 @@ enum Error {
     UndefinedVar(Symbol),
     TypeCheck,
     Import(String, Box<dyn std::error::Error>),
+    RecursiveImport(String),
 }
 
 impl From<()> for Error {
@@ -41,6 +43,7 @@ struct Context {
     auto: Automaton<Constructor>,
     vars: Vec<ImSymbolMap<StateId>>,
     source: SourceMap,
+    cache: HashMap<FileId, (StateId, Vec<Command>)>,
 }
 
 impl Context {
@@ -48,6 +51,7 @@ impl Context {
         let mut ctx = Context {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
+            cache: HashMap::new(),
             source,
         };
         ctx.set_builtins();
@@ -310,40 +314,38 @@ impl Context {
     }
 
     fn check_import(&mut self, path: &str) -> Result<(StateId, Vec<Command>), Error> {
-        let (file, expr) = match self.resolve_import(path) {
-            Ok(expr) => expr,
-            Err(err) => return Err(Error::Import(path.to_owned(), err)),
-        };
-        let result = self.check_expr(&expr);
-        if file.is_some() {
-            self.source.end_file();
+        match self.resolve_import(path) {
+            Ok(SourceCacheResult::Miss(file, expr)) => {
+                let (ty, cmds) = self.check_expr(&expr)?;
+                self.source.end_file();
+
+                assert!(self.cache.insert(file, (ty, cmds.clone())).is_none());
+                Ok((ty, cmds))
+            }
+            Ok(SourceCacheResult::Hit(file)) => match self.cache.get(&file) {
+                Some(result) => Ok(result.clone()),
+                None => Err(Error::RecursiveImport(path.to_owned())),
+            },
+            Err(err) => Err(Error::Import(path.to_owned(), err)),
         }
-        result
     }
 
     fn resolve_import(
         &mut self,
         path: &str,
-    ) -> Result<(Option<FileId>, Spanned<Expr>), Box<dyn std::error::Error>> {
-        macro_rules! stdlib_module {
-            ($name:expr) => {
-                (
-                    None,
-                    Expr::parse(include_str!(concat!("../../std/", $name, ".sl")))
-                        .expect("syntax error in std"),
-                )
-            };
+    ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
+        match path {
+            "cmp" => self
+                .source
+                .parse_source("cmp", include_str!("../../std/cmp.sl")),
+            "iter" => self
+                .source
+                .parse_source("iter", include_str!("../../std/iter.sl")),
+            "math" => self
+                .source
+                .parse_source("math", include_str!("../../std/math.sl")),
+            path => self.source.parse_file(path),
         }
-
-        Ok(match path {
-            "cmp" => stdlib_module!("cmp"),
-            "math" => stdlib_module!("math"),
-            "iter" => stdlib_module!("iter"),
-            path => {
-                let (file, expr) = self.source.parse_file(path)?;
-                (Some(file), expr)
-            }
-        })
     }
 
     fn check_null(&mut self) -> Result<(StateId, Vec<Command>), Error> {
@@ -456,6 +458,7 @@ impl fmt::Display for Error {
             Error::TypeCheck => "inference error".fmt(f),
             Error::UndefinedVar(symbol) => write!(f, "undefined var `{}`", symbol),
             Error::Import(path, err) => write!(f, "failed to import module `{}`: `{}`", path, err),
+            Error::RecursiveImport(path) => write!(f, "recursive import of module `{}`", path),
         }
     }
 }

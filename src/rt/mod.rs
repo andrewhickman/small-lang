@@ -72,7 +72,7 @@ pub struct EnumValue {
     pub value: Box<Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
 pub enum Command {
     Pop,
