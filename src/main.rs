@@ -14,12 +14,14 @@ struct Args {
 }
 
 fn run(args: &Args) -> Result<(), Box<dyn Error>> {
-    let value = small_lang::run_file(&args.file, args.rt_opts)?;
-    serde_json::to_writer_pretty(io::stdout().lock(), &value)?;
+    let output = small_lang::run_file(&args.file, args.rt_opts)?;
+    eprintln!("Finished in {} operations", output.op_count);
+    serde_json::to_writer_pretty(io::stdout().lock(), &output.value)?;
     Ok(())
 }
 
 fn main() {
+    #[cfg(feature = "env_logger")]
     env_logger::init();
     if let Err(err) = run(&Args::from_args()) {
         eprintln!("Error: {}.", err);

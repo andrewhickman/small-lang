@@ -10,7 +10,7 @@ use crate::rt::builtin::Builtin;
 use crate::rt::state::Runtime;
 use crate::syntax::symbol::{ImSymbolMap, Symbol};
 
-pub fn run(func: FuncValue, opts: Opts) -> Result<Value, Error> {
+pub fn run(func: FuncValue, opts: Opts) -> Result<Output, Error> {
     let mut ctx = Runtime::new(func, builtin::builtins(), opts);
     Command::Call.exec(&mut ctx)?;
     Ok(ctx.finish())
@@ -23,6 +23,12 @@ pub struct Opts {
     pub max_stack: u64,
     #[cfg_attr(feature = "structopt", structopt(long))]
     pub max_ops: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Output {
+    pub value: Value,
+    pub op_count: u64,
 }
 
 impl Default for Opts {
@@ -180,13 +186,7 @@ impl Command {
     fn exec(&self, ctx: &mut Runtime) -> Result<Option<usize>, Error> {
         log::trace!("exec {:?}", self);
 
-        if let Some(ref mut remaining_ops) = ctx.opts.max_ops {
-            if *remaining_ops > 1 {
-                *remaining_ops -= 1;
-            } else {
-                return Err(Error::TooManyOps);
-            }
-        }
+        ctx.incr_op_count()?;
 
         Ok(match *self {
             Command::Pop => {

@@ -10,7 +10,7 @@ use crate::syntax::{SourceMap, Symbol};
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
     let file = Path::new("data").join(file).with_extension("sl");
-    crate::run_file(&file, rt::Opts::default())
+    crate::run_file(&file, rt::Opts::default()).map(|output| output.value)
 }
 
 macro_rules! test_file {

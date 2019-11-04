@@ -1,11 +1,12 @@
-use crate::rt::{Error, FuncValue, Opts, Value};
+use crate::rt::{Error, FuncValue, Opts, Output, Value};
 use crate::syntax::ImSymbolMap;
 
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
     stack: Vec<Value>,
     vars: Vec<ImSymbolMap<Value>>,
-    pub opts: Opts,
+    opts: Opts,
+    op_count: u64,
 }
 
 impl Runtime {
@@ -14,13 +15,27 @@ impl Runtime {
             stack: vec![Value::Func(func)],
             vars: vec![vars],
             opts,
+            op_count: 0,
         }
     }
 
-    pub fn finish(self) -> Value {
+    pub fn incr_op_count(&mut self) -> Result<(), Error> {
+        self.op_count += 1;
+        if let Some(max_ops) = self.opts.max_ops {
+            if self.op_count > max_ops {
+                return Err(Error::TooManyOps);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn finish(self) -> Output {
         assert_eq!(self.stack.len(), 1);
         assert_eq!(self.vars.len(), 1);
-        self.stack.into_iter().next().unwrap()
+        Output {
+            value: self.stack.into_iter().next().unwrap(),
+            op_count: self.op_count,
+        }
     }
 
     pub fn pop_stack(&mut self) -> Value {

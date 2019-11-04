@@ -7,7 +7,7 @@ build = "build.rs"
 
 [[bin]]
 name = "small-lang"
-required-features = ["structopt", "env_logger"]
+required-features = ["structopt"]
 
 [dependencies]
 lazy_static = "~1"
