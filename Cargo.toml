@@ -9,6 +9,18 @@ build = "build.rs"
 name = "small-lang"
 required-features = ["structopt"]
 
+[[bench]]
+name = "fibonacci-parse"
+harness = false
+
+[[bench]]
+name = "fibonacci-check"
+harness = false
+
+[[bench]]
+name = "fibonacci-run"
+harness = false
+
 [dependencies]
 lazy_static = "~1"
 seahash = "~3"
@@ -45,3 +57,4 @@ lalrpop = "0.17"
 
 [dev-dependencies]
 proptest = "0.9.4"
+criterion = "0.3.0"

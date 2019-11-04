@@ -46,13 +46,13 @@ impl SourceMap {
         self.add_file(path.canonicalize()?.to_string_lossy(), source)
     }
 
-    pub fn parse_source(
+    pub fn parse_input(
         &mut self,
         name: impl Into<String>,
-        source: impl Into<String>,
+        input: impl Into<String>,
     ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
         self.dir.push(PathBuf::default());
-        self.add_file(name, source)
+        self.add_file(name, input)
     }
 
     pub fn add_file(
@@ -63,7 +63,7 @@ impl SourceMap {
         let name = name.into();
 
         match self.cache.entry(name.clone()) {
-            hash_map::Entry::Occupied(entry) => return Ok(SourceCacheResult::Hit(*entry.get())),
+            hash_map::Entry::Occupied(entry) => Ok(SourceCacheResult::Hit(*entry.get())),
             hash_map::Entry::Vacant(entry) => {
                 let file = self.files.add(name, source);
 
@@ -81,6 +81,12 @@ impl SourceMap {
 
     pub fn end_file(&mut self) {
         self.dir.pop();
+    }
+}
+
+impl Default for SourceMap {
+    fn default() -> Self {
+        SourceMap::new()
     }
 }
 

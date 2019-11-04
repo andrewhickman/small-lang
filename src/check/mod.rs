@@ -338,16 +338,16 @@ impl Context {
         match path {
             "cmp" => self
                 .source
-                .parse_source("cmp", include_str!("../../std/cmp.sl")),
+                .parse_input("cmp", include_str!("../../std/cmp.sl")),
             "iter" => self
                 .source
-                .parse_source("iter", include_str!("../../std/iter.sl")),
+                .parse_input("iter", include_str!("../../std/iter.sl")),
             "math" => self
                 .source
-                .parse_source("math", include_str!("../../std/math.sl")),
+                .parse_input("math", include_str!("../../std/math.sl")),
             "list" => self
                 .source
-                .parse_source("list", include_str!("../../std/list.sl")),
+                .parse_input("list", include_str!("../../std/list.sl")),
             path => self.source.parse_file(path),
         }
     }
