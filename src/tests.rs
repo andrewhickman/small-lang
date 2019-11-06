@@ -34,6 +34,15 @@ macro_rules! test_file {
             }
         }
     };
+    ($file:ident, Err) => {
+        #[test]
+        fn $file() {
+            match run_file(stringify!($file)) {
+                Err(_) => (),
+                Ok(_) => panic!("expected error but got success"),
+            }
+        }
+    };
     ($file:ident, Err($expected:expr)) => {
         #[test]
         fn $file() {
@@ -51,8 +60,8 @@ test_file!(xor, Ok(Value::Bool(true)));
 test_file!(shadow, Ok(Value::Bool(false)));
 test_file!(expr, Ok(Value::Bool(true)));
 test_file!(undefined_var, Err("undefined var `x`"));
-test_file!(type_error, Err("inference error"));
-test_file!(rec_error, Err("inference error"));
+test_file!(type_error, Err);
+test_file!(rec_error, Err);
 test_file!(rec_func, Ok(Value::Bool(true)));
 test_file!(rec_shadow, Ok(Func));
 test_file!(func_shadow, Ok(Value::Bool(true)));
@@ -64,9 +73,9 @@ test_file!(eq_incomparable, Ok(Value::Bool(false)));
 test_file!(curry, Ok(Value::Bool(true)));
 test_file!(int, Ok(Value::Int(-300)));
 test_file!(add, Ok(Value::Int(4)));
-test_file!(add_error, Err("inference error"));
+test_file!(add_error, Err);
 test_file!(sub, Ok(Value::Int(4)));
-test_file!(sub_error, Err("inference error"));
+test_file!(sub_error, Err);
 test_file!(fibonacci, Ok(Value::Int(377)));
 test_file!(string, Ok(Value::String("hello".to_owned())));
 test_file!(
@@ -82,10 +91,10 @@ test_file!(
     }))
 );
 test_file!(match_simple, Ok(Value::Int(1)));
-test_file!(match_error, Err("inference error"));
+test_file!(match_error, Err);
 test_file!(match_subtyping, Ok(Value::Bool(true)));
 test_file!(null, Ok(Value::Null));
-test_file!(null_error, Err("inference error"));
+test_file!(null_error, Err);
 test_file!(enum_null_variant, Ok(Value::Bool(true)));
 test_file!(iter_range, Ok(Value::Bool(true)));
 test_file!(iter_range_map, Ok(Value::Bool(true)));
@@ -109,6 +118,7 @@ test_file!(list_from_iter_take, Ok(Value::Bool(true)));
 test_file!(list_length, Ok(Value::Int(3)));
 test_file!(list_from_iter_length, Ok(Value::Int(6)));
 test_file!(iter_length, Ok(Value::Int(42 - 24)));
+test_file!(complex_error, Err("expected int (inferred at 0:0), but found bool at 134:138\n    while comparing domain of func type (inferred for expected type at 39:81 and for found type at 39:81)"));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

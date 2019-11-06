@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::once;
 
-use codespan::FileId;
+use codespan::{FileId, Span};
 use mlsub::auto::{Automaton, StateId, StateSet};
-use mlsub::Polarity;
+use mlsub::{BiunifyError, Polarity};
 
-use crate::check::ty::Constructor;
+use crate::check::ty::{Constructor, ConstructorKind};
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
@@ -28,14 +28,14 @@ pub fn check(
 #[derive(Debug)]
 enum Error {
     UndefinedVar(Symbol),
-    TypeCheck,
+    TypeCheck(BiunifyError<Constructor>),
     Import(String, Box<dyn std::error::Error>),
     RecursiveImport(String),
 }
 
-impl From<()> for Error {
-    fn from((): ()) -> Self {
-        Error::TypeCheck
+impl From<BiunifyError<Constructor>> for Error {
+    fn from(err: BiunifyError<Constructor>) -> Self {
+        Error::TypeCheck(err)
     }
 }
 
@@ -62,20 +62,20 @@ impl Context {
 impl Context {
     fn check_expr(&mut self, expr: &Spanned<Expr>) -> Result<(StateId, Vec<Command>), Error> {
         match &expr.val {
-            Expr::Null => self.check_null(),
+            Expr::Null => self.check_null(expr.span),
             Expr::Var(symbol) => self.check_var(*symbol),
-            Expr::Func(func) => self.check_func(func, None),
-            Expr::Call(call_expr) => self.check_call(call_expr),
+            Expr::Func(func) => self.check_func(func, expr.span, None),
+            Expr::Call(call_expr) => self.check_call(call_expr, expr.span),
             Expr::Let(let_expr) => self.check_let(let_expr),
             Expr::Rec(rec) => self.check_rec(rec),
-            Expr::Bool(val) => self.check_bool(*val),
-            Expr::Int(val) => self.check_int(*val),
-            Expr::String(val) => self.check_string(val.clone()),
+            Expr::Bool(val) => self.check_bool(*val, expr.span),
+            Expr::Int(val) => self.check_int(*val, expr.span),
+            Expr::String(val) => self.check_string(val.clone(), expr.span),
             Expr::If(if_expr) => self.check_if(if_expr),
-            Expr::Record(map) => self.check_record(map),
-            Expr::Enum(enum_expr) => self.check_enum(enum_expr),
-            Expr::Match(match_expr) => self.check_match(match_expr),
-            Expr::Proj(proj) => self.check_proj(proj),
+            Expr::Record(map) => self.check_record(map, expr.span),
+            Expr::Enum(enum_expr) => self.check_enum(enum_expr, expr.span),
+            Expr::Match(match_expr) => self.check_match(match_expr, expr.span),
+            Expr::Proj(proj) => self.check_proj(proj, expr.span),
             Expr::Import(path) => self.check_import(path),
         }
     }
@@ -92,6 +92,7 @@ impl Context {
     fn check_func(
         &mut self,
         func: &FuncExpr,
+        span: Span,
         name: Option<Symbol>,
     ) -> Result<(StateId, Vec<Command>), Error> {
         let pair = self.auto.build_var();
@@ -99,7 +100,7 @@ impl Context {
         let (body_ty, mut body_cmds) = self.check_expr(&func.body)?;
         self.pop_var();
 
-        let func_ty = self.build_func(Polarity::Pos, pair.neg, body_ty);
+        let func_ty = self.build_func(Polarity::Pos, span, pair.neg, body_ty);
 
         body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
@@ -111,12 +112,16 @@ impl Context {
         Ok((func_ty, vec![cmd]))
     }
 
-    fn check_call(&mut self, call: &CallExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_call(
+        &mut self,
+        call: &CallExpr,
+        span: Span,
+    ) -> Result<(StateId, Vec<Command>), Error> {
         let (func_ty, func_cmds) = self.check_expr(&call.func)?;
         let (arg_ty, arg_cmds) = self.check_expr(&call.arg)?;
 
         let pair = self.auto.build_var();
-        let f = self.build_func(Polarity::Neg, arg_ty, pair.neg);
+        let f = self.build_func(Polarity::Neg, span, arg_ty, pair.neg);
         self.auto.biunify(func_ty, f)?;
 
         let mut cmds = arg_cmds;
@@ -145,7 +150,8 @@ impl Context {
     fn check_rec(&mut self, rec: &RecExpr) -> Result<(StateId, Vec<Command>), Error> {
         let pair = self.auto.build_var();
         self.push_var(rec.name.val, pair.pos);
-        let (func_ty, func_cmds) = self.check_func(&rec.func.val, Some(rec.name.val))?;
+        let (func_ty, func_cmds) =
+            self.check_func(&rec.func.val, rec.func.span, Some(rec.name.val))?;
         self.pop_var();
 
         self.auto.biunify(func_ty, pair.neg)?;
@@ -168,7 +174,7 @@ impl Context {
         let (alt_ty, alt_cmds) = self.check_expr(&if_expr.alt)?;
 
         let pair = self.auto.build_var();
-        let bool_ty = self.build_bool(Polarity::Neg);
+        let bool_ty = self.build_bool(Polarity::Neg, if_expr.cond.span);
 
         self.auto.biunify_all(
             [(cond_ty, bool_ty), (cons_ty, pair.neg), (alt_ty, pair.neg)]
@@ -192,6 +198,7 @@ impl Context {
     fn check_record(
         &mut self,
         rec: &SymbolMap<Spanned<Expr>>,
+        span: Span,
     ) -> Result<(StateId, Vec<Command>), Error> {
         let fields = rec
             .iter()
@@ -203,6 +210,7 @@ impl Context {
 
         let record_ty = self.build_record(
             Polarity::Pos,
+            span,
             fields.iter().map(|&(field, id, _)| (field, id)),
         );
 
@@ -220,10 +228,14 @@ impl Context {
         Ok((record_ty, cmds))
     }
 
-    fn check_enum(&mut self, enum_expr: &EnumExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_enum(
+        &mut self,
+        enum_expr: &EnumExpr,
+        span: Span,
+    ) -> Result<(StateId, Vec<Command>), Error> {
         let (expr_ty, expr_cmds) = match &enum_expr.expr {
             Some(expr) => self.check_expr(expr)?,
-            None => self.check_null()?,
+            None => self.check_null(span)?,
         };
 
         let mut cmds = expr_cmds;
@@ -231,12 +243,16 @@ impl Context {
             tag: enum_expr.tag.val,
         });
 
-        let enum_ty = self.build_enum_variant(Polarity::Pos, enum_expr.tag.val, expr_ty);
+        let enum_ty = self.build_enum_variant(Polarity::Pos, span, enum_expr.tag.val, expr_ty);
 
         Ok((enum_ty, cmds))
     }
 
-    fn check_match(&mut self, match_expr: &MatchExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_match(
+        &mut self,
+        match_expr: &MatchExpr,
+        span: Span,
+    ) -> Result<(StateId, Vec<Command>), Error> {
         let (expr_ty, expr_cmds) = self.check_expr(&match_expr.expr)?;
 
         let result_pair = self.auto.build_var();
@@ -265,6 +281,7 @@ impl Context {
             .collect::<Result<Vec<(Symbol, StateId, StateId, Vec<Command>)>, Error>>()?;
         let enum_ty = self.build_enum(
             Polarity::Neg,
+            span,
             cases.iter().map(|&(tag, in_ty, _, _)| (tag, in_ty)),
         );
 
@@ -299,11 +316,15 @@ impl Context {
         Ok((result_pair.pos, cmds))
     }
 
-    fn check_proj(&mut self, proj: &ProjExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_proj(
+        &mut self,
+        proj: &ProjExpr,
+        span: Span,
+    ) -> Result<(StateId, Vec<Command>), Error> {
         let (expr_ty, expr_cmds) = self.check_expr(&proj.expr)?;
 
         let pair = self.auto.build_var();
-        let record = self.build_record(Polarity::Neg, once((proj.field.val, pair.neg)));
+        let record = self.build_record(Polarity::Neg, span, once((proj.field.val, pair.neg)));
         self.auto.biunify(expr_ty, record)?;
 
         let mut cmds = expr_cmds;
@@ -352,30 +373,30 @@ impl Context {
         }
     }
 
-    fn check_null(&mut self) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_null(Polarity::Pos);
+    fn check_null(&mut self, span: Span) -> Result<(StateId, Vec<Command>), Error> {
+        let ty = self.build_null(Polarity::Pos, span);
         let cmd = vec![Command::Push { value: Value::Null }];
         Ok((ty, cmd))
     }
 
-    fn check_bool(&mut self, val: bool) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_bool(Polarity::Pos);
+    fn check_bool(&mut self, val: bool, span: Span) -> Result<(StateId, Vec<Command>), Error> {
+        let ty = self.build_bool(Polarity::Pos, span);
         let cmd = vec![Command::Push {
             value: Value::Bool(val),
         }];
         Ok((ty, cmd))
     }
 
-    fn check_int(&mut self, val: i64) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_int(Polarity::Pos);
+    fn check_int(&mut self, val: i64, span: Span) -> Result<(StateId, Vec<Command>), Error> {
+        let ty = self.build_int(Polarity::Pos, span);
         let cmd = vec![Command::Push {
             value: Value::Int(val),
         }];
         Ok((ty, cmd))
     }
 
-    fn check_string(&mut self, val: String) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_string(Polarity::Pos);
+    fn check_string(&mut self, val: String, span: Span) -> Result<(StateId, Vec<Command>), Error> {
+        let ty = self.build_string(Polarity::Pos, span);
         let cmd = vec![Command::Push {
             value: Value::String(val),
         }];
@@ -400,66 +421,102 @@ impl Context {
         self.vars.pop();
     }
 
-    fn build_null(&mut self, pol: Polarity) -> StateId {
-        self.auto.build_constructed(pol, Constructor::Null)
+    fn build_null(&mut self, pol: Polarity, span: Span) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
     }
 
-    fn build_bool(&mut self, pol: Polarity) -> StateId {
-        self.auto.build_constructed(pol, Constructor::Bool)
+    fn build_bool(&mut self, pol: Polarity, span: Span) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
     }
 
-    fn build_int(&mut self, pol: Polarity) -> StateId {
-        self.auto.build_constructed(pol, Constructor::Int)
+    fn build_int(&mut self, pol: Polarity, span: Span) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Int, span))
     }
 
-    fn build_string(&mut self, pol: Polarity) -> StateId {
-        self.auto.build_constructed(pol, Constructor::String)
+    fn build_string(&mut self, pol: Polarity, span: Span) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
     }
 
-    fn build_func(&mut self, pol: Polarity, dom: StateId, range: StateId) -> StateId {
+    fn build_func(&mut self, pol: Polarity, span: Span, dom: StateId, range: StateId) -> StateId {
         self.auto.build_constructed(
             pol,
-            Constructor::Func(StateSet::new(dom), StateSet::new(range)),
+            Constructor::new(
+                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
+                span,
+            ),
         )
     }
 
-    fn build_record<I>(&mut self, pol: Polarity, iter: I) -> StateId
+    fn build_record<I>(&mut self, pol: Polarity, span: Span, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
         self.auto.build_constructed(
             pol,
-            Constructor::Record(
-                iter.into_iter()
-                    .map(|(sym, id)| (sym, StateSet::new(id)))
-                    .collect(),
+            Constructor::new(
+                ConstructorKind::Record(
+                    iter.into_iter()
+                        .map(|(sym, id)| (sym, StateSet::new(id)))
+                        .collect(),
+                ),
+                span,
             ),
         )
     }
 
-    fn build_enum<I>(&mut self, pol: Polarity, iter: I) -> StateId
+    fn build_enum<I>(&mut self, pol: Polarity, span: Span, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
         self.auto.build_constructed(
             pol,
-            Constructor::Enum(
-                iter.into_iter()
-                    .map(|(tag, ty)| (tag, StateSet::new(ty)))
-                    .collect(),
+            Constructor::new(
+                ConstructorKind::Enum(
+                    iter.into_iter()
+                        .map(|(tag, ty)| (tag, StateSet::new(ty)))
+                        .collect(),
+                ),
+                span,
             ),
         )
     }
 
-    fn build_enum_variant(&mut self, pol: Polarity, field: Symbol, expr: StateId) -> StateId {
-        self.build_enum(pol, once((field, expr)))
+    fn build_enum_variant(
+        &mut self,
+        pol: Polarity,
+        span: Span,
+        field: Symbol,
+        expr: StateId,
+    ) -> StateId {
+        self.build_enum(pol, span, once((field, expr)))
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::TypeCheck => "inference error".fmt(f),
+            Error::TypeCheck(err) => {
+                write!(
+                    f,
+                    "expected {} (inferred at {}), but found {} at {}",
+                    err.constraint.1,
+                    err.constraint.1.span(),
+                    err.constraint.0,
+                    err.constraint.0.span()
+                )?;
+                for &(label, ref found, ref expected) in &err.stack {
+                    write!(
+                        f,
+                        "\n    while comparing {} of {} type (inferred for expected type at {} and for found type at {})",
+                        label, expected, found.span(), found.span(),
+                    )?;
+                }
+                Ok(())
+            }
             Error::UndefinedVar(symbol) => write!(f, "undefined var `{}`", symbol),
             Error::Import(path, err) => write!(f, "failed to import module `{}`: `{}`", path, err),
             Error::RecursiveImport(path) => write!(f, "recursive import of module `{}`", path),
