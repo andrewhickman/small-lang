@@ -5,7 +5,7 @@ use mlsub::Polarity;
 use crate::check::Context;
 use crate::syntax::Symbol;
 
-impl Context {
+impl<'a> Context<'a> {
     pub(in crate::check) fn set_builtins(&mut self) {
         let eq = self.build_eq();
         self.set_var(Symbol::new("__builtin_eq"), eq);
@@ -24,6 +24,7 @@ impl Context {
     }
 
     fn build_binary_int_op(&mut self) -> StateId {
+        // TODO handle constraints originating here in error messages
         let arg0 = self.build_int(Polarity::Neg, Span::initial());
         let arg1 = self.build_int(Polarity::Neg, Span::initial());
         let ret = self.build_int(Polarity::Pos, Span::initial());

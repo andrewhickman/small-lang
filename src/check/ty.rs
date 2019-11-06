@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
-use std::fmt::{self, Write};
+use std::fmt::{self};
 use std::mem::{discriminant, Discriminant};
 use std::vec;
 
-use codespan::Span;
+use codespan::{FileId, Span};
 use im::OrdMap;
 use mlsub::auto::StateSet;
 use mlsub::Polarity;
@@ -13,7 +13,7 @@ use crate::syntax::Symbol;
 #[derive(Clone, Debug)]
 pub struct Constructor {
     kind: ConstructorKind,
-    spans: Vec<Span>,
+    spans: Vec<(FileId, Span)>,
 }
 
 #[derive(Clone, Debug)]
@@ -28,20 +28,15 @@ pub enum ConstructorKind {
 }
 
 impl Constructor {
-    pub fn new(kind: ConstructorKind, span: Span) -> Self {
+    pub fn new(kind: ConstructorKind, file: FileId, span: Span) -> Self {
         Constructor {
             kind,
-            spans: vec![span],
+            spans: vec![(file, span)],
         }
     }
 
-    pub fn span(&self) -> impl fmt::Display {
-        let mut s = String::new();
-        write!(s, "{}:{}", self.spans[0].start(), self.spans[0].end()).unwrap();
-        for span in &self.spans[1..] {
-            write!(s, "and {}:{}", span.start(), span.end()).unwrap();
-        }
-        s
+    pub fn spans(&self) -> &[(FileId, Span)] {
+        &self.spans
     }
 }
 

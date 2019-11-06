@@ -2,10 +2,10 @@ mod builtin;
 mod ty;
 
 use std::collections::HashMap;
-use std::fmt;
 use std::iter::once;
 
 use codespan::{FileId, Span};
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use mlsub::auto::{Automaton, StateId, StateSet};
 use mlsub::{BiunifyError, Polarity};
 
@@ -15,22 +15,23 @@ use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
     SourceCacheResult, SourceMap, Spanned, Symbol, SymbolMap,
 };
+use crate::ErrorData;
 
 pub fn check(
-    source: SourceMap,
+    source: &mut SourceMap,
+    file: FileId,
     expr: &Spanned<Expr>,
-) -> Result<FuncValue, Box<dyn std::error::Error>> {
-    let mut ctx = Context::new(source);
-    let (_, cmds) = ctx.check_expr(expr)?;
+) -> Result<FuncValue, Vec<Diagnostic>> {
+    let mut ctx = Context::new(source, file);
+    let (_, cmds) = ctx.check_expr(expr).map_err(Error::into_diagnostics)?;
     Ok(FuncValue::new(cmds))
 }
 
 #[derive(Debug)]
 enum Error {
-    UndefinedVar(Symbol),
+    UndefinedVar(FileId, Span, Symbol),
+    Import(FileId, Span, String, ErrorData),
     TypeCheck(BiunifyError<Constructor>),
-    Import(String, Box<dyn std::error::Error>),
-    RecursiveImport(String),
 }
 
 impl From<BiunifyError<Constructor>> for Error {
@@ -39,31 +40,31 @@ impl From<BiunifyError<Constructor>> for Error {
     }
 }
 
-struct Context {
+struct Context<'a> {
     auto: Automaton<Constructor>,
     vars: Vec<ImSymbolMap<StateId>>,
-    source: SourceMap,
     cache: HashMap<FileId, (StateId, Vec<Command>)>,
+    files: Vec<FileId>,
+    source: &'a mut SourceMap,
 }
 
-impl Context {
-    fn new(source: SourceMap) -> Self {
+impl<'a> Context<'a> {
+    fn new(source: &'a mut SourceMap, file: FileId) -> Self {
         let mut ctx = Context {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
             cache: HashMap::new(),
+            files: vec![file],
             source,
         };
         ctx.set_builtins();
         ctx
     }
-}
 
-impl Context {
     fn check_expr(&mut self, expr: &Spanned<Expr>) -> Result<(StateId, Vec<Command>), Error> {
         match &expr.val {
             Expr::Null => self.check_null(expr.span),
-            Expr::Var(symbol) => self.check_var(*symbol),
+            Expr::Var(symbol) => self.check_var(*symbol, expr.span),
             Expr::Func(func) => self.check_func(func, expr.span, None),
             Expr::Call(call_expr) => self.check_call(call_expr, expr.span),
             Expr::Let(let_expr) => self.check_let(let_expr),
@@ -76,16 +77,16 @@ impl Context {
             Expr::Enum(enum_expr) => self.check_enum(enum_expr, expr.span),
             Expr::Match(match_expr) => self.check_match(match_expr, expr.span),
             Expr::Proj(proj) => self.check_proj(proj, expr.span),
-            Expr::Import(path) => self.check_import(path),
+            Expr::Import(path) => self.check_import(path, expr.span),
         }
     }
 
-    fn check_var(&mut self, var: Symbol) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_var(&mut self, var: Symbol, span: Span) -> Result<(StateId, Vec<Command>), Error> {
         let cmd = Command::Load { var };
         if let Some(id) = self.get_var(var) {
             Ok((id, vec![cmd]))
         } else {
-            Err(Error::UndefinedVar(var))
+            Err(Error::UndefinedVar(self.file(), span, var))
         }
     }
 
@@ -335,7 +336,7 @@ impl Context {
         Ok((pair.pos, cmds))
     }
 
-    fn check_import(&mut self, path: &str) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_import(&mut self, path: &str, span: Span) -> Result<(StateId, Vec<Command>), Error> {
         match self.resolve_import(path) {
             Ok(SourceCacheResult::Miss(file, expr)) => {
                 let (ty, cmds) = self.check_expr(&expr)?;
@@ -346,16 +347,18 @@ impl Context {
             }
             Ok(SourceCacheResult::Hit(file)) => match self.cache.get(&file) {
                 Some(result) => Ok(result.clone()),
-                None => Err(Error::RecursiveImport(path.to_owned())),
+                None => Err(Error::Import(
+                    self.file(),
+                    span,
+                    path.to_owned(),
+                    ErrorData::Basic("recursive import detected".into()),
+                )),
             },
-            Err(err) => Err(Error::Import(path.to_owned(), err)),
+            Err(err) => Err(Error::Import(self.file(), span, path.to_owned(), err)),
         }
     }
 
-    fn resolve_import(
-        &mut self,
-        path: &str,
-    ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
+    fn resolve_import(&mut self, path: &str) -> Result<SourceCacheResult, ErrorData> {
         match path {
             "cmp" => self
                 .source
@@ -403,6 +406,10 @@ impl Context {
         Ok((ty, cmd))
     }
 
+    fn file(&self) -> FileId {
+        *self.files.last().unwrap()
+    }
+
     fn push_var(&mut self, symbol: Symbol, ty: StateId) {
         let mut vars = self.vars.last().cloned().unwrap();
         vars.insert(symbol, ty);
@@ -422,23 +429,31 @@ impl Context {
     }
 
     fn build_null(&mut self, pol: Polarity, span: Span) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::Null, self.file(), span),
+        )
     }
 
     fn build_bool(&mut self, pol: Polarity, span: Span) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::Bool, self.file(), span),
+        )
     }
 
     fn build_int(&mut self, pol: Polarity, span: Span) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Int, span))
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::Int, self.file(), span),
+        )
     }
 
     fn build_string(&mut self, pol: Polarity, span: Span) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::String, self.file(), span),
+        )
     }
 
     fn build_func(&mut self, pol: Polarity, span: Span, dom: StateId, range: StateId) -> StateId {
@@ -446,6 +461,7 @@ impl Context {
             pol,
             Constructor::new(
                 ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
+                self.file(),
                 span,
             ),
         )
@@ -463,6 +479,7 @@ impl Context {
                         .map(|(sym, id)| (sym, StateSet::new(id)))
                         .collect(),
                 ),
+                self.file(),
                 span,
             ),
         )
@@ -480,6 +497,7 @@ impl Context {
                         .map(|(tag, ty)| (tag, StateSet::new(ty)))
                         .collect(),
                 ),
+                self.file(),
                 span,
             ),
         )
@@ -496,32 +514,37 @@ impl Context {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Error {
+    fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Error::TypeCheck(err) => {
-                write!(
-                    f,
-                    "expected {} (inferred at {}), but found {} at {}",
-                    err.constraint.1,
-                    err.constraint.1.span(),
-                    err.constraint.0,
-                    err.constraint.0.span()
-                )?;
-                for &(label, ref found, ref expected) in &err.stack {
-                    write!(
-                        f,
-                        "\n    while comparing {} of {} type (inferred for expected type at {} and for found type at {})",
-                        label, expected, found.span(), found.span(),
-                    )?;
-                }
-                Ok(())
+                let (file, span) = err.constraint.0.spans()[0];
+                let diagnostic =
+                    Diagnostic::new_error(
+                        format!(
+                            "expected `{}` but found `{}`",
+                            err.constraint.1, err.constraint.0
+                        ),
+                        Label::new(file, span, "found here"),
+                    )
+                    .with_secondary_labels(
+                        err.constraint.1.spans().iter().map(|&(file, span)| {
+                            Label::new(file, span, "expected type inferred here")
+                        }),
+                    );
+                vec![diagnostic]
             }
-            Error::UndefinedVar(symbol) => write!(f, "undefined var `{}`", symbol),
-            Error::Import(path, err) => write!(f, "failed to import module `{}`: `{}`", path, err),
-            Error::RecursiveImport(path) => write!(f, "recursive import of module `{}`", path),
+            Error::UndefinedVar(file, span, symbol) => vec![Diagnostic::new_error(
+                format!("undefined variable `{}`", symbol),
+                Label::new(file, span, "used here"),
+            )],
+            Error::Import(file, span, path, data) => match data {
+                ErrorData::Basic(err) => vec![Diagnostic::new_error(
+                    format!("failed to import module from `{}`: {}", path, err),
+                    Label::new(file, span, "imported here"),
+                )],
+                ErrorData::Diagnostics(diagnostics) => diagnostics,
+            },
         }
     }
 }
-
-impl std::error::Error for Error {}

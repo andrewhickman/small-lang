@@ -5,9 +5,12 @@ authors = ["Andrew Hickman <andrew.hickman1@sky.com>"]
 edition = "2018"
 build = "build.rs"
 
+[lib]
+bench = false
+
 [[bin]]
 name = "small-lang"
-required-features = ["structopt"]
+required-features = ["structopt", "paw"]
 
 [[bench]]
 name = "fibonacci-parse"
@@ -21,6 +24,9 @@ harness = false
 name = "fibonacci-run"
 harness = false
 
+[features]
+default = ["structopt", "paw"]
+
 [dependencies]
 lazy_static = "~1"
 seahash = "~3"
@@ -30,9 +36,15 @@ iter-set = "0.2.0"
 codespan = "0.5.0"
 log = "0.4.8"
 serde_json = "1.0.41"
+codespan-reporting = "0.5.0"
+
+[dependencies.paw]
+version = "1.0.0"
+optional = true
 
 [dependencies.structopt]
 version = "0.3.3"
+features = ["paw"]
 optional = true
 
 [dependencies.env_logger]

@@ -1,14 +1,15 @@
-use std::error::Error;
 use std::path::Path;
 
+use codespan::FileId;
 use proptest::{prelude::*, proptest};
 
 use crate::check::check;
 use crate::rt::{self, EnumValue, Value};
 use crate::syntax::tests::arb_expr;
 use crate::syntax::{SourceMap, Symbol};
+use crate::Error;
 
-fn run_file(file: impl AsRef<Path>) -> Result<Value, Box<dyn Error>> {
+fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
     crate::run_file(&file, rt::Opts::default()).map(|output| output.value)
 }
@@ -59,7 +60,7 @@ test_file!(not2, Ok(Value::Bool(true)));
 test_file!(xor, Ok(Value::Bool(true)));
 test_file!(shadow, Ok(Value::Bool(false)));
 test_file!(expr, Ok(Value::Bool(true)));
-test_file!(undefined_var, Err("undefined var `x`"));
+test_file!(undefined_var, Err);
 test_file!(type_error, Err);
 test_file!(rec_error, Err);
 test_file!(rec_func, Ok(Value::Bool(true)));
@@ -105,20 +106,14 @@ test_file!(
         value: Box::new(Value::Int(4)),
     }))
 );
-test_file!(
-    recursive_import_a,
-    Err("recursive import of module `recursive_import_a.sl`")
-);
-test_file!(
-    recursive_import_b,
-    Err("recursive import of module `recursive_import_b.sl`")
-);
+test_file!(recursive_import_a, Err);
+test_file!(recursive_import_b, Err);
 test_file!(list_from_iter, Ok(Value::Bool(true)));
 test_file!(list_from_iter_take, Ok(Value::Bool(true)));
 test_file!(list_length, Ok(Value::Int(3)));
 test_file!(list_from_iter_length, Ok(Value::Int(6)));
 test_file!(iter_length, Ok(Value::Int(42 - 24)));
-test_file!(complex_error, Err("expected int (inferred at 0:0), but found bool at 134:138\n    while comparing domain of func type (inferred for expected type at 39:81 and for found type at 39:81)"));
+test_file!(complex_error, Err);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
@@ -134,5 +129,11 @@ proptest! {
 }
 
 fn arb_valid_expr() -> impl Strategy<Value = rt::FuncValue> {
-    arb_expr().prop_filter_map("type error", |expr| check(SourceMap::new(), &expr).ok())
+    arb_expr().prop_filter_map("type error", |expr| {
+        check(&mut SourceMap::new(), dummy_file_id(), &expr).ok()
+    })
+}
+
+fn dummy_file_id() -> FileId {
+    codespan::Files::new().add("", "")
 }

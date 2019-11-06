@@ -1,10 +1,14 @@
 use std::collections::hash_map::{self, HashMap};
+use std::fmt::Write;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
 
-use codespan::{FileId, Files, Location};
+use codespan::{ByteIndex, FileId, Files, Span};
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+use lalrpop_util::ParseError;
 
-use crate::syntax::{Expr, Spanned};
+use crate::syntax::{Expr, Spanned, Token};
+use crate::ErrorData;
 
 #[derive(Debug)]
 pub struct SourceMap {
@@ -12,9 +16,6 @@ pub struct SourceMap {
     dir: Vec<PathBuf>,
     cache: HashMap<String, FileId>,
 }
-
-#[derive(Debug)]
-pub struct SourceLocation(Location);
 
 pub enum SourceCacheResult {
     Miss(FileId, Spanned<Expr>),
@@ -30,36 +31,42 @@ impl SourceMap {
         }
     }
 
-    pub fn parse_file(
-        &mut self,
-        path: impl AsRef<Path>,
-    ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
+    pub fn files(&self) -> &Files {
+        &self.files
+    }
+
+    pub fn parse_file(&mut self, path: impl AsRef<Path>) -> Result<SourceCacheResult, ErrorData> {
         let path = match self.dir.last() {
             Some(dir) => dir.join(path),
             None => path.as_ref().to_owned(),
         };
         match path.parent() {
             Some(dir) => self.dir.push(dir.to_owned()),
-            None => return Err("invalid path".into()),
+            None => return Err(ErrorData::Basic("invalid path".into())),
         }
-        let source = fs::read_to_string(&path)?;
-        self.add_file(path.canonicalize()?.to_string_lossy(), source)
+        let source = fs::read_to_string(&path).map_err(ErrorData::io)?;
+        self.add_file(
+            path.canonicalize()
+                .map_err(ErrorData::io)?
+                .to_string_lossy(),
+            source,
+        )
     }
 
     pub fn parse_input(
         &mut self,
         name: impl Into<String>,
         input: impl Into<String>,
-    ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
+    ) -> Result<SourceCacheResult, ErrorData> {
         self.dir.push(PathBuf::default());
         self.add_file(name, input)
     }
 
-    pub fn add_file(
+    fn add_file(
         &mut self,
         name: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<SourceCacheResult, Box<dyn std::error::Error>> {
+    ) -> Result<SourceCacheResult, ErrorData> {
         let name = name.into();
 
         match self.cache.entry(name.clone()) {
@@ -67,11 +74,14 @@ impl SourceMap {
             hash_map::Entry::Vacant(entry) => {
                 let file = self.files.add(name, source);
 
-                let files = &mut self.files;
-                let expr = Expr::parse(files.source(file)).map_err(|err| {
-                    err.map_location(|idx| SourceLocation(files.location(file, idx).unwrap()))
-                        .map_token(|tok| tok.to_string())
-                })?;
+                let expr = match Expr::parse(self.files.source(file)) {
+                    Ok(expr) => expr,
+                    Err(err) => {
+                        return Err(ErrorData::Diagnostics(vec![
+                            self.build_diagnostic(file, err)
+                        ]))
+                    }
+                };
 
                 entry.insert(file);
                 Ok(SourceCacheResult::Miss(file, expr))
@@ -81,6 +91,40 @@ impl SourceMap {
 
     pub fn end_file(&mut self) {
         self.dir.pop();
+    }
+
+    fn build_diagnostic(
+        &self,
+        file: FileId,
+        err: ParseError<ByteIndex, Token<'_>, &'static str>,
+    ) -> Diagnostic {
+        match err {
+            ParseError::InvalidToken { location: start } => Diagnostic::new_error(
+                "invalid token found",
+                Label::new(file, Span::new(start, start), "invalid token here"),
+            ),
+            ParseError::UnrecognizedEOF {
+                location: end,
+                expected,
+            } => Diagnostic::new_error(
+                format!("expected {}, found end of file", fmt_expected(&expected)),
+                Label::new(file, Span::new(end, end), "unexpected EOF here"),
+            ),
+            ParseError::UnrecognizedToken {
+                token: (start, token, end),
+                expected,
+            } => Diagnostic::new_error(
+                format!("expected {}, found `{}`", fmt_expected(&expected), token),
+                Label::new(file, Span::new(start, end), "unexpected token here"),
+            ),
+            ParseError::ExtraToken {
+                token: (start, token, end),
+            } => Diagnostic::new_error(
+                format!("extra token found `{}`", token),
+                Label::new(file, Span::new(start, end), "extra token here"),
+            ),
+            ParseError::User { .. } => unreachable!(),
+        }
     }
 }
 
@@ -99,8 +143,28 @@ impl SourceCacheResult {
     }
 }
 
-impl fmt::Display for SourceLocation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.0.line.number(), self.0.column.number())
+/// Format a list of expected tokens.
+fn fmt_expected(expected: &[String]) -> String {
+    let mut s = String::new();
+    let len = expected.len();
+    if len > 0 {
+        write!(s, "one of {}", fmt_token(&expected[0])).unwrap();
+        if len > 1 {
+            for token in &expected[1..(len - 1)] {
+                write!(s, ", {}", fmt_token(token)).unwrap();
+            }
+            write!(s, " or {}", fmt_token(&expected[len - 1])).unwrap();
+        }
+    }
+    s
+}
+
+fn fmt_token(token: &str) -> &str {
+    match token {
+        // ಠ_ಠ
+        r##"r#"\"(?:[^\\\\\"]|(?:\\\\\")|(?:\\\\\\\\))*\""#"## => "<string>",
+        r##"r#"[[:alpha:]_]+"#"## => "<identifier>",
+        r##"r#"-?\\d+"#"## => "<integer>",
+        _ => token,
     }
 }

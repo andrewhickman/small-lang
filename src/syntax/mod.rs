@@ -9,13 +9,15 @@ lalrpop_mod!(
 );
 mod source;
 
-pub use source::{SourceCacheResult, SourceLocation, SourceMap};
+pub use source::{SourceCacheResult, SourceMap};
 pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
+
+pub(crate) use parser::Token;
 
 use codespan::{ByteIndex, RawIndex, Span};
 use lalrpop_util::{lalrpop_mod, ParseError};
 use lazy_static::lazy_static;
-use parser::{SpannedExprParser, Token};
+use parser::SpannedExprParser;
 
 #[derive(Debug)]
 pub enum Expr {
