@@ -105,12 +105,12 @@ impl mlsub::Constructor for Constructor {
             ConstructorKind::Record(fields) => fields
                 .clone()
                 .into_iter()
-                .map(|(label, set)| (Label::Label(label), set))
+                .map(|(label, set)| (Label::Field(label), set))
                 .collect(),
             ConstructorKind::Enum(fields) => fields
                 .clone()
                 .into_iter()
-                .map(|(label, set)| (Label::Label(label), set))
+                .map(|(label, set)| (Label::Tag(label), set))
                 .collect(),
         }
         .into_iter()
@@ -127,13 +127,13 @@ impl mlsub::Constructor for Constructor {
             ConstructorKind::Record(fields) => ConstructorKind::Record(
                 fields
                     .into_iter()
-                    .map(|(label, set)| (label, mapper(Label::Label(label), set)))
+                    .map(|(label, set)| (label, mapper(Label::Field(label), set)))
                     .collect(),
             ),
             ConstructorKind::Enum(fields) => ConstructorKind::Enum(
                 fields
                     .into_iter()
-                    .map(|(label, set)| (label, mapper(Label::Label(label), set)))
+                    .map(|(label, set)| (label, mapper(Label::Tag(label), set)))
                     .collect(),
             ),
             scalar => scalar,
@@ -173,14 +173,15 @@ impl PartialEq for Constructor {
 pub enum Label {
     Domain,
     Range,
-    Label(Symbol),
+    Field(Symbol),
+    Tag(Symbol),
 }
 
 impl mlsub::Label for Label {
     fn polarity(&self) -> Polarity {
         match self {
             Label::Domain => Polarity::Neg,
-            Label::Range | Label::Label(_) => Polarity::Pos,
+            Label::Range | Label::Field(_) | Label::Tag(_) => Polarity::Pos,
         }
     }
 }
@@ -193,8 +194,8 @@ impl fmt::Display for Constructor {
             ConstructorKind::Int => "int".fmt(f),
             ConstructorKind::String => "string".fmt(f),
             ConstructorKind::Func(..) => "func".fmt(f),
-            ConstructorKind::Record(..) => "record".fmt(f),
-            ConstructorKind::Enum(..) => "enum".fmt(f),
+            ConstructorKind::Record(labels) => write!(f, "record {{{}}}", Labels(labels)),
+            ConstructorKind::Enum(labels) => write!(f, "enum [{}]", Labels(labels)),
         }
     }
 }
@@ -204,7 +205,23 @@ impl fmt::Display for Label {
         match self {
             Label::Domain => "domain".fmt(f),
             Label::Range => "range".fmt(f),
-            Label::Label(field) => write!(f, "field `{}`", field),
+            Label::Field(field) => write!(f, "field `{}`", field),
+            Label::Tag(field) => write!(f, "tag `{}`", field),
         }
+    }
+}
+
+struct Labels<'a>(&'a OrdMap<Symbol, StateSet>);
+
+impl<'a> fmt::Display for Labels<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut iter = self.0.keys();
+        if let Some(label) = iter.next() {
+            write!(f, "{}", label)?;
+            for label in iter {
+                write!(f, ", {}", label)?;
+            }
+        }
+        Ok(())
     }
 }

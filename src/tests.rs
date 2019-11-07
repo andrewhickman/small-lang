@@ -113,7 +113,6 @@ test_file!(list_from_iter_take, Ok(Value::Bool(true)));
 test_file!(list_length, Ok(Value::Int(3)));
 test_file!(list_from_iter_length, Ok(Value::Int(6)));
 test_file!(iter_length, Ok(Value::Int(42 - 24)));
-test_file!(complex_error, Err);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

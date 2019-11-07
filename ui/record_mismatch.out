@@ -1,0 +1,11 @@
+error: expected `record {b}` but found `record {}`
+
+   ┌── ui/record_mismatch.sl:2:8 ───                                   @skip
+   │
+ 2 │   then { a: null }
+   │        ^^^^^^^^^^^ found here
+   ·
+ 5 │   b: record.b,
+   │      -------- expected type inferred here
+   │
+

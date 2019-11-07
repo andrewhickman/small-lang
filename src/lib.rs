@@ -5,6 +5,8 @@ pub mod syntax;
 mod error;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod ui_tests;
 
 pub use crate::error::Error;
 

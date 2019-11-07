@@ -339,7 +339,9 @@ impl<'a> Context<'a> {
     fn check_import(&mut self, path: &str, span: Span) -> Result<(StateId, Vec<Command>), Error> {
         match self.resolve_import(path) {
             Ok(SourceCacheResult::Miss(file, expr)) => {
+                self.files.push(file);
                 let (ty, cmds) = self.check_expr(&expr)?;
+                self.files.pop();
                 self.source.end_file();
 
                 assert!(self.cache.insert(file, (ty, cmds.clone())).is_none());
@@ -519,19 +521,33 @@ impl Error {
         match self {
             Error::TypeCheck(err) => {
                 let (file, span) = err.constraint.0.spans()[0];
-                let diagnostic =
-                    Diagnostic::new_error(
-                        format!(
-                            "expected `{}` but found `{}`",
-                            err.constraint.1, err.constraint.0
-                        ),
-                        Label::new(file, span, "found here"),
+                let diagnostic = Diagnostic::new_error(
+                    format!(
+                        "expected `{}` but found `{}`",
+                        err.constraint.1, err.constraint.0
+                    ),
+                    Label::new(file, span, "found here"),
+                )
+                .with_secondary_labels(
+                    err.constraint
+                        .1
+                        .spans()
+                        .iter()
+                        .map(|&(file, span)| Label::new(file, span, "expected type inferred here")),
+                )
+                .with_secondary_labels(err.stack.iter().flat_map(|(label, found, expected)| {
+                    let (found_file, found_span) = found.spans()[0];
+                    let (expected_file, expected_span) = expected.spans()[0];
+
+                    Iterator::chain(
+                        once(Label::new(
+                            found_file,
+                            found_span,
+                            format!("in {} of type {} here...", label, found),
+                        )),
+                        once(Label::new(expected_file, expected_span, "...and here")),
                     )
-                    .with_secondary_labels(
-                        err.constraint.1.spans().iter().map(|&(file, span)| {
-                            Label::new(file, span, "expected type inferred here")
-                        }),
-                    );
+                }));
                 vec![diagnostic]
             }
             Error::UndefinedVar(file, span, symbol) => vec![Diagnostic::new_error(

@@ -45,12 +45,7 @@ impl SourceMap {
             None => return Err(ErrorData::Basic("invalid path".into())),
         }
         let source = fs::read_to_string(&path).map_err(ErrorData::io)?;
-        self.add_file(
-            path.canonicalize()
-                .map_err(ErrorData::io)?
-                .to_string_lossy(),
-            source,
-        )
+        self.add_file(path.to_string_lossy(), source)
     }
 
     pub fn parse_input(
@@ -148,8 +143,10 @@ fn fmt_expected(expected: &[String]) -> String {
     let mut s = String::new();
     let len = expected.len();
     if len > 0 {
-        write!(s, "one of {}", fmt_token(&expected[0])).unwrap();
-        if len > 1 {
+        if len == 1 {
+            write!(s, "{}", fmt_token(&expected[0])).unwrap();
+        } else {
+            write!(s, "one of {}", fmt_token(&expected[0])).unwrap();
             for token in &expected[1..(len - 1)] {
                 write!(s, ", {}", fmt_token(token)).unwrap();
             }
