@@ -129,7 +129,6 @@ proptest! {
 
 fn arb_valid_expr() -> impl Strategy<Value = rt::FuncValue> {
     arb_expr().prop_filter_map("type error", |expr| {
-        println!("{:#?}", expr);
         check(&mut SourceMap::new(), dummy_file_id(), &expr).ok()
     })
 }

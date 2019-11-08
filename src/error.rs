@@ -47,7 +47,7 @@ impl Error {
                     write!(writer, "{}", source)?;
                     err = source;
                 }
-                Ok(())
+                writeln!(writer)
             }
             ErrorData::Diagnostics(diagnostics) => {
                 let config = Config::default();
