@@ -2,6 +2,7 @@
 name = "small-lang"
 version = "0.1.0"
 authors = ["Andrew Hickman <andrew.hickman1@sky.com>"]
+license = "MIT"
 edition = "2018"
 build = "build.rs"
 
