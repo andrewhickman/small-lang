@@ -1,6 +1,9 @@
 language: rust
-rust:
-  - stable
+before_script:
+  - rustup component add rustfmt
+script:
+  - cargo test --verbose
+  - cargo fmt --all -- --check
 env:
   - PROPTEST_CASES=8192
 cache: cargo
