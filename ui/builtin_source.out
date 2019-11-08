@@ -1,0 +1,20 @@
+error: expected `int` but found `null`
+
+   ┌── ui/builtin_source.sl:1:1 ───                                    @skip
+   │
+ 3 │ math.add null
+   │          ^^^^ found here
+   ·
+ 1 │ let math = import "math" in
+   │ - expected type inferred here
+   ·
+ 3 │ math.add null
+   │ ------------- ...and here
+   │
+
+   ┌── math:4:8 ───
+   │
+ 4 │   add: func l => func r => __builtin_add { l, r },
+   │        ------------------------------------------ in domain of type func here...
+   │
+

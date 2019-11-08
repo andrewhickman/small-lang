@@ -32,3 +32,4 @@ test_case!(enum_mismatch);
 test_case!(record_mismatch);
 test_case!(multiple_source);
 test_case!(nested_error);
+test_case!(builtin_source);
