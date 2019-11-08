@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::{self};
+use std::iter::FromIterator;
 use std::mem::{discriminant, Discriminant};
 use std::vec;
 
@@ -28,10 +29,10 @@ pub enum ConstructorKind {
 }
 
 impl Constructor {
-    pub fn new(kind: ConstructorKind, file: FileId, span: Span) -> Self {
+    pub fn new(kind: ConstructorKind, span: Option<(FileId, Span)>) -> Self {
         Constructor {
             kind,
-            spans: vec![(file, span)],
+            spans: Vec::from_iter(span),
         }
     }
 

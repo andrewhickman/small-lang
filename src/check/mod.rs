@@ -31,13 +31,7 @@ pub fn check(
 enum Error {
     UndefinedVar(FileId, Span, Symbol),
     Import(FileId, Span, String, ErrorData),
-    TypeCheck(BiunifyError<Constructor>),
-}
-
-impl From<BiunifyError<Constructor>> for Error {
-    fn from(err: BiunifyError<Constructor>) -> Self {
-        Error::TypeCheck(err)
-    }
+    TypeCheck(FileId, Span, BiunifyError<Constructor>),
 }
 
 struct Context<'a> {
@@ -68,11 +62,11 @@ impl<'a> Context<'a> {
             Expr::Func(func) => self.check_func(func, expr.span, None),
             Expr::Call(call_expr) => self.check_call(call_expr, expr.span),
             Expr::Let(let_expr) => self.check_let(let_expr),
-            Expr::Rec(rec) => self.check_rec(rec),
+            Expr::Rec(rec) => self.check_rec(rec, expr.span),
             Expr::Bool(val) => self.check_bool(*val, expr.span),
             Expr::Int(val) => self.check_int(*val, expr.span),
             Expr::String(val) => self.check_string(val.clone(), expr.span),
-            Expr::If(if_expr) => self.check_if(if_expr),
+            Expr::If(if_expr) => self.check_if(if_expr, expr.span),
             Expr::Record(map) => self.check_record(map, expr.span),
             Expr::Enum(enum_expr) => self.check_enum(enum_expr, expr.span),
             Expr::Match(match_expr) => self.check_match(match_expr, expr.span),
@@ -101,7 +95,7 @@ impl<'a> Context<'a> {
         let (body_ty, mut body_cmds) = self.check_expr(&func.body)?;
         self.pop_var();
 
-        let func_ty = self.build_func(Polarity::Pos, span, pair.neg, body_ty);
+        let func_ty = self.build_func(Polarity::Pos, Some(span), pair.neg, body_ty);
 
         body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
@@ -122,8 +116,10 @@ impl<'a> Context<'a> {
         let (arg_ty, arg_cmds) = self.check_expr(&call.arg)?;
 
         let pair = self.auto.build_var();
-        let f = self.build_func(Polarity::Neg, span, arg_ty, pair.neg);
-        self.auto.biunify(func_ty, f)?;
+        let f = self.build_func(Polarity::Neg, Some(span), arg_ty, pair.neg);
+        self.auto
+            .biunify(func_ty, f)
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
 
         let mut cmds = arg_cmds;
         cmds.extend(func_cmds);
@@ -148,14 +144,16 @@ impl<'a> Context<'a> {
         Ok((body_ty, cmds))
     }
 
-    fn check_rec(&mut self, rec: &RecExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_rec(&mut self, rec: &RecExpr, span: Span) -> Result<(StateId, Vec<Command>), Error> {
         let pair = self.auto.build_var();
         self.push_var(rec.name.val, pair.pos);
         let (func_ty, func_cmds) =
             self.check_func(&rec.func.val, rec.func.span, Some(rec.name.val))?;
         self.pop_var();
 
-        self.auto.biunify(func_ty, pair.neg)?;
+        self.auto
+            .biunify(func_ty, pair.neg)
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
 
         self.push_var(rec.name.val, func_ty);
         let (body_ty, body_cmds) = self.check_expr(&rec.body)?;
@@ -169,19 +167,21 @@ impl<'a> Context<'a> {
         Ok((body_ty, cmds))
     }
 
-    fn check_if(&mut self, if_expr: &IfExpr) -> Result<(StateId, Vec<Command>), Error> {
+    fn check_if(&mut self, if_expr: &IfExpr, span: Span) -> Result<(StateId, Vec<Command>), Error> {
         let (cond_ty, cond_cmds) = self.check_expr(&if_expr.cond)?;
         let (cons_ty, cons_cmds) = self.check_expr(&if_expr.cons)?;
         let (alt_ty, alt_cmds) = self.check_expr(&if_expr.alt)?;
 
         let pair = self.auto.build_var();
-        let bool_ty = self.build_bool(Polarity::Neg, if_expr.cond.span);
+        let bool_ty = self.build_bool(Polarity::Neg, Some(if_expr.cond.span));
 
-        self.auto.biunify_all(
-            [(cond_ty, bool_ty), (cons_ty, pair.neg), (alt_ty, pair.neg)]
-                .iter()
-                .copied(),
-        )?;
+        self.auto
+            .biunify_all(
+                [(cond_ty, bool_ty), (cons_ty, pair.neg), (alt_ty, pair.neg)]
+                    .iter()
+                    .copied(),
+            )
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
 
         let mut cmds = cond_cmds;
         cmds.push(Command::Test {
@@ -211,7 +211,7 @@ impl<'a> Context<'a> {
 
         let record_ty = self.build_record(
             Polarity::Pos,
-            span,
+            Some(span),
             fields.iter().map(|&(field, id, _)| (field, id)),
         );
 
@@ -244,7 +244,8 @@ impl<'a> Context<'a> {
             tag: enum_expr.tag.val,
         });
 
-        let enum_ty = self.build_enum_variant(Polarity::Pos, span, enum_expr.tag.val, expr_ty);
+        let enum_ty =
+            self.build_enum_variant(Polarity::Pos, Some(span), enum_expr.tag.val, expr_ty);
 
         Ok((enum_ty, cmds))
     }
@@ -282,16 +283,20 @@ impl<'a> Context<'a> {
             .collect::<Result<Vec<(Symbol, StateId, StateId, Vec<Command>)>, Error>>()?;
         let enum_ty = self.build_enum(
             Polarity::Neg,
-            span,
+            Some(span),
             cases.iter().map(|&(tag, in_ty, _, _)| (tag, in_ty)),
         );
 
-        self.auto.biunify(expr_ty, enum_ty)?;
-        self.auto.biunify_all(
-            cases
-                .iter()
-                .map(|&(_, _, out_ty, _)| (out_ty, result_pair.neg)),
-        )?;
+        self.auto
+            .biunify(expr_ty, enum_ty)
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+        self.auto
+            .biunify_all(
+                cases
+                    .iter()
+                    .map(|&(_, _, out_ty, _)| (out_ty, result_pair.neg)),
+            )
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
 
         let (jump_offsets, mut cmds_total_len) = cases.iter().fold(
             (ImSymbolMap::default(), 0),
@@ -325,8 +330,10 @@ impl<'a> Context<'a> {
         let (expr_ty, expr_cmds) = self.check_expr(&proj.expr)?;
 
         let pair = self.auto.build_var();
-        let record = self.build_record(Polarity::Neg, span, once((proj.field.val, pair.neg)));
-        self.auto.biunify(expr_ty, record)?;
+        let record = self.build_record(Polarity::Neg, Some(span), once((proj.field.val, pair.neg)));
+        self.auto
+            .biunify(expr_ty, record)
+            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
 
         let mut cmds = expr_cmds;
         cmds.push(Command::Get {
@@ -379,13 +386,13 @@ impl<'a> Context<'a> {
     }
 
     fn check_null(&mut self, span: Span) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_null(Polarity::Pos, span);
+        let ty = self.build_null(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push { value: Value::Null }];
         Ok((ty, cmd))
     }
 
     fn check_bool(&mut self, val: bool, span: Span) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_bool(Polarity::Pos, span);
+        let ty = self.build_bool(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::Bool(val),
         }];
@@ -393,7 +400,7 @@ impl<'a> Context<'a> {
     }
 
     fn check_int(&mut self, val: i64, span: Span) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_int(Polarity::Pos, span);
+        let ty = self.build_int(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::Int(val),
         }];
@@ -401,7 +408,7 @@ impl<'a> Context<'a> {
     }
 
     fn check_string(&mut self, val: String, span: Span) -> Result<(StateId, Vec<Command>), Error> {
-        let ty = self.build_string(Polarity::Pos, span);
+        let ty = self.build_string(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::String(val),
         }];
@@ -430,46 +437,54 @@ impl<'a> Context<'a> {
         self.vars.pop();
     }
 
-    fn build_null(&mut self, pol: Polarity, span: Span) -> StateId {
+    fn build_null(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
         self.auto.build_constructed(
             pol,
-            Constructor::new(ConstructorKind::Null, self.file(), span),
+            Constructor::new(ConstructorKind::Null, span.map(|span| (self.file(), span))),
         )
     }
 
-    fn build_bool(&mut self, pol: Polarity, span: Span) -> StateId {
+    fn build_bool(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
         self.auto.build_constructed(
             pol,
-            Constructor::new(ConstructorKind::Bool, self.file(), span),
+            Constructor::new(ConstructorKind::Bool, span.map(|span| (self.file(), span))),
         )
     }
 
-    fn build_int(&mut self, pol: Polarity, span: Span) -> StateId {
+    fn build_int(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
         self.auto.build_constructed(
             pol,
-            Constructor::new(ConstructorKind::Int, self.file(), span),
+            Constructor::new(ConstructorKind::Int, span.map(|span| (self.file(), span))),
         )
     }
 
-    fn build_string(&mut self, pol: Polarity, span: Span) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(ConstructorKind::String, self.file(), span),
-        )
-    }
-
-    fn build_func(&mut self, pol: Polarity, span: Span, dom: StateId, range: StateId) -> StateId {
+    fn build_string(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
         self.auto.build_constructed(
             pol,
             Constructor::new(
-                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
-                self.file(),
-                span,
+                ConstructorKind::String,
+                span.map(|span| (self.file(), span)),
             ),
         )
     }
 
-    fn build_record<I>(&mut self, pol: Polarity, span: Span, iter: I) -> StateId
+    fn build_func(
+        &mut self,
+        pol: Polarity,
+        span: Option<Span>,
+        dom: StateId,
+        range: StateId,
+    ) -> StateId {
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
+                span.map(|span| (self.file(), span)),
+            ),
+        )
+    }
+
+    fn build_record<I>(&mut self, pol: Polarity, span: Option<Span>, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
@@ -481,13 +496,12 @@ impl<'a> Context<'a> {
                         .map(|(sym, id)| (sym, StateSet::new(id)))
                         .collect(),
                 ),
-                self.file(),
-                span,
+                span.map(|span| (self.file(), span)),
             ),
         )
     }
 
-    fn build_enum<I>(&mut self, pol: Polarity, span: Span, iter: I) -> StateId
+    fn build_enum<I>(&mut self, pol: Polarity, span: Option<Span>, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
@@ -499,8 +513,7 @@ impl<'a> Context<'a> {
                         .map(|(tag, ty)| (tag, StateSet::new(ty)))
                         .collect(),
                 ),
-                self.file(),
-                span,
+                span.map(|span| (self.file(), span)),
             ),
         )
     }
@@ -508,7 +521,7 @@ impl<'a> Context<'a> {
     fn build_enum_variant(
         &mut self,
         pol: Polarity,
-        span: Span,
+        span: Option<Span>,
         field: Symbol,
         expr: StateId,
     ) -> StateId {
@@ -519,35 +532,41 @@ impl<'a> Context<'a> {
 impl Error {
     fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
-            Error::TypeCheck(err) => {
-                let (file, span) = err.constraint.0.spans()[0];
-                let diagnostic = Diagnostic::new_error(
+            Error::TypeCheck(expr_file, expr_span, err) => {
+                let actual_span = err.constraint.0.spans().get(0);
+                let expected_span = err.constraint.1.spans().get(0);
+
+                let primary_span = match (actual_span, expected_span) {
+                    (Some(&actual_span), _) => actual_span,
+                    (_, Some(&expected_span)) => expected_span,
+                    (None, None) => (expr_file, expr_span),
+                };
+
+                let mut diagnostic = Diagnostic::new_error(
                     format!(
                         "expected `{}` but found `{}`",
                         err.constraint.1, err.constraint.0
                     ),
-                    Label::new(file, span, "found here"),
-                )
-                .with_secondary_labels(
-                    err.constraint
-                        .1
-                        .spans()
-                        .iter()
-                        .map(|&(file, span)| Label::new(file, span, "expected type inferred here")),
-                )
-                .with_secondary_labels(err.stack.iter().flat_map(|(label, found, expected)| {
-                    let (found_file, found_span) = found.spans()[0];
-                    let (expected_file, expected_span) = expected.spans()[0];
-
-                    Iterator::chain(
-                        once(Label::new(
-                            found_file,
-                            found_span,
-                            format!("in {} of type {} here...", label, found),
-                        )),
-                        once(Label::new(expected_file, expected_span, "...and here")),
-                    )
-                }));
+                    Label::new(primary_span.0, primary_span.1, "found here"),
+                );
+                if actual_span.is_some() {
+                    diagnostic
+                        .secondary_labels
+                        .extend(err.constraint.1.spans().iter().map(|&(file, span)| {
+                            Label::new(file, span, "expected type inferred here")
+                        }));
+                }
+                diagnostic
+                    .secondary_labels
+                    .extend(err.stack.iter().filter_map(|(label, found, _)| {
+                        found.spans().get(0).map(|&(file, span)| {
+                            Label::new(
+                                file,
+                                span,
+                                format!("in {} of type `{}` here...", label, found),
+                            )
+                        })
+                    }));
                 vec![diagnostic]
             }
             Error::UndefinedVar(file, span, symbol) => vec![Diagnostic::new_error(

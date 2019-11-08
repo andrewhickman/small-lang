@@ -33,3 +33,4 @@ test_case!(record_mismatch);
 test_case!(multiple_source);
 test_case!(nested_error);
 test_case!(builtin_source);
+test_case!(builtin_primary_source);
