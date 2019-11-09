@@ -1,4 +1,4 @@
-let join = if true
+let join = if false
   then func _ => [tag: { a: true }]
   else func _ => [tag: { a: null }]
 in

@@ -1,6 +1,6 @@
 error: expected `bool` but found `null`
 
-   ┌── ui/nested_error.sl:2:18 ───                                     @skip
+   ┌── ui/nested_error.sl:2:24 ───                                     @skip
    │
  3 │   else func _ => [tag: { a: null }]
    │                             ^^^^ found here
@@ -8,10 +8,7 @@ error: expected `bool` but found `null`
  6 │     tag: val => if val.a then null else null
    │                    ----- expected type inferred here
    ·
- 3 │   else func _ => [tag: { a: null }]
-   │                        ----------- in field `a` of type `record {a}` here...
-   ·
  2 │   then func _ => [tag: { a: true }]
-   │                  ------------------ in tag `tag` of type `enum [tag]` here...
+   │                        ----------- in field `a` of type `record {a}` here...
    │
 

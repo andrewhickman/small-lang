@@ -38,6 +38,7 @@ codespan = "0.5.0"
 log = "0.4.8"
 serde_json = "1.0.41"
 codespan-reporting = "0.5.0"
+itertools = "0.8.1"
 
 [dependencies.paw]
 version = "1.0.0"
@@ -54,7 +55,7 @@ optional = true
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
-rev = "8315239308c98f1c0dd7abc9ae3ca1c576fba073"
+rev = "e239f2c7b05b9e5a32be662490893566075199ac"
 
 [dependencies.im]
 package = "im-rc"
@@ -71,4 +72,3 @@ lalrpop = "0.17"
 [dev-dependencies]
 proptest = "0.9.4"
 criterion = "0.3.0"
-itertools = "0.8.1"

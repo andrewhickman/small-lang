@@ -1,7 +1,7 @@
 use mlsub::auto::StateId;
 use mlsub::Polarity;
 
-use crate::check::Context;
+use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
 impl<'a> Context<'a> {
@@ -14,7 +14,7 @@ impl<'a> Context<'a> {
         self.set_var(Symbol::new("__builtin_sub"), sub);
     }
 
-    fn build_eq(&mut self) -> StateId {
+    fn build_eq(&mut self) -> Scheme {
         let arg0 = self.auto.build_empty(Polarity::Neg);
         let arg1 = self.auto.build_empty(Polarity::Neg);
         let ret = self.build_bool(Polarity::Pos, None);
@@ -22,7 +22,7 @@ impl<'a> Context<'a> {
         self.build_binary_func(arg0, arg1, ret)
     }
 
-    fn build_binary_int_op(&mut self) -> StateId {
+    fn build_binary_int_op(&mut self) -> Scheme {
         // TODO handle constraints originating here in error messages
         let arg0 = self.build_int(Polarity::Neg, None);
         let arg1 = self.build_int(Polarity::Neg, None);
@@ -31,7 +31,7 @@ impl<'a> Context<'a> {
         self.build_binary_func(arg0, arg1, ret)
     }
 
-    fn build_binary_func(&mut self, lhs: StateId, rhs: StateId, ret: StateId) -> StateId {
+    fn build_binary_func(&mut self, lhs: StateId, rhs: StateId, ret: StateId) -> Scheme {
         let arg = self.build_record(
             Polarity::Neg,
             None,
@@ -39,6 +39,6 @@ impl<'a> Context<'a> {
                 .iter()
                 .copied(),
         );
-        self.build_func(Polarity::Pos, None, arg, ret)
+        Scheme::empty(self.build_func(Polarity::Pos, None, arg, ret))
     }
 }

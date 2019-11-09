@@ -6,9 +6,3 @@ error: expected `int` but found `null`
    │          ^^^^ found here
    │
 
-   ┌── math:4:8 ───
-   │
- 4 │   add: func l => func r => __builtin_add { l, r },
-   │        ------------------------------------------ in domain of type `func` here...
-   │
-
