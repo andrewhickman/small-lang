@@ -430,7 +430,10 @@ impl<'a> Context<'a> {
     }
 
     fn get_var(&mut self, symbol: Symbol) -> Option<StateId> {
-        self.vars.last().unwrap().get(&symbol).cloned()
+        match self.vars.last().unwrap().get(&symbol) {
+            Some(&id) => Some(self.auto.clone_state(Polarity::Pos, id)),
+            None => None,
+        }
     }
 
     fn pop_var(&mut self) {
