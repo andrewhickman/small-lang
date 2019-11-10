@@ -1,4 +1,5 @@
 use std::iter::once;
+use std::rc::Rc;
 
 use mlsub::auto::{Automaton, StateId};
 use mlsub::Polarity;
@@ -10,6 +11,12 @@ use crate::syntax::{ImSymbolMap, Symbol};
 pub(in crate::check) struct Scheme {
     ty: StateId,
     env: ImSymbolMap<StateId>,
+}
+
+#[derive(Debug, Clone)]
+pub(in crate::check) struct ReducedScheme {
+    auto: Rc<Automaton<Constructor>>,
+    scheme: Scheme,
 }
 
 impl Scheme {
@@ -55,15 +62,38 @@ impl Scheme {
         self.env.remove(&var)
     }
 
-    pub fn deep_clone(&self, auto: &mut Automaton<Constructor>) -> Self {
+    pub fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
         let env: Vec<(Symbol, StateId)> = self.env.iter().copied().collect();
-        let mut cloned = auto.clone_states(
+
+        let mut reduced_auto = Automaton::new();
+        let mut range = reduced_auto.reduce(
+            auto,
             once((self.ty, Polarity::Pos)).chain(env.iter().map(|&(_, id)| (id, Polarity::Neg))),
         );
+
+        ReducedScheme {
+            auto: Rc::new(reduced_auto),
+            scheme: Scheme {
+                ty: range.next().unwrap(),
+                env: itertools::zip_eq(env, range)
+                    .map(|((var, _), id)| (var, id))
+                    .collect(),
+            },
+        }
+    }
+}
+
+impl ReducedScheme {
+    pub fn add_to(&self, auto: &mut Automaton<Constructor>) -> Scheme {
+        let offset = auto.add_from(&self.auto);
+
         Scheme {
-            ty: cloned.next().unwrap(),
-            env: itertools::zip_eq(env, cloned)
-                .map(|((var, _), id)| (var, id))
+            ty: self.scheme.ty.shift(offset),
+            env: self
+                .scheme
+                .env
+                .iter()
+                .map(|&(var, id)| (var, id.shift(offset)))
                 .collect(),
         }
     }

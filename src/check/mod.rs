@@ -10,7 +10,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use mlsub::auto::{flow, Automaton, StateId, StateSet};
 use mlsub::{BiunifyError, Polarity};
 
-use crate::check::scheme::Scheme;
+use crate::check::scheme::{ReducedScheme, Scheme};
 use crate::check::ty::{Constructor, ConstructorKind};
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
@@ -42,7 +42,7 @@ enum Error {
 
 struct Context<'a> {
     auto: Automaton<Constructor>,
-    vars: Vec<ImSymbolMap<Scheme>>,
+    vars: Vec<ImSymbolMap<ReducedScheme>>,
     cache: HashMap<FileId, (Scheme, Vec<Command>)>,
     source: &'a mut SourceMap,
 }
@@ -530,19 +530,22 @@ impl<'a> Context<'a> {
         Ok((Scheme::empty(ty), cmd))
     }
 
-    fn push_var(&mut self, symbol: Symbol, ty: Scheme) {
-        let mut vars = self.vars.last().cloned().unwrap();
-        vars.insert(symbol, ty);
+    fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {
+        let vars = self.vars.last().unwrap().clone();
         self.vars.push(vars);
+        self.set_var(symbol, scheme)
     }
 
     fn set_var(&mut self, symbol: Symbol, scheme: Scheme) {
-        self.vars.last_mut().unwrap().insert(symbol, scheme);
+        self.vars
+            .last_mut()
+            .unwrap()
+            .insert(symbol, scheme.reduce(&self.auto));
     }
 
     fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
         match self.vars.last().unwrap().get(&symbol) {
-            Some(scheme) => Some(scheme.deep_clone(&mut self.auto)),
+            Some(scheme) => Some(scheme.add_to(&mut self.auto)),
             None => None,
         }
     }
