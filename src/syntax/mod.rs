@@ -14,6 +14,8 @@ pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
 pub(crate) use parser::Token;
 
+use std::fmt;
+
 use codespan::{ByteIndex, RawIndex, Span};
 use lalrpop_util::{lalrpop_mod, ParseError};
 use lazy_static::lazy_static;
@@ -38,7 +40,7 @@ pub enum Expr {
     Import(String),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct Spanned<T> {
     pub val: T,
     pub span: Span,
@@ -112,5 +114,11 @@ impl Expr {
         PARSER
             .parse(&mut symbol::Interner::write(), input)
             .map_err(|err| err.map_location(|idx| ByteIndex(idx as RawIndex)))
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.val.fmt(f)
     }
 }
