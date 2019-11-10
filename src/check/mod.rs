@@ -24,32 +24,34 @@ pub fn check(
     file: FileId,
     expr: &Spanned<Expr>,
 ) -> Result<FuncValue, Vec<Diagnostic>> {
-    let mut ctx = Context::new(source, file);
-    let (_, cmds) = ctx.check_expr(expr).map_err(Error::into_diagnostics)?;
+    let mut ctx = Context::new(source);
+    let (_, cmds) = ctx
+        .check_expr(expr, file)
+        .map_err(Error::into_diagnostics)?;
     Ok(FuncValue::new(cmds))
 }
 
+type FileSpan = (FileId, Span);
+
 #[derive(Debug)]
 enum Error {
-    UndefinedVar(FileId, Span, Symbol),
-    Import(FileId, Span, String, ErrorData),
-    TypeCheck(FileId, Span, BiunifyError<Constructor>),
+    UndefinedVar(FileSpan, Symbol),
+    Import(FileSpan, String, ErrorData),
+    TypeCheck(FileSpan, BiunifyError<Constructor>),
 }
 
 struct Context<'a> {
     auto: Automaton<Constructor>,
     vars: Vec<ImSymbolMap<Scheme>>,
-    files: Vec<FileId>,
     cache: HashMap<FileId, (Scheme, Vec<Command>)>,
     source: &'a mut SourceMap,
 }
 
 impl<'a> Context<'a> {
-    fn new(source: &'a mut SourceMap, file: FileId) -> Self {
+    fn new(source: &'a mut SourceMap) -> Self {
         let mut ctx = Context {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
-            files: vec![file],
             cache: HashMap::default(),
             source,
         };
@@ -57,39 +59,44 @@ impl<'a> Context<'a> {
         ctx
     }
 
-    fn check_expr(&mut self, expr: &Spanned<Expr>) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_expr(
+        &mut self,
+        expr: &Spanned<Expr>,
+        file: FileId,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let span = (file, expr.span);
         match &expr.val {
-            Expr::Null => self.check_null(expr.span),
-            Expr::Var(symbol) => self.check_var(*symbol, expr.span),
-            Expr::Func(func) => self.check_func(func, expr.span, None),
-            Expr::Call(call_expr) => self.check_call(call_expr, expr.span),
-            Expr::Let(let_expr) => self.check_let(let_expr),
-            Expr::Rec(rec) => self.check_rec(rec, expr.span),
-            Expr::Bool(val) => self.check_bool(*val, expr.span),
-            Expr::Int(val) => self.check_int(*val, expr.span),
-            Expr::String(val) => self.check_string(val.clone(), expr.span),
-            Expr::If(if_expr) => self.check_if(if_expr, expr.span),
-            Expr::Record(map) => self.check_record(map, expr.span),
-            Expr::Enum(enum_expr) => self.check_enum(enum_expr, expr.span),
-            Expr::Match(match_expr) => self.check_match(match_expr, expr.span),
-            Expr::Proj(proj) => self.check_proj(proj, expr.span),
-            Expr::Import(path) => self.check_import(path, expr.span),
+            Expr::Null => self.check_null(span),
+            Expr::Var(symbol) => self.check_var(*symbol, span),
+            Expr::Func(func) => self.check_func(func, span, None),
+            Expr::Call(call_expr) => self.check_call(call_expr, span),
+            Expr::Let(let_expr) => self.check_let(let_expr, span),
+            Expr::Rec(rec) => self.check_rec(rec, span),
+            Expr::Bool(val) => self.check_bool(*val, span),
+            Expr::Int(val) => self.check_int(*val, span),
+            Expr::String(val) => self.check_string(val.clone(), span),
+            Expr::If(if_expr) => self.check_if(if_expr, span),
+            Expr::Record(map) => self.check_record(map, span),
+            Expr::Enum(enum_expr) => self.check_enum(enum_expr, span),
+            Expr::Match(match_expr) => self.check_match(match_expr, span),
+            Expr::Proj(proj) => self.check_proj(proj, span),
+            Expr::Import(path) => self.check_import(path, span),
         }
     }
 
-    fn check_var(&mut self, var: Symbol, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
         let cmd = Command::Load { var };
         if let Some(scheme) = self.get_var(var) {
             return Ok((scheme, vec![cmd]));
         } else {
-            Err(Error::UndefinedVar(self.file(), span, var))
+            Err(Error::UndefinedVar(span, var))
         }
     }
 
     fn check_func(
         &mut self,
         func: &FuncExpr,
-        span: Span,
+        span: FileSpan,
         name: Option<Symbol>,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let arg_pair = self.auto.build_var();
@@ -98,7 +105,7 @@ impl<'a> Context<'a> {
             func.arg.val,
             Scheme::singleton(arg_pair.pos, (func.arg.val, arg_pair.neg)),
         );
-        let (mut body_scheme, mut body_cmds) = self.check_expr(&func.body)?;
+        let (mut body_scheme, mut body_cmds) = self.check_expr(&func.body, span.0)?;
         self.pop_var();
 
         let domain_ty = body_scheme.remove_var(func.arg.val);
@@ -108,7 +115,7 @@ impl<'a> Context<'a> {
                 once((body_scheme.ty(), ret_pair.neg))
                     .chain(domain_ty.map(|ty| (arg_pair.pos, ty))),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
@@ -120,9 +127,13 @@ impl<'a> Context<'a> {
         Ok((body_scheme.with_ty(func_ty), vec![cmd]))
     }
 
-    fn check_call(&mut self, call: &CallExpr, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
-        let (func_scheme, func_cmds) = self.check_expr(&call.func)?;
-        let (arg_scheme, arg_cmds) = self.check_expr(&call.arg)?;
+    fn check_call(
+        &mut self,
+        call: &CallExpr,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let (func_scheme, func_cmds) = self.check_expr(&call.func, span.0)?;
+        let (arg_scheme, arg_cmds) = self.check_expr(&call.arg, span.0)?;
 
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
@@ -133,7 +144,7 @@ impl<'a> Context<'a> {
                     .iter()
                     .copied(),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         let mut cmds = arg_cmds;
         cmds.extend(func_cmds);
@@ -145,11 +156,15 @@ impl<'a> Context<'a> {
         ))
     }
 
-    fn check_let(&mut self, let_expr: &LetExpr) -> Result<(Scheme, Vec<Command>), Error> {
-        let (val_scheme, val_cmds) = self.check_expr(&let_expr.val)?;
+    fn check_let(
+        &mut self,
+        let_expr: &LetExpr,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let (val_scheme, val_cmds) = self.check_expr(&let_expr.val, span.0)?;
 
         self.push_var(let_expr.name.val, val_scheme.clone());
-        let (body_scheme, body_cmds) = self.check_expr(&let_expr.body)?;
+        let (body_scheme, body_cmds) = self.check_expr(&let_expr.body, span.0)?;
         self.pop_var();
 
         let mut cmds = val_cmds;
@@ -165,14 +180,18 @@ impl<'a> Context<'a> {
         ))
     }
 
-    fn check_rec(&mut self, rec: &RecExpr, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_rec(
+        &mut self,
+        rec: &RecExpr,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let func_pair = self.auto.build_var();
         self.push_var(
             rec.name.val,
             Scheme::singleton(func_pair.pos, (rec.name.val, func_pair.neg)),
         );
         let (mut func_scheme, func_cmds) =
-            self.check_func(&rec.func.val, rec.func.span, Some(rec.name.val))?;
+            self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
         self.pop_var();
 
         let domain_ty = func_scheme.remove_var(rec.name.val);
@@ -181,10 +200,10 @@ impl<'a> Context<'a> {
                 once((func_scheme.ty(), func_pair.neg))
                     .chain(domain_ty.map(|ty| (func_pair.pos, ty))),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         self.push_var(rec.name.val, func_scheme.clone());
-        let (body_scheme, body_cmds) = self.check_expr(&rec.body)?;
+        let (body_scheme, body_cmds) = self.check_expr(&rec.body, span.0)?;
         self.pop_var();
 
         let mut cmds = func_cmds;
@@ -198,13 +217,17 @@ impl<'a> Context<'a> {
         ))
     }
 
-    fn check_if(&mut self, if_expr: &IfExpr, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
-        let (cond_scheme, cond_cmds) = self.check_expr(&if_expr.cond)?;
-        let (cons_scheme, cons_cmds) = self.check_expr(&if_expr.cons)?;
-        let (alt_scheme, alt_cmds) = self.check_expr(&if_expr.alt)?;
+    fn check_if(
+        &mut self,
+        if_expr: &IfExpr,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let (cond_scheme, cond_cmds) = self.check_expr(&if_expr.cond, span.0)?;
+        let (cons_scheme, cons_cmds) = self.check_expr(&if_expr.cons, span.0)?;
+        let (alt_scheme, alt_cmds) = self.check_expr(&if_expr.alt, span.0)?;
 
         let pair = self.auto.build_var();
-        let bool_ty = self.build_bool(Polarity::Neg, Some(if_expr.cond.span));
+        let bool_ty = self.build_bool(Polarity::Neg, Some((span.0, if_expr.cond.span)));
 
         self.auto
             .biunify_all(
@@ -216,7 +239,7 @@ impl<'a> Context<'a> {
                 .iter()
                 .copied(),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         let mut cmds = cond_cmds;
         cmds.push(Command::Test {
@@ -243,12 +266,12 @@ impl<'a> Context<'a> {
     fn check_record(
         &mut self,
         rec: &SymbolMap<Spanned<Expr>>,
-        span: Span,
+        span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let mut fields = rec
             .iter()
             .map(|(symbol, expr)| {
-                let (scheme, cmds) = self.check_expr(expr)?;
+                let (scheme, cmds) = self.check_expr(expr, span.0)?;
                 Ok((*symbol, self.auto.build_var(), scheme, cmds))
             })
             .collect::<Result<Vec<(Symbol, flow::Pair, Scheme, Vec<Command>)>, Error>>()?;
@@ -266,7 +289,7 @@ impl<'a> Context<'a> {
                     .iter()
                     .map(|&(_, val_pair, ref scheme, _)| (scheme.ty(), val_pair.neg)),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         let cmds = fields.iter_mut().fold(
             vec![Command::Push {
@@ -292,10 +315,10 @@ impl<'a> Context<'a> {
     fn check_enum(
         &mut self,
         enum_expr: &EnumExpr,
-        span: Span,
+        span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr_scheme, expr_cmds) = match &enum_expr.expr {
-            Some(expr) => self.check_expr(expr)?,
+            Some(expr) => self.check_expr(expr, span.0)?,
             None => self.check_null(span)?,
         };
 
@@ -309,7 +332,7 @@ impl<'a> Context<'a> {
             self.build_enum_variant(Polarity::Pos, Some(span), enum_expr.tag.val, val_pair.pos);
         self.auto
             .biunify(expr_scheme.ty(), val_pair.neg)
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         Ok((expr_scheme.with_ty(enum_ty), cmds))
     }
@@ -317,9 +340,9 @@ impl<'a> Context<'a> {
     fn check_match(
         &mut self,
         match_expr: &MatchExpr,
-        span: Span,
+        span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
-        let (expr_scheme, expr_cmds) = self.check_expr(&match_expr.expr)?;
+        let (expr_scheme, expr_cmds) = self.check_expr(&match_expr.expr, span.0)?;
 
         let result_pair = self.auto.build_var();
 
@@ -332,7 +355,7 @@ impl<'a> Context<'a> {
                 if let Some(name) = case.val.name {
                     self.push_var(name.val, Scheme::singleton(case_pair.pos, (name.val, case_pair.neg)));
                 }
-                let (mut case_scheme, mut case_cmds) = self.check_expr(&case.val.expr)?;
+                let (mut case_scheme, mut case_cmds) = self.check_expr(&case.val.expr, span.0)?;
                 let val_ty = if let Some(name) = case.val.name {
                     self.pop_var();
 
@@ -359,7 +382,7 @@ impl<'a> Context<'a> {
 
         self.auto
             .biunify(expr_scheme.ty(), enum_ty)
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
         self.auto
             .biunify_all(
                 cases
@@ -369,7 +392,7 @@ impl<'a> Context<'a> {
                             .chain(val_ty.map(|ty| (val_pair.pos, ty)))
                     }),
             )
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         let (jump_offsets, mut cmds_total_len) = cases.iter().fold(
             (ImSymbolMap::default(), 0),
@@ -402,8 +425,12 @@ impl<'a> Context<'a> {
         ))
     }
 
-    fn check_proj(&mut self, proj: &ProjExpr, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
-        let (expr_scheme, expr_cmds) = self.check_expr(&proj.expr)?;
+    fn check_proj(
+        &mut self,
+        proj: &ProjExpr,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
+        let (expr_scheme, expr_cmds) = self.check_expr(&proj.expr, span.0)?;
 
         let field_pair = self.auto.build_var();
         let record_ty = self.build_record(
@@ -413,7 +440,7 @@ impl<'a> Context<'a> {
         );
         self.auto
             .biunify(expr_scheme.ty(), record_ty)
-            .map_err(|err| Error::TypeCheck(self.file(), span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err))?;
 
         let mut cmds = expr_cmds;
         cmds.push(Command::Get {
@@ -423,12 +450,14 @@ impl<'a> Context<'a> {
         Ok((expr_scheme.with_ty(field_pair.pos), cmds))
     }
 
-    fn check_import(&mut self, path: &str, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_import(
+        &mut self,
+        path: &str,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         match self.resolve_import(path) {
             Ok(SourceCacheResult::Miss(file, expr)) => {
-                self.files.push(file);
-                let (ty, cmds) = self.check_expr(&expr)?;
-                self.files.pop();
+                let (ty, cmds) = self.check_expr(&expr, file)?;
                 self.source.end_file();
 
                 assert!(self
@@ -440,13 +469,12 @@ impl<'a> Context<'a> {
             Ok(SourceCacheResult::Hit(file)) => match self.cache.get(&file) {
                 Some(result) => Ok(result.clone()),
                 None => Err(Error::Import(
-                    self.file(),
                     span,
                     path.to_owned(),
                     ErrorData::Basic("recursive import detected".into()),
                 )),
             },
-            Err(err) => Err(Error::Import(self.file(), span, path.to_owned(), err)),
+            Err(err) => Err(Error::Import(span, path.to_owned(), err)),
         }
     }
 
@@ -468,13 +496,13 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn check_null(&mut self, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_null(&mut self, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
         let ty = self.build_null(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push { value: Value::Null }];
         Ok((Scheme::empty(ty), cmd))
     }
 
-    fn check_bool(&mut self, val: bool, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_bool(&mut self, val: bool, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
         let ty = self.build_bool(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::Bool(val),
@@ -482,7 +510,7 @@ impl<'a> Context<'a> {
         Ok((Scheme::empty(ty), cmd))
     }
 
-    fn check_int(&mut self, val: i64, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_int(&mut self, val: i64, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
         let ty = self.build_int(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::Int(val),
@@ -490,16 +518,16 @@ impl<'a> Context<'a> {
         Ok((Scheme::empty(ty), cmd))
     }
 
-    fn check_string(&mut self, val: String, span: Span) -> Result<(Scheme, Vec<Command>), Error> {
+    fn check_string(
+        &mut self,
+        val: String,
+        span: FileSpan,
+    ) -> Result<(Scheme, Vec<Command>), Error> {
         let ty = self.build_string(Polarity::Pos, Some(span));
         let cmd = vec![Command::Push {
             value: Value::String(val),
         }];
         Ok((Scheme::empty(ty), cmd))
-    }
-
-    fn file(&self) -> FileId {
-        *self.files.last().unwrap()
     }
 
     fn push_var(&mut self, symbol: Symbol, ty: Scheme) {
@@ -523,41 +551,30 @@ impl<'a> Context<'a> {
         self.vars.pop();
     }
 
-    fn build_null(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(ConstructorKind::Null, span.map(|span| (self.file(), span))),
-        )
+    fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
     }
 
-    fn build_bool(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(ConstructorKind::Bool, span.map(|span| (self.file(), span))),
-        )
+    fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
     }
 
-    fn build_int(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(ConstructorKind::Int, span.map(|span| (self.file(), span))),
-        )
+    fn build_int(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Int, span))
     }
 
-    fn build_string(&mut self, pol: Polarity, span: Option<Span>) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::String,
-                span.map(|span| (self.file(), span)),
-            ),
-        )
+    fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
     }
 
     fn build_func(
         &mut self,
         pol: Polarity,
-        span: Option<Span>,
+        span: Option<FileSpan>,
         dom: StateId,
         range: StateId,
     ) -> StateId {
@@ -565,12 +582,12 @@ impl<'a> Context<'a> {
             pol,
             Constructor::new(
                 ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
-                span.map(|span| (self.file(), span)),
+                span,
             ),
         )
     }
 
-    fn build_record<I>(&mut self, pol: Polarity, span: Option<Span>, iter: I) -> StateId
+    fn build_record<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
@@ -582,12 +599,12 @@ impl<'a> Context<'a> {
                         .map(|(sym, id)| (sym, StateSet::new(id)))
                         .collect(),
                 ),
-                span.map(|span| (self.file(), span)),
+                span,
             ),
         )
     }
 
-    fn build_enum<I>(&mut self, pol: Polarity, span: Option<Span>, iter: I) -> StateId
+    fn build_enum<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
@@ -599,7 +616,7 @@ impl<'a> Context<'a> {
                         .map(|(tag, ty)| (tag, StateSet::new(ty)))
                         .collect(),
                 ),
-                span.map(|span| (self.file(), span)),
+                span,
             ),
         )
     }
@@ -607,7 +624,7 @@ impl<'a> Context<'a> {
     fn build_enum_variant(
         &mut self,
         pol: Polarity,
-        span: Option<Span>,
+        span: Option<FileSpan>,
         field: Symbol,
         expr: StateId,
     ) -> StateId {
@@ -618,7 +635,7 @@ impl<'a> Context<'a> {
 impl Error {
     fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
-            Error::TypeCheck(expr_file, expr_span, err) => {
+            Error::TypeCheck((expr_file, expr_span), err) => {
                 let actual_span = err.constraint.0.spans().get(0);
                 let expected_span = err.constraint.1.spans().get(0);
 
@@ -655,11 +672,11 @@ impl Error {
                     }));
                 vec![diagnostic]
             }
-            Error::UndefinedVar(file, span, symbol) => vec![Diagnostic::new_error(
+            Error::UndefinedVar((file, span), symbol) => vec![Diagnostic::new_error(
                 format!("undefined variable `{}`", symbol),
                 Label::new(file, span, "used here"),
             )],
-            Error::Import(file, span, path, data) => match data {
+            Error::Import((file, span), path, data) => match data {
                 ErrorData::Basic(err) => vec![Diagnostic::new_error(
                     format!("failed to import module from `{}`: {}", path, err),
                     Label::new(file, span, "imported here"),

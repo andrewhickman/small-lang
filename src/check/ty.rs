@@ -4,17 +4,17 @@ use std::iter::FromIterator;
 use std::mem::{discriminant, Discriminant};
 use std::vec;
 
-use codespan::{FileId, Span};
 use im::OrdMap;
 use mlsub::auto::StateSet;
 use mlsub::Polarity;
 
+use crate::check::FileSpan;
 use crate::syntax::Symbol;
 
 #[derive(Clone, Debug)]
 pub struct Constructor {
     kind: ConstructorKind,
-    spans: Vec<(FileId, Span)>,
+    spans: Vec<FileSpan>,
 }
 
 #[derive(Clone, Debug)]
@@ -29,14 +29,14 @@ pub enum ConstructorKind {
 }
 
 impl Constructor {
-    pub fn new(kind: ConstructorKind, span: Option<(FileId, Span)>) -> Self {
+    pub fn new(kind: ConstructorKind, span: Option<FileSpan>) -> Self {
         Constructor {
             kind,
             spans: Vec::from_iter(span),
         }
     }
 
-    pub fn spans(&self) -> &[(FileId, Span)] {
+    pub fn spans(&self) -> &[FileSpan] {
         &self.spans
     }
 }
