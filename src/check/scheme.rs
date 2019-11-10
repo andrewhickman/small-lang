@@ -1,18 +1,20 @@
 use std::iter::once;
 use std::rc::Rc;
 
-use mlsub::auto::{Automaton, StateId};
+use mlsub::auto::{flow, Automaton, StateId};
 use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
 use crate::syntax::{ImSymbolMap, Symbol};
 
+/// Represents a typing scheme, with variable substitutions produced by biunification.
 #[derive(Debug, Clone)]
 pub(in crate::check) struct Scheme {
     ty: StateId,
     env: ImSymbolMap<StateId>,
 }
 
+/// A typing scheme in reduced form.
 #[derive(Debug, Clone)]
 pub(in crate::check) struct ReducedScheme {
     auto: Rc<Automaton<Constructor>>,
@@ -27,10 +29,10 @@ impl Scheme {
         }
     }
 
-    pub fn singleton(ty: StateId, var: (Symbol, StateId)) -> Self {
+    pub fn from_var(var: Symbol, pair: flow::Pair) -> Self {
         Scheme {
-            ty,
-            env: once(var).collect(),
+            ty: pair.pos,
+            env: once((var, pair.neg)).collect(),
         }
     }
 

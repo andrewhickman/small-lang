@@ -101,10 +101,7 @@ impl<'a> Context<'a> {
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
-        self.push_var(
-            func.arg.val,
-            Scheme::singleton(arg_pair.pos, (func.arg.val, arg_pair.neg)),
-        );
+        self.push_var(func.arg.val, Scheme::from_var(func.arg.val, arg_pair));
         let (mut body_scheme, mut body_cmds) = self.check_expr(&func.body, span.0)?;
         self.pop_var();
 
@@ -186,10 +183,7 @@ impl<'a> Context<'a> {
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let func_pair = self.auto.build_var();
-        self.push_var(
-            rec.name.val,
-            Scheme::singleton(func_pair.pos, (rec.name.val, func_pair.neg)),
-        );
+        self.push_var(rec.name.val, Scheme::from_var(rec.name.val, func_pair));
         let (mut func_scheme, func_cmds) =
             self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
         self.pop_var();
@@ -353,7 +347,7 @@ impl<'a> Context<'a> {
                 let case_pair = self.auto.build_var();
 
                 if let Some(name) = case.val.name {
-                    self.push_var(name.val, Scheme::singleton(case_pair.pos, (name.val, case_pair.neg)));
+                    self.push_var(name.val, Scheme::from_var(name.val, case_pair));
                 }
                 let (mut case_scheme, mut case_cmds) = self.check_expr(&case.val.expr, span.0)?;
                 let val_ty = if let Some(name) = case.val.name {
