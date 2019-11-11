@@ -250,7 +250,7 @@ impl Command {
                 None
             }
             Command::Load { var } => {
-                let val = ctx.vars()[&var].clone();
+                let val = ctx.get_var(var);
                 ctx.push_stack(val);
                 None
             }

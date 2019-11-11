@@ -1,5 +1,5 @@
 use crate::rt::{Error, FuncValue, Opts, Output, Value};
-use crate::syntax::ImSymbolMap;
+use crate::syntax::{ImSymbolMap, Symbol};
 
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
@@ -58,8 +58,12 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn vars(&mut self) -> &mut ImSymbolMap<Value> {
-        self.vars.last_mut().unwrap()
+    pub fn vars(&self) -> &ImSymbolMap<Value> {
+        self.vars.last().unwrap()
+    }
+
+    pub fn get_var(&self, var: Symbol) -> Value {
+        self.vars()[&var].clone()
     }
 
     pub fn pop_vars(&mut self) {
