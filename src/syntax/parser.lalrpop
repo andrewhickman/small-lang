@@ -117,7 +117,7 @@ Comma<T>: Vec<T> = {
 }
 
 Symbol: Symbol = {
-    r"[[:alpha:]_]+" => interner.intern(<>),
+    r"[[:alpha:]_][[:alnum:]_]*" => interner.intern(<>),
 }
 
 Int: i64 = {
