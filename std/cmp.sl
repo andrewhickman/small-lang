@@ -1,3 +1,3 @@
 {
-  eq: func l => func r => __builtin_eq { l, r },
+  eq: func l r => __builtin_eq { l, r },
 }

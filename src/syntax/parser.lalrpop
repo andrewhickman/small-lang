@@ -22,7 +22,19 @@ Expr: Expr = {
 }
 
 FuncExpr: FuncExpr = {
-    "func" <arg:Spanned<Symbol>> "=>" <body:Spanned<Expr>> => FuncExpr { <> },
+    "func" <args:Spanned<Symbol>+> "=>" <body:Spanned<Expr>> => {
+        let mut args = args.into_iter().rev();
+        let mut func = FuncExpr { arg: args.next().unwrap(), body };
+        for arg in args.into_iter().rev() {
+            let span = Span::new(arg.span.start(), func.body.span.end());
+            func = FuncExpr { arg, body:
+                Spanned {
+                    span, val: Expr::Func(Box::new(func))
+                }
+            };
+        }
+        func
+    }
 }
 
 CallExpr: CallExpr = {

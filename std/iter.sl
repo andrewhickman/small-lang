@@ -1,7 +1,7 @@
 let cmp = import "cmp" in
 let math = import "math" in
 
-let rec range = func start => func end => {
+let rec range = func start end => {
   next: func _ => if cmp.eq start end
     then [none]
     else [some: {
@@ -10,7 +10,7 @@ let rec range = func start => func end => {
     }],
 } in
 
-let rec map = func iter => func f => {
+let rec map = func iter f => {
   next: func _ => match iter.next {} with [
     none => [none],
     some: result => [some: {
@@ -20,7 +20,7 @@ let rec map = func iter => func f => {
   ]
 } in
 
-let rec filter = func iter => func f => {
+let rec filter = func iter f => {
   next: func _ => match iter.next {} with [
     none => [none],
     some: result => if f result.value
@@ -32,7 +32,7 @@ let rec filter = func iter => func f => {
   ]
 } in
 
-let rec take = func iter => func n => {
+let rec take = func iter n => {
   next: func _ => match iter.next {} with [
     none => [none],
     some: result => if cmp.eq n 0
@@ -54,7 +54,7 @@ let first = func iter => match iter.next {} with [
   none => [none],
 ] in
 
-let find = func iter => func f => first (filter iter f) in
+let find = func iter f => first (filter iter f) in
 
 {
   range,
