@@ -276,6 +276,12 @@ impl Command {
     }
 }
 
+impl PartialEq for FuncValue {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.cmds, &other.cmds) && self.env == other.env
+    }
+}
+
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -285,7 +291,7 @@ impl PartialEq for Value {
             (Value::String(l), Value::String(r)) => l == r,
             (Value::Record(l), Value::Record(r)) => l == r,
             (Value::Enum(l), Value::Enum(r)) => l == r,
-            (Value::Func(l), Value::Func(r)) => Rc::ptr_eq(&l.cmds, &r.cmds),
+            (Value::Func(l), Value::Func(r)) => l == r,
             (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,
             _ => false,
         }
