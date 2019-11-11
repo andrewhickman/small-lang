@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use codespan::FileId;
-use proptest::{prelude::*, proptest};
+use proptest::proptest;
 
 use crate::check::check;
 use crate::rt::{self, EnumValue, Value};
@@ -134,18 +134,14 @@ test_file!(pr3, Err);
 
 proptest! {
     #[test]
-    fn typecheck_soundness(func in arb_valid_expr()) {
-        rt::run(func, rt::Opts {
-            max_stack: 1024,
-            max_ops: Some(1_048_576),
-        }).ok();
+    fn typecheck_soundness(expr in arb_expr()) {
+        if let Ok(func) = check(&mut SourceMap::new(), dummy_file_id(), &expr) {
+            rt::run(func, rt::Opts {
+                max_stack: 1024,
+                max_ops: Some(1_048_576),
+            }).ok();
+        }
     }
-}
-
-fn arb_valid_expr() -> impl Strategy<Value = rt::FuncValue> {
-    arb_expr().prop_filter_map("type error", |expr| {
-        check(&mut SourceMap::new(), dummy_file_id(), &expr).ok()
-    })
 }
 
 fn dummy_file_id() -> FileId {

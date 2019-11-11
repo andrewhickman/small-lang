@@ -7,6 +7,7 @@ lalrpop_mod!(
     parser,
     "/syntax/parser.rs"
 );
+mod fmt;
 mod source;
 
 pub use source::{SourceCacheResult, SourceMap};
@@ -14,14 +15,12 @@ pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
 pub(crate) use parser::Token;
 
-use std::fmt;
-
 use codespan::{ByteIndex, RawIndex, Span};
 use lalrpop_util::{lalrpop_mod, ParseError};
 use lazy_static::lazy_static;
 use parser::SpannedExprParser;
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Expr {
     Null,
     Bool(bool),
@@ -46,58 +45,58 @@ pub struct Spanned<T> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct FuncExpr {
     pub arg: Spanned<Symbol>,
     pub body: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct CallExpr {
     pub func: Spanned<Expr>,
     pub arg: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct LetExpr {
     pub name: Spanned<Symbol>,
     pub val: Spanned<Expr>,
     pub body: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct RecExpr {
     pub name: Spanned<Symbol>,
     pub func: Spanned<FuncExpr>,
     pub body: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct IfExpr {
     pub cond: Spanned<Expr>,
     pub cons: Spanned<Expr>,
     pub alt: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ProjExpr {
     pub expr: Spanned<Expr>,
     pub field: Spanned<Symbol>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct MatchExpr {
     pub expr: Spanned<Expr>,
     pub cases: SymbolMap<Spanned<MatchExprCase>>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct MatchExprCase {
     pub name: Option<Spanned<Symbol>>,
     pub expr: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct EnumExpr {
     pub tag: Spanned<Symbol>,
     pub expr: Option<Spanned<Expr>>,
@@ -117,8 +116,9 @@ impl Expr {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.val.fmt(f)
+#[cfg(test)]
+impl<T: PartialEq> PartialEq for Spanned<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.val == other.val
     }
 }

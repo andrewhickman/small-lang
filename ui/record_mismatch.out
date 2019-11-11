@@ -1,11 +1,11 @@
-error: expected `record {b}` but found `record {}`
+error: expected `record {c}` but found `record {}`
 
    ┌── ui/record_mismatch.sl:2:8 ───                                   @skip
    │
  2 │   then { a: null }
    │        ^^^^^^^^^^^ found here
    ·
- 5 │   b: record.b,
+ 6 │   c: record.c,
    │      -------- expected type inferred here
    │
 
