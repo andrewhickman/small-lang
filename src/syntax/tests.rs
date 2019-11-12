@@ -7,10 +7,12 @@ use crate::syntax::*;
 
 pub fn arb_expr() -> impl Strategy<Value = Spanned<Expr>> {
     prop_oneof![
-        2 => prop::strategy::LazyJust::new(|| Expr::Null),
-        3 => any::<bool>().prop_map(Expr::Bool),
+        1 => prop::strategy::LazyJust::new(|| Expr::Null),
+        4 => any::<bool>().prop_map(Expr::Bool),
         3 => any::<i64>().prop_map(Expr::Int),
+        2 => (-1000_000_000f64..1000_000_000.0).prop_map(Expr::Float),
         1 => any::<String>().prop_map(Expr::String),
+        3 => arb_var_symbol().prop_map(Expr::Var),
     ]
     .prop_map(spanned)
     .prop_recursive(8, 128, 4, |expr| {

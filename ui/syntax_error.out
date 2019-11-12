@@ -1,4 +1,4 @@
-error: expected one of "(", ")", ",", ".", ":", "=", "=>", "[", "]", "else", "false", "import", "in", "match", "null", "then", "true", "with", "{", "}", identifier, integer or string, found `let`
+error: expected one of "(", ")", ",", ".", ":", "=", "=>", "[", "]", "else", "false", "import", "in", "match", "null", "then", "true", "with", "{", "}", float, identifier, integer or string, found `let`
 
    ┌── ui/syntax_error.sl:1:7 ───                                      @skip
    │

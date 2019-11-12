@@ -25,6 +25,7 @@ pub enum Expr {
     Null,
     Bool(bool),
     Int(i64),
+    Float(f64),
     String(String),
     Var(Symbol),
     Record(SymbolMap<Spanned<Expr>>),

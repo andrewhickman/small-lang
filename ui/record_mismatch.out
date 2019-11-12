@@ -5,7 +5,7 @@ error: expected `record {c}` but found `record {}`
  2 │   then { a: null }
    │        ^^^^^^^^^^^ found here
    ·
- 6 │   c: record.c,
+ 5 │   c: record.c,
    │      -------- expected type inferred here
    │
 

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::rt::{Error, Runtime, Value};
+use crate::rt::{Error, FuncValue, NumberValue, Runtime, Value};
 use crate::syntax::{ImSymbolMap, Symbol};
 
 #[derive(Clone)]
@@ -71,17 +71,61 @@ fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
 }
 
 fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    if let Some(result) = i64::checked_add(lhs.unwrap_int(), rhs.unwrap_int()) {
-        Ok(Value::Int(result))
+    if let Some(result) = i64::checked_add(
+        lhs.unwrap_number().unwrap_int(),
+        rhs.unwrap_number().unwrap_int(),
+    ) {
+        Ok(Value::Number(NumberValue::Int(result)))
     } else {
         Err(Error::IntegerOverflow)
     }
 }
 
 fn sub(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    if let Some(result) = i64::checked_sub(lhs.unwrap_int(), rhs.unwrap_int()) {
-        Ok(Value::Int(result))
+    if let Some(result) = i64::checked_sub(
+        lhs.unwrap_number().unwrap_int(),
+        rhs.unwrap_number().unwrap_int(),
+    ) {
+        Ok(Value::Number(NumberValue::Int(result)))
     } else {
         Err(Error::IntegerOverflow)
+    }
+}
+
+fn coerce_int(val: i64) -> f64 {
+    // Casts to nearest float if not exactly representable
+    val as f64
+}
+
+impl PartialEq for NumberValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (*self, *other) {
+            (NumberValue::Int(lhs), NumberValue::Int(rhs)) => lhs == rhs,
+            (NumberValue::Int(lhs), NumberValue::Float(rhs)) => coerce_int(lhs) == rhs,
+            (NumberValue::Float(lhs), NumberValue::Int(rhs)) => lhs == coerce_int(rhs),
+            (NumberValue::Float(lhs), NumberValue::Float(rhs)) => lhs == rhs,
+        }
+    }
+}
+
+impl PartialEq for FuncValue {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.cmds, &other.cmds) && self.env == other.env
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Null, Value::Null) => true,
+            (Value::Bool(l), Value::Bool(r)) => l == r,
+            (Value::Number(l), Value::Number(r)) => l == r,
+            (Value::String(l), Value::String(r)) => l == r,
+            (Value::Record(l), Value::Record(r)) => l == r,
+            (Value::Enum(l), Value::Enum(r)) => l == r,
+            (Value::Func(l), Value::Func(r)) => l == r,
+            (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,
+            _ => false,
+        }
     }
 }

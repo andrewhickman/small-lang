@@ -52,7 +52,7 @@ pub enum Error {
 pub enum Value {
     Null,
     Bool(bool),
-    Int(i64),
+    Number(NumberValue),
     String(String),
     Record(ImSymbolMap<Value>),
     Enum(EnumValue),
@@ -81,6 +81,32 @@ pub struct EnumValue {
     pub tag: Symbol,
     #[serde(rename = "$value")]
     pub value: Box<Value>,
+}
+
+#[derive(Copy, Clone, Serialize)]
+#[serde(untagged)]
+pub enum NumberValue {
+    Int(i64),
+    Float(f64),
+}
+
+impl NumberValue {
+    pub fn unwrap_int(self) -> i64 {
+        match self {
+            NumberValue::Int(val) => val,
+            _ => panic!("expected int"),
+        }
+    }
+}
+
+impl FuncValue {
+    pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
+        FuncValue {
+            name: None,
+            cmds: cmds.into(),
+            env: ImSymbolMap::default(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -122,16 +148,6 @@ pub enum Command {
     End,
 }
 
-impl FuncValue {
-    pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
-        FuncValue {
-            name: None,
-            cmds: cmds.into(),
-            env: ImSymbolMap::default(),
-        }
-    }
-}
-
 impl Value {
     pub fn unwrap_bool(self) -> bool {
         match self {
@@ -140,10 +156,10 @@ impl Value {
         }
     }
 
-    pub fn unwrap_int(self) -> i64 {
+    pub fn unwrap_number(self) -> NumberValue {
         match self {
-            Value::Int(i) => i,
-            _ => panic!("expected int"),
+            Value::Number(n) => n,
+            _ => panic!("expected number"),
         }
     }
 
@@ -273,28 +289,6 @@ impl Command {
                 None
             }
         })
-    }
-}
-
-impl PartialEq for FuncValue {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.cmds, &other.cmds) && self.env == other.env
-    }
-}
-
-impl PartialEq for Value {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::Null, Value::Null) => true,
-            (Value::Bool(l), Value::Bool(r)) => l == r,
-            (Value::Int(l), Value::Int(r)) => l == r,
-            (Value::String(l), Value::String(r)) => l == r,
-            (Value::Record(l), Value::Record(r)) => l == r,
-            (Value::Enum(l), Value::Enum(r)) => l == r,
-            (Value::Func(l), Value::Func(r)) => l == r,
-            (Value::Builtin { builtin: l, .. }, Value::Builtin { builtin: r, .. }) => l == r,
-            _ => false,
-        }
     }
 }
 

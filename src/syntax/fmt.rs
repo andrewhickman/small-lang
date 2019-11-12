@@ -1,4 +1,5 @@
 use std::fmt::*;
+use std::str::FromStr;
 
 use crate::syntax::*;
 
@@ -18,6 +19,15 @@ impl Display for Expr {
             Expr::Null => write!(f, "null"),
             Expr::Bool(val) => write!(f, "{}", val),
             Expr::Int(val) => write!(f, "{}", val),
+            Expr::Float(val) => {
+                let s = val.to_string();
+                // avoid ambiguity between int and float
+                if i64::from_str(&s).is_ok() {
+                    write!(f, "{}.", s)
+                } else {
+                    write!(f, "{}", s)
+                }
+            }
             Expr::String(val) => {
                 write!(f, "\"{}\"", val.replace("\\", "\\\\").replace("\"", "\\\""))
             }
@@ -141,6 +151,7 @@ impl Expr {
             | Expr::Bool(_)
             | Expr::Var(_)
             | Expr::Int(_)
+            | Expr::Float(_)
             | Expr::String(_)
             | Expr::Record(_)
             | Expr::Match(_)
@@ -160,7 +171,7 @@ impl Expr {
 
     fn is_proj_val(&self) -> bool {
         match self {
-            Expr::Int(_) => false,
+            Expr::Int(_) | Expr::Float(_) => false,
             _ => self.is_simple(),
         }
     }
