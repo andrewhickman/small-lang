@@ -251,7 +251,10 @@ struct Labels<'a>(&'a OrdMap<Symbol, StateSet>);
 
 impl<'a> fmt::Display for Labels<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut iter = self.0.keys();
+        let mut labels: Vec<_> = self.0.keys().collect();
+        labels.sort_by_key(|symbol| symbol.as_str());
+
+        let mut iter = labels.into_iter();
         if let Some(label) = iter.next() {
             write!(f, "{}", label)?;
             for label in iter {
