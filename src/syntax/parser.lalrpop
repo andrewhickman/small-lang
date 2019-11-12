@@ -130,17 +130,27 @@ Comma<T>: Vec<T> = {
 }
 
 Symbol: Symbol = {
-    r"[[:alpha:]_][[:alnum:]_]*" => interner.intern(<>),
+    identifier => interner.intern(<>),
 }
 
 Int: i64 = {
-    r"-?\d+" => i64::from_str(<>).unwrap(),
+    integer => i64::from_str(<>).unwrap(),
 }
 
 String: String = {
-    <s:r##""(?:[^\\"]|(?:\\")|(?:\\\\))*""##> => {
+    <s:string> => {
         s[1..(s.len() - 1)]
             .replace("\\\"", "\"")
             .replace("\\\\", "\\")
     },
+}
+
+match {
+    "func", "let", "rec", "in", "if", "then", "else", "match", "with", "import", "null", "false", "true",
+    "=", ".", "(", ")", "[", "]", "{", "}", "=>", ":", ",",
+} else {
+    r"-?\d+" => integer,
+} else {
+    r"[[:alnum:]_]*" => identifier,
+    r##""(?:[^\\"]|(?:\\")|(?:\\\\))*""## => string,
 }

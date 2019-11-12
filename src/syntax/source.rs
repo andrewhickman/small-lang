@@ -144,24 +144,14 @@ fn fmt_expected(expected: &[String]) -> String {
     let len = expected.len();
     if len > 0 {
         if len == 1 {
-            write!(s, "{}", fmt_token(&expected[0])).unwrap();
+            write!(s, "{}", expected[0]).unwrap();
         } else {
-            write!(s, "one of {}", fmt_token(&expected[0])).unwrap();
+            write!(s, "one of {}", expected[0]).unwrap();
             for token in &expected[1..(len - 1)] {
-                write!(s, ", {}", fmt_token(token)).unwrap();
+                write!(s, ", {}", token).unwrap();
             }
-            write!(s, " or {}", fmt_token(&expected[len - 1])).unwrap();
+            write!(s, " or {}", expected[len - 1]).unwrap();
         }
     }
     s
-}
-
-fn fmt_token(token: &str) -> &str {
-    match token {
-        // ಠ_ಠ
-        r##"r#"\"(?:[^\\\\\"]|(?:\\\\\")|(?:\\\\\\\\))*\""#"## => "<string>",
-        r##"r#"[[:alpha:]_]+"#"## => "<identifier>",
-        r##"r#"-?\\d+"#"## => "<integer>",
-        _ => token,
-    }
 }
