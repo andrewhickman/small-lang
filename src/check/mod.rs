@@ -11,7 +11,7 @@ use mlsub::auto::{flow, Automaton, StateId, StateSet};
 use mlsub::{BiunifyError, Polarity};
 
 use crate::check::scheme::{ReducedScheme, Scheme};
-use crate::check::ty::{Constructor, ConstructorKind};
+use crate::check::ty::{Constructor, ConstructorKind, Number};
 use crate::rt::{Command, FuncValue, Value};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
@@ -505,7 +505,7 @@ impl<'a> Context<'a> {
     }
 
     fn check_int(&mut self, val: i64, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
-        let ty = self.build_int(Polarity::Pos, Some(span));
+        let ty = self.build_number(Polarity::Pos, Some(span), Number::Int);
         let cmd = vec![Command::Push {
             value: Value::Int(val),
         }];
@@ -558,9 +558,9 @@ impl<'a> Context<'a> {
             .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
     }
 
-    fn build_int(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+    fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: Number) -> StateId {
         self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Int, span))
+            .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
     }
 
     fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {

@@ -1,6 +1,7 @@
 use mlsub::auto::StateId;
 use mlsub::Polarity;
 
+use crate::check::ty::Number;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
@@ -24,9 +25,9 @@ impl<'a> Context<'a> {
 
     fn build_binary_int_op(&mut self) -> Scheme {
         // TODO handle constraints originating here in error messages
-        let arg0 = self.build_int(Polarity::Neg, None);
-        let arg1 = self.build_int(Polarity::Neg, None);
-        let ret = self.build_int(Polarity::Pos, None);
+        let arg0 = self.build_number(Polarity::Neg, None, Number::Int);
+        let arg1 = self.build_number(Polarity::Neg, None, Number::Int);
+        let ret = self.build_number(Polarity::Pos, None, Number::Int);
 
         self.build_binary_func(arg0, arg1, ret)
     }

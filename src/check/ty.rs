@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
-use std::fmt::{self};
 use std::iter::FromIterator;
 use std::mem::{discriminant, Discriminant};
-use std::vec;
+use std::{cmp, fmt, vec};
 
 use im::OrdMap;
 use mlsub::auto::StateSet;
@@ -21,11 +20,17 @@ pub struct Constructor {
 pub enum ConstructorKind {
     Null,
     Bool,
-    Int,
+    Number(Number),
     String,
     Func(StateSet, StateSet),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Number {
+    Float,
+    Int,
 }
 
 impl Constructor {
@@ -58,7 +63,9 @@ impl mlsub::Constructor for Constructor {
         match (&mut self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => (),
             (ConstructorKind::Bool, ConstructorKind::Bool) => (),
-            (ConstructorKind::Int, ConstructorKind::Int) => (),
+            (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => {
+                *lhs = cmp::max(*lhs, *rhs)
+            }
             (ConstructorKind::String, ConstructorKind::String) => (),
             (ConstructorKind::Func(ld, lr), ConstructorKind::Func(rd, rr)) => {
                 ld.union(rd);
@@ -100,7 +107,7 @@ impl mlsub::Constructor for Constructor {
         match &self.kind {
             ConstructorKind::Null
             | ConstructorKind::Bool
-            | ConstructorKind::Int
+            | ConstructorKind::Number(_)
             | ConstructorKind::String => vec![],
             ConstructorKind::Func(d, r) => {
                 vec![(Label::Domain, d.clone()), (Label::Range, r.clone())]
@@ -148,12 +155,29 @@ impl mlsub::Constructor for Constructor {
     }
 }
 
+impl PartialOrd for Number {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Number {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Number::Float, Number::Float) => Ordering::Equal,
+            (Number::Int, Number::Int) => Ordering::Equal,
+            (Number::Int, Number::Float) => Ordering::Less,
+            (Number::Float, Number::Int) => Ordering::Greater,
+        }
+    }
+}
+
 impl PartialOrd for Constructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (&self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => Some(Ordering::Equal),
             (ConstructorKind::Bool, ConstructorKind::Bool) => Some(Ordering::Equal),
-            (ConstructorKind::Int, ConstructorKind::Int) => Some(Ordering::Equal),
+            (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
             (ConstructorKind::Func(..), ConstructorKind::Func(..)) => Some(Ordering::Equal),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
@@ -194,11 +218,20 @@ impl fmt::Display for Constructor {
         match &self.kind {
             ConstructorKind::Null => "null".fmt(f),
             ConstructorKind::Bool => "bool".fmt(f),
-            ConstructorKind::Int => "int".fmt(f),
+            ConstructorKind::Number(num) => num.fmt(f),
             ConstructorKind::String => "string".fmt(f),
             ConstructorKind::Func(..) => "func".fmt(f),
             ConstructorKind::Record(labels) => write!(f, "record {{{}}}", Labels(labels)),
             ConstructorKind::Enum(labels) => write!(f, "enum [{}]", Labels(labels)),
+        }
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Number::Int => "int".fmt(f),
+            Number::Float => "float".fmt(f),
         }
     }
 }
@@ -235,8 +268,14 @@ mod tests {
     use mlsub::auto::{Automaton, StateId, StateSet};
     use mlsub::Polarity;
 
-    use crate::check::ty::{Constructor, ConstructorKind};
+    use crate::check::ty::{Constructor, ConstructorKind, Number};
     use crate::syntax::Symbol;
+
+    #[test]
+    fn number_ordering() {
+        assert!(Number::Int < Number::Float);
+        assert!(Number::Float > Number::Int);
+    }
 
     #[test]
     fn record_ordering() {
