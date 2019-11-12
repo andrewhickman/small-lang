@@ -7,7 +7,7 @@ use codespan::{ByteIndex, FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use lalrpop_util::ParseError;
 
-use crate::syntax::{Expr, Spanned, Token};
+use crate::syntax::{Error, Expr, Spanned, Token};
 use crate::ErrorData;
 
 #[derive(Debug)]
@@ -91,7 +91,7 @@ impl SourceMap {
     fn build_diagnostic(
         &self,
         file: FileId,
-        err: ParseError<ByteIndex, Token<'_>, &'static str>,
+        err: ParseError<ByteIndex, Token<'_>, Error>,
     ) -> Diagnostic {
         match err {
             ParseError::InvalidToken { location: start } => Diagnostic::new_error(
@@ -118,7 +118,9 @@ impl SourceMap {
                 format!("extra token found `{}`", token),
                 Label::new(file, Span::new(start, end), "extra token here"),
             ),
-            ParseError::User { .. } => unreachable!(),
+            ParseError::User { error } => {
+                Diagnostic::new_error(error.message, Label::new(file, error.span, "here"))
+            }
         }
     }
 }

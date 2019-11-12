@@ -3,14 +3,19 @@ use std::sync::RwLockWriteGuard;
 
 use codespan::{RawIndex, Span};
 use itertools::rev;
+use lalrpop_util::ParseError;
 
 use crate::syntax::symbol::{Interner, Symbol};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, LetExpr, MatchExpr, MatchExprCase, ProjExpr,
-    RecExpr, Spanned,
+    RecExpr, Spanned, Error,
 };
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
+
+extern {
+    type Error = Error;
+}
 
 pub(crate) SpannedExpr = Spanned<Expr>;
 
@@ -134,11 +139,21 @@ Symbol: Symbol = {
 }
 
 Int: i64 = {
-    integer => i64::from_str(<>).unwrap(),
+    <l:@L> <i:integer> <r:@R> =>? match i64::from_str(i) {
+        Ok(val) => Ok(val),
+        Err(err) => Err(ParseError::User {
+            error: Error::new(l as RawIndex, r as RawIndex, format!("error parsing integer: {}", err)),
+        }),
+    }
 }
 
 Float: f64 = {
-    float => f64::from_str(<>).unwrap(),
+    <l:@L> <f:float> <r:@R> =>? match f64::from_str(f) {
+        Ok(val) => Ok(val),
+        Err(err) => Err(ParseError::User {
+            error: Error::new(l as RawIndex, r as RawIndex, format!("error parsing float: {}", err)),
+        }),
+    }
 }
 
 String: String = {

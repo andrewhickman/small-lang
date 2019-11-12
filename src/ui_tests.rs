@@ -35,3 +35,4 @@ test_case!(nested_error);
 test_case!(builtin_source);
 test_case!(builtin_primary_source);
 test_case!(syntax_error);
+test_case!(parse_int_overflow);

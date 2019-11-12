@@ -1,0 +1,8 @@
+error: error parsing integer: number too large to fit in target type
+
+   ┌── ui/parse_int_overflow.sl:1:1 ───                                @skip
+   │
+ 1 │ 9999999999999999999999999999
+   │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ here
+   │
+

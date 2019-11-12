@@ -102,10 +102,23 @@ pub struct EnumExpr {
     pub expr: Option<Spanned<Expr>>,
 }
 
+#[cfg(test)]
+impl<T: PartialEq> PartialEq for Spanned<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.val == other.val
+    }
+}
+
+#[derive(Debug)]
+pub struct Error {
+    span: Span,
+    message: String,
+}
+
 impl Expr {
     pub(crate) fn parse<'a>(
         input: &'a str,
-    ) -> Result<Spanned<Expr>, ParseError<ByteIndex, Token<'a>, &'static str>> {
+    ) -> Result<Spanned<Expr>, ParseError<ByteIndex, Token<'a>, Error>> {
         lazy_static! {
             static ref PARSER: SpannedExprParser = SpannedExprParser::new();
         }
@@ -116,9 +129,15 @@ impl Expr {
     }
 }
 
-#[cfg(test)]
-impl<T: PartialEq> PartialEq for Spanned<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.val == other.val
+impl Error {
+    fn new(
+        start: impl Into<ByteIndex>,
+        end: impl Into<ByteIndex>,
+        message: impl Into<String>,
+    ) -> Self {
+        Error {
+            span: Span::new(start.into(), end.into()),
+            message: message.into(),
+        }
     }
 }
