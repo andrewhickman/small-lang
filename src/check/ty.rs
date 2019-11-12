@@ -51,6 +51,8 @@ impl mlsub::Constructor for Constructor {
     }
 
     fn join(&mut self, other: &Self, pol: Polarity) {
+        debug_assert_eq!(self.component(), other.component());
+
         self.spans.extend(&other.spans);
 
         match (&mut self.kind, &other.kind) {
