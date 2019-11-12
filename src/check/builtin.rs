@@ -9,9 +9,9 @@ impl<'a> Context<'a> {
     pub(in crate::check) fn set_builtins(&mut self) {
         let eq = self.build_eq();
         self.set_var(Symbol::new("__builtin_eq"), eq);
-        let add = self.build_binary_int_op();
+        let add = self.build_binary_number_op();
         self.set_var(Symbol::new("__builtin_add"), add);
-        let sub = self.build_binary_int_op();
+        let sub = self.build_binary_number_op();
         self.set_var(Symbol::new("__builtin_sub"), sub);
     }
 
@@ -23,12 +23,23 @@ impl<'a> Context<'a> {
         self.build_binary_func(arg0, arg1, ret)
     }
 
-    fn build_binary_int_op(&mut self) -> Scheme {
-        // TODO handle constraints originating here in error messages
-        let arg0 = self.build_number(Polarity::Neg, None, Number::Int);
-        let arg1 = self.build_number(Polarity::Neg, None, Number::Int);
-        let ret = self.build_number(Polarity::Pos, None, Number::Int);
+    fn build_number_arg(&mut self) -> (StateId, StateId) {
+        let var = self.auto.build_var();
+        let float = self.build_number(Polarity::Neg, None, Number::Float);
 
+        let arg = self
+            .auto
+            .build_add(Polarity::Neg, [var.neg, float].iter().copied());
+        (arg, var.pos)
+    }
+
+    fn build_binary_number_op(&mut self) -> Scheme {
+        let (arg0, ret0) = self.build_number_arg();
+        let (arg1, ret1) = self.build_number_arg();
+
+        let ret = self
+            .auto
+            .build_add(Polarity::Pos, [ret0, ret1].iter().copied());
         self.build_binary_func(arg0, arg1, ret)
     }
 

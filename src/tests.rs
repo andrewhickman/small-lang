@@ -142,6 +142,10 @@ test_file!(
     ))
 );
 test_file!(float, Ok(Value::Number(NumberValue::Float(0.0002124))));
+test_file!(add_coerce, Ok(Value::Number(NumberValue::Float(3.5))));
+test_file!(add_float, Ok(Value::Number(NumberValue::Float(3.5))));
+test_file!(sub_coerce, Ok(Value::Number(NumberValue::Float(0.5))));
+test_file!(sub_float, Ok(Value::Number(NumberValue::Float(-197.5))));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

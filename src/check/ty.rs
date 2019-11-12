@@ -231,7 +231,7 @@ impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Number::Int => "int".fmt(f),
-            Number::Float => "float".fmt(f),
+            Number::Float => "number".fmt(f),
         }
     }
 }

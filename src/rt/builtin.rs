@@ -71,25 +71,31 @@ fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
 }
 
 fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    if let Some(result) = i64::checked_add(
-        lhs.unwrap_number().unwrap_int(),
-        rhs.unwrap_number().unwrap_int(),
-    ) {
-        Ok(Value::Number(NumberValue::Int(result)))
-    } else {
-        Err(Error::IntegerOverflow)
-    }
+    let num = coerce_for_binary_func(
+        lhs.unwrap_number(),
+        rhs.unwrap_number(),
+        |lhs, rhs| {
+            i64::checked_add(lhs, rhs)
+                .map(NumberValue::Int)
+                .ok_or(Error::IntegerOverflow)
+        },
+        |lhs, rhs| Ok(NumberValue::Float(lhs + rhs)),
+    )?;
+    Ok(Value::Number(num))
 }
 
 fn sub(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    if let Some(result) = i64::checked_sub(
-        lhs.unwrap_number().unwrap_int(),
-        rhs.unwrap_number().unwrap_int(),
-    ) {
-        Ok(Value::Number(NumberValue::Int(result)))
-    } else {
-        Err(Error::IntegerOverflow)
-    }
+    let num = coerce_for_binary_func(
+        lhs.unwrap_number(),
+        rhs.unwrap_number(),
+        |lhs, rhs| {
+            i64::checked_sub(lhs, rhs)
+                .map(NumberValue::Int)
+                .ok_or(Error::IntegerOverflow)
+        },
+        |lhs, rhs| Ok(NumberValue::Float(lhs - rhs)),
+    )?;
+    Ok(Value::Number(num))
 }
 
 fn coerce_int(val: i64) -> f64 {
@@ -97,14 +103,27 @@ fn coerce_int(val: i64) -> f64 {
     val as f64
 }
 
+fn coerce_for_binary_func<T, I, F>(
+    lhs: NumberValue,
+    rhs: NumberValue,
+    int_func: I,
+    float_func: F,
+) -> T
+where
+    I: FnOnce(i64, i64) -> T,
+    F: FnOnce(f64, f64) -> T,
+{
+    match (lhs, rhs) {
+        (NumberValue::Int(lhs), NumberValue::Int(rhs)) => int_func(lhs, rhs),
+        (NumberValue::Int(lhs), NumberValue::Float(rhs)) => float_func(coerce_int(lhs), rhs),
+        (NumberValue::Float(lhs), NumberValue::Int(rhs)) => float_func(lhs, coerce_int(rhs)),
+        (NumberValue::Float(lhs), NumberValue::Float(rhs)) => float_func(lhs, rhs),
+    }
+}
+
 impl PartialEq for NumberValue {
     fn eq(&self, other: &Self) -> bool {
-        match (*self, *other) {
-            (NumberValue::Int(lhs), NumberValue::Int(rhs)) => lhs == rhs,
-            (NumberValue::Int(lhs), NumberValue::Float(rhs)) => coerce_int(lhs) == rhs,
-            (NumberValue::Float(lhs), NumberValue::Int(rhs)) => lhs == coerce_int(rhs),
-            (NumberValue::Float(lhs), NumberValue::Float(rhs)) => lhs == rhs,
-        }
+        coerce_for_binary_func(*self, *other, |l, r| l == r, |l, r| l == r)
     }
 }
 
