@@ -19,7 +19,7 @@ impl Display for Expr {
             Expr::Bool(val) => write!(f, "{}", val),
             Expr::Int(val) => write!(f, "{}", val),
             Expr::String(val) => {
-                write!(f, "\"{}\"", val.replace("\"", "\\\"").replace("\\", "\\\\"))
+                write!(f, "\"{}\"", val.replace("\\", "\\\\").replace("\"", "\\\""))
             }
             Expr::Var(var) => write!(f, "{}", var),
             Expr::Record(map) => {

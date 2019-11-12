@@ -10,7 +10,7 @@ pub fn arb_expr() -> impl Strategy<Value = Spanned<Expr>> {
         2 => prop::strategy::LazyJust::new(|| Expr::Null),
         3 => any::<bool>().prop_map(Expr::Bool),
         3 => any::<i64>().prop_map(Expr::Int),
-        2 => arb_var_symbol().prop_map(Expr::Var),
+        1 => any::<String>().prop_map(Expr::String),
     ]
     .prop_map(spanned)
     .prop_recursive(8, 128, 4, |expr| {
