@@ -228,3 +228,57 @@ impl<'a> fmt::Display for Labels<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use im::ordmap;
+    use mlsub::auto::{Automaton, StateId, StateSet};
+    use mlsub::Polarity;
+
+    use crate::check::ty::{Constructor, ConstructorKind};
+    use crate::syntax::Symbol;
+
+    #[test]
+    fn record_ordering() {
+        let id = dummy_id();
+
+        let subtype = Constructor::new(
+            ConstructorKind::Record(ordmap! {
+                Symbol::new("a") => StateSet::new(id),
+                Symbol::new("b") => StateSet::new(id)
+            }),
+            None,
+        );
+        let supertype = Constructor::new(
+            ConstructorKind::Record(ordmap! {
+                Symbol::new("a") => StateSet::new(id)
+            }),
+            None,
+        );
+        assert!(subtype < supertype);
+    }
+
+    #[test]
+    fn enum_ordering() {
+        let id = dummy_id();
+
+        let subtype = Constructor::new(
+            ConstructorKind::Enum(ordmap! {
+                Symbol::new("a") => StateSet::new(id)
+            }),
+            None,
+        );
+        let supertype = Constructor::new(
+            ConstructorKind::Enum(ordmap! {
+                Symbol::new("a") => StateSet::new(id),
+                Symbol::new("b") => StateSet::new(id)
+            }),
+            None,
+        );
+        assert!(subtype < supertype);
+    }
+
+    fn dummy_id() -> StateId {
+        Automaton::<Constructor>::new().build_empty(Polarity::Pos)
+    }
+}
