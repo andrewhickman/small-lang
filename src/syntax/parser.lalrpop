@@ -137,6 +137,10 @@ Int: i64 = {
     integer => i64::from_str(<>).unwrap(),
 }
 
+Float: f64 = {
+    float => f64::from_str(<>).unwrap(),
+}
+
 String: String = {
     <s:string> => {
         s[1..(s.len() - 1)]
@@ -150,6 +154,8 @@ match {
     "=", ".", "(", ")", "[", "]", "{", "}", "=>", ":", ",",
 } else {
     r"-?\d+" => integer,
+} else {
+    r"-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?" => float,
 } else {
     r"[[:alnum:]_]*" => identifier,
     r##""(?:[^\\"]|(?:\\")|(?:\\\\))*""## => string,

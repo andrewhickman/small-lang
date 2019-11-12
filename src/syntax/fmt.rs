@@ -94,7 +94,7 @@ impl Display for IfExpr {
 
 impl Display for ProjExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}.{}", SimpleExpr(&self.expr.val), self.field)
+        write!(f, "{}.{}", ProjValExpr(&self.expr.val), self.field)
     }
 }
 
@@ -157,10 +157,18 @@ impl Expr {
             _ => self.is_simple(),
         }
     }
+
+    fn is_proj_val(&self) -> bool {
+        match self {
+            Expr::Int(_) => false,
+            _ => self.is_simple(),
+        }
+    }
 }
 
 struct SimpleExpr<'a>(&'a Expr);
 struct CallFuncExpr<'a>(&'a Expr);
+struct ProjValExpr<'a>(&'a Expr);
 
 impl<'a> Display for SimpleExpr<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -175,6 +183,16 @@ impl<'a> Display for SimpleExpr<'a> {
 impl<'a> Display for CallFuncExpr<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if self.0.is_call_func() {
+            write!(f, "{}", self.0)
+        } else {
+            write!(f, "({})", self.0)
+        }
+    }
+}
+
+impl<'a> Display for ProjValExpr<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        if self.0.is_proj_val() {
             write!(f, "{}", self.0)
         } else {
             write!(f, "({})", self.0)
