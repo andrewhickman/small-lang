@@ -6,7 +6,7 @@ use proptest::proptest;
 use crate::check::check;
 use crate::rt::{self, EnumValue, Value};
 use crate::syntax::tests::arb_expr;
-use crate::syntax::{SourceMap, Symbol};
+use crate::syntax::{ImSymbolMap, SourceMap, Symbol};
 use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
@@ -128,6 +128,16 @@ test_file!(flow_error, Err);
 test_file!(match_val_error, Err);
 test_file!(eq_func_env, Ok(Value::Bool(false)));
 test_file!(sugar_curry, Ok(Value::Int(10)));
+test_file!(
+    sugar_curry_order,
+    Ok(Value::Record(
+        ImSymbolMap::default()
+            .update(Symbol::new("a"), Value::Int(1))
+            .update(Symbol::new("b"), Value::Int(2))
+            .update(Symbol::new("c"), Value::Int(3))
+            .update(Symbol::new("d"), Value::Int(4))
+    ))
+);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

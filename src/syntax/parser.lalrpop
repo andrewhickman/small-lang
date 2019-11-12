@@ -1,12 +1,14 @@
-use std::sync::RwLockWriteGuard;
 use std::str::FromStr;
+use std::sync::RwLockWriteGuard;
 
-use codespan::{Span, RawIndex};
+use codespan::{RawIndex, Span};
+use itertools::rev;
 
-use crate::syntax::{Expr, EnumExpr, FuncExpr, CallExpr, LetExpr, RecExpr, IfExpr, ProjExpr,
-    MatchExpr, MatchExprCase, Spanned
+use crate::syntax::symbol::{Interner, Symbol};
+use crate::syntax::{
+    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, LetExpr, MatchExpr, MatchExprCase, ProjExpr,
+    RecExpr, Spanned,
 };
-use crate::syntax::symbol::{Symbol, Interner};
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
 
@@ -22,10 +24,9 @@ Expr: Expr = {
 }
 
 FuncExpr: FuncExpr = {
-    "func" <args:Spanned<Symbol>+> "=>" <body:Spanned<Expr>> => {
-        let mut args = args.into_iter().rev();
-        let mut func = FuncExpr { arg: args.next().unwrap(), body };
-        for arg in args.into_iter().rev() {
+    "func" <args:Spanned<Symbol>*> <arg:Spanned<Symbol>> "=>" <body:Spanned<Expr>> => {
+        let mut func = FuncExpr { arg, body };
+        for arg in rev(args) {
             let span = Span::new(arg.span.start(), func.body.span.end());
             func = FuncExpr { arg, body:
                 Spanned {
