@@ -1,12 +1,12 @@
 let list = import "list" in
 
-list.length [cons: {
+list.length [some: {
   value: true,
-  tail: [cons: {
+  tail: [some: {
     value: 5,
-    tail: [cons: {
+    tail: [some: {
       value: "hello",
-      tail: [nil],
+      tail: [none],
     }]
   }]
 }]
