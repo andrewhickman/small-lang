@@ -4,11 +4,11 @@ let bool = import "modules/bool.sl" in
 
 let filtered = iter.filter (iter.range 3 6) (func n => bool.not (cmp.eq n 4)) in
 
-match filtered.next {} with [
+match filtered.next () with [
   some: result => if cmp.eq result.value 3
-    then match result.tail.next {} with [
+    then match result.tail.next () with [
       some: result => if cmp.eq result.value 5
-        then match result.tail.next {} with [
+        then match result.tail.next () with [
           some: result => false,
           none => true,
         ]

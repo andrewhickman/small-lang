@@ -1,6 +1,6 @@
 let math = import "math" in
 
-let rec from_iter = func iter => match iter.next {} with [
+let rec from_iter = func iter => match iter.next () with [
   none => [nil],
   some: result => [cons: {
     value: result.value,

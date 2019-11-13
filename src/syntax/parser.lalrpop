@@ -96,6 +96,7 @@ ImportExpr: Expr = {
 
 SimpleExpr: Expr = {
     "null" => Expr::Null,
+    "(" ")" => Expr::Null,
     "true" => Expr::Bool(true),
     "false" => Expr::Bool(false),
     Symbol => Expr::Var(<>),

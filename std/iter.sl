@@ -11,7 +11,7 @@ let rec range = func start end => {
 } in
 
 let rec map = func iter f => {
-  next: func _ => match iter.next {} with [
+  next: func _ => match iter.next () with [
     none => [none],
     some: result => [some: {
       value: f result.value,
@@ -21,7 +21,7 @@ let rec map = func iter f => {
 } in
 
 let rec filter = func iter f => {
-  next: func _ => match iter.next {} with [
+  next: func _ => match iter.next () with [
     none => [none],
     some: result => if f result.value
       then [some: {
@@ -33,7 +33,7 @@ let rec filter = func iter f => {
 } in
 
 let rec take = func iter n => {
-  next: func _ => match iter.next {} with [
+  next: func _ => match iter.next () with [
     none => [none],
     some: result => if cmp.eq n 0
       then [none]
@@ -44,12 +44,12 @@ let rec take = func iter n => {
   ]
 } in
 
-let rec length = func iter => match iter.next {} with [
+let rec length = func iter => match iter.next () with [
   some: result => math.add 1 (length result.tail),
   none => 0,
 ] in
 
-let first = func iter => match iter.next {} with [
+let first = func iter => match iter.next () with [
   some: result => [some: result.value],
   none => [none],
 ] in
