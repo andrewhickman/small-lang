@@ -17,7 +17,8 @@ pub(crate) use parser::Token;
 
 use codespan::{ByteIndex, RawIndex, Span};
 use lalrpop_util::{lalrpop_mod, ParseError};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
+
 use parser::SpannedExprParser;
 
 #[cfg_attr(test, derive(PartialEq))]
@@ -120,9 +121,7 @@ impl Expr {
     pub(crate) fn parse<'a>(
         input: &'a str,
     ) -> Result<Spanned<Expr>, ParseError<ByteIndex, Token<'a>, Error>> {
-        lazy_static! {
-            static ref PARSER: SpannedExprParser = SpannedExprParser::new();
-        }
+        static PARSER: Lazy<SpannedExprParser> = Lazy::new(SpannedExprParser::new);
 
         PARSER
             .parse(&mut symbol::Interner::write(), input)

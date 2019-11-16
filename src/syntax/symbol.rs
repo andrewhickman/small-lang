@@ -4,7 +4,7 @@ use std::fmt;
 use std::hash::BuildHasherDefault;
 use std::sync::{RwLock, RwLockWriteGuard};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use seahash::SeaHasher;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -69,9 +69,7 @@ pub(crate) struct Interner {
     strings: Vec<&'static str>,
 }
 
-lazy_static! {
-    static ref INTERNER: RwLock<Interner> = RwLock::default();
-}
+static INTERNER: Lazy<RwLock<Interner>> = Lazy::new(Default::default);
 
 impl Interner {
     pub fn write<'a>() -> RwLockWriteGuard<'a, Self> {
