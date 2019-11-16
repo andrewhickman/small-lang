@@ -20,7 +20,7 @@ pub struct Constructor {
 pub enum ConstructorKind {
     Null,
     Bool,
-    Number(Number),
+    Number(NumberConstructor),
     String,
     Func(StateSet, StateSet),
     Record(OrdMap<Symbol, StateSet>),
@@ -28,7 +28,7 @@ pub enum ConstructorKind {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Number {
+pub enum NumberConstructor {
     Float,
     Int,
 }
@@ -163,19 +163,19 @@ impl mlsub::Constructor for Constructor {
     }
 }
 
-impl PartialOrd for Number {
+impl PartialOrd for NumberConstructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Number {
+impl Ord for NumberConstructor {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (Number::Float, Number::Float) => Ordering::Equal,
-            (Number::Int, Number::Int) => Ordering::Equal,
-            (Number::Int, Number::Float) => Ordering::Less,
-            (Number::Float, Number::Int) => Ordering::Greater,
+            (NumberConstructor::Float, NumberConstructor::Float) => Ordering::Equal,
+            (NumberConstructor::Int, NumberConstructor::Int) => Ordering::Equal,
+            (NumberConstructor::Int, NumberConstructor::Float) => Ordering::Less,
+            (NumberConstructor::Float, NumberConstructor::Int) => Ordering::Greater,
         }
     }
 }
@@ -224,7 +224,7 @@ impl<'a> Context<'a> {
             .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
     }
 
-    pub fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: Number) -> StateId {
+    pub fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: NumberConstructor) -> StateId {
         self.auto
             .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
     }
@@ -309,11 +309,11 @@ impl fmt::Display for Constructor {
     }
 }
 
-impl fmt::Display for Number {
+impl fmt::Display for NumberConstructor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Number::Int => "int".fmt(f),
-            Number::Float => "number".fmt(f),
+            NumberConstructor::Int => "int".fmt(f),
+            NumberConstructor::Float => "number".fmt(f),
         }
     }
 }
@@ -353,13 +353,13 @@ mod tests {
     use mlsub::auto::{Automaton, StateId, StateSet};
     use mlsub::Polarity;
 
-    use crate::check::ty::{Constructor, ConstructorKind, Number};
+    use crate::check::ty::{Constructor, ConstructorKind, NumberConstructor};
     use crate::syntax::Symbol;
 
     #[test]
     fn number_ordering() {
-        assert!(Number::Int < Number::Float);
-        assert!(Number::Float > Number::Int);
+        assert!(NumberConstructor::Int < NumberConstructor::Float);
+        assert!(NumberConstructor::Float > NumberConstructor::Int);
     }
 
     #[test]

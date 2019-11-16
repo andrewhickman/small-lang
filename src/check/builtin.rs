@@ -1,7 +1,7 @@
 use mlsub::auto::StateId;
 use mlsub::Polarity;
 
-use crate::check::ty::Number;
+use crate::check::ty::NumberConstructor;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
@@ -25,7 +25,7 @@ impl<'a> Context<'a> {
 
     fn build_number_arg(&mut self) -> (StateId, StateId) {
         let var = self.auto.build_var();
-        let float = self.build_number(Polarity::Neg, None, Number::Float);
+        let float = self.build_number(Polarity::Neg, None, NumberConstructor::Float);
 
         let arg = self
             .auto
