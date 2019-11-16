@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
-use std::iter::FromIterator;
+use std::iter::{once, FromIterator};
 use std::mem::{discriminant, Discriminant};
 use std::{cmp, fmt, vec};
 
 use im::OrdMap;
-use mlsub::auto::StateSet;
+use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
 
-use crate::check::FileSpan;
+use crate::check::{Context, FileSpan};
 use crate::syntax::Symbol;
 
 #[derive(Clone, Debug)]
@@ -31,6 +31,14 @@ pub enum ConstructorKind {
 pub enum Number {
     Float,
     Int,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+pub enum Label {
+    Domain,
+    Range,
+    Field(Symbol),
+    Tag(Symbol),
 }
 
 impl Constructor {
@@ -196,20 +204,94 @@ impl PartialEq for Constructor {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
-pub enum Label {
-    Domain,
-    Range,
-    Field(Symbol),
-    Tag(Symbol),
-}
-
 impl mlsub::Label for Label {
     fn polarity(&self) -> Polarity {
         match self {
             Label::Domain => Polarity::Neg,
             Label::Range | Label::Field(_) | Label::Tag(_) => Polarity::Pos,
         }
+    }
+}
+
+impl<'a> Context<'a> {
+    pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
+    }
+
+    pub fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
+    }
+
+    pub fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: Number) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
+    }
+
+    pub fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+        self.auto
+            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
+    }
+
+    pub fn build_func(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        dom: StateId,
+        range: StateId,
+    ) -> StateId {
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
+                span,
+            ),
+        )
+    }
+
+    pub fn build_record<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
+    where
+        I: IntoIterator<Item = (Symbol, StateId)>,
+    {
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Record(
+                    iter.into_iter()
+                        .map(|(sym, id)| (sym, StateSet::new(id)))
+                        .collect(),
+                ),
+                span,
+            ),
+        )
+    }
+
+    pub fn build_enum<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
+    where
+        I: IntoIterator<Item = (Symbol, StateId)>,
+    {
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Enum(
+                    iter.into_iter()
+                        .map(|(tag, ty)| (tag, StateSet::new(ty)))
+                        .collect(),
+                ),
+                span,
+            ),
+        )
+    }
+
+    pub fn build_enum_variant(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        field: Symbol,
+        expr: StateId,
+    ) -> StateId {
+        self.build_enum(pol, span, once((field, expr)))
     }
 }
 

@@ -7,11 +7,11 @@ use std::iter::once;
 
 use codespan::{FileId, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use mlsub::auto::{flow, Automaton, StateId, StateSet};
+use mlsub::auto::{flow, Automaton, StateId};
 use mlsub::{BiunifyError, Polarity};
 
 use crate::check::scheme::{ReducedScheme, Scheme};
-use crate::check::ty::{Constructor, ConstructorKind, Number};
+use crate::check::ty::{Constructor, Number};
 use crate::rt::{Command, FuncValue, NumberValue, Value};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
@@ -555,86 +555,6 @@ impl<'a> Context<'a> {
 
     fn pop_var(&mut self) {
         self.vars.pop();
-    }
-
-    fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
-    }
-
-    fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
-    }
-
-    fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: Number) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
-    }
-
-    fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
-    }
-
-    fn build_func(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        dom: StateId,
-        range: StateId,
-    ) -> StateId {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
-                span,
-            ),
-        )
-    }
-
-    fn build_record<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
-    where
-        I: IntoIterator<Item = (Symbol, StateId)>,
-    {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Record(
-                    iter.into_iter()
-                        .map(|(sym, id)| (sym, StateSet::new(id)))
-                        .collect(),
-                ),
-                span,
-            ),
-        )
-    }
-
-    fn build_enum<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
-    where
-        I: IntoIterator<Item = (Symbol, StateId)>,
-    {
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Enum(
-                    iter.into_iter()
-                        .map(|(tag, ty)| (tag, StateSet::new(ty)))
-                        .collect(),
-                ),
-                span,
-            ),
-        )
-    }
-
-    fn build_enum_variant(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        field: Symbol,
-        expr: StateId,
-    ) -> StateId {
-        self.build_enum(pol, span, once((field, expr)))
     }
 }
 
