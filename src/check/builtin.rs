@@ -1,3 +1,4 @@
+use im::OrdMap;
 use mlsub::auto::StateId;
 use mlsub::Polarity;
 
@@ -7,6 +8,8 @@ use crate::syntax::Symbol;
 
 impl<'a> Context<'a> {
     pub(in crate::check) fn set_builtins(&mut self) {
+        self.set_empty_capabilities();
+
         let eq = self.build_eq();
         self.set_var(Symbol::new("__builtin_eq"), eq);
         let add = self.build_binary_number_op();
@@ -52,5 +55,9 @@ impl<'a> Context<'a> {
                 .copied(),
         );
         Scheme::empty(self.build_func(Polarity::Pos, None, arg, ret))
+    }
+
+    fn set_empty_capabilities(&self) {
+        self.capabilities.set_empty(OrdMap::default())
     }
 }

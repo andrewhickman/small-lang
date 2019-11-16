@@ -45,6 +45,7 @@ struct Context<'a> {
     vars: Vec<ImSymbolMap<ReducedScheme>>,
     cache: HashMap<FileId, (Scheme, Vec<Command>)>,
     source: &'a mut SourceMap,
+    capabilities: ty::Capabilities,
 }
 
 impl<'a> Context<'a> {
@@ -53,6 +54,7 @@ impl<'a> Context<'a> {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
             cache: HashMap::default(),
+            capabilities: ty::Capabilities::default(),
             source,
         };
         ctx.set_builtins();

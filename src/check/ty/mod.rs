@@ -1,12 +1,17 @@
+mod capabilities;
+
+pub(in crate::check) use capabilities::Capabilities;
+
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::iter::{once, FromIterator};
 use std::mem::{discriminant, Discriminant};
+use std::rc::Rc;
 use std::{cmp, fmt, vec};
 
 use im::OrdMap;
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
-use once_cell::unsync::Lazy;
 
 use crate::check::{Context, FileSpan};
 use crate::syntax::Symbol;
@@ -27,6 +32,7 @@ pub enum ConstructorKind {
     Object(ObjectConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
+    Capabilities(Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -55,6 +61,7 @@ pub enum Label {
     Tag(Symbol),
     ObjectData,
     ObjectCapabilities,
+    Capability(Symbol),
 }
 
 impl Constructor {
@@ -128,6 +135,21 @@ impl mlsub::Constructor for Constructor {
                     })
                 }
             },
+            (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
+                let a = lhs.borrow().clone().expect("capabilities not set");
+                let b = rhs.borrow().clone().expect("capabilities not set");
+                let joined = match pol {
+                    Polarity::Pos => a.intersection_with(b, |mut l, r| {
+                        l.union(&r);
+                        l
+                    }),
+                    Polarity::Neg => a.union_with(b, |mut l, r| {
+                        l.union(&r);
+                        l
+                    }),
+                };
+                *lhs = Rc::new(RefCell::new(Some(joined)));
+            }
             _ => unreachable!(),
         }
     }
@@ -149,6 +171,13 @@ impl mlsub::Constructor for Constructor {
                 .clone()
                 .into_iter()
                 .map(|(label, set)| (Label::Tag(label), set))
+                .collect(),
+            ConstructorKind::Capabilities(capabilities) => capabilities
+                .borrow()
+                .clone()
+                .expect("capabilities not set")
+                .into_iter()
+                .map(|(name, set)| (Label::Capability(name), set))
                 .collect(),
         }
         .into_iter()
@@ -173,6 +202,17 @@ impl mlsub::Constructor for Constructor {
                     .map(|(label, set)| (label, mapper(Label::Tag(label), set)))
                     .collect(),
             ),
+            ConstructorKind::Capabilities(capabilities) => {
+                ConstructorKind::Capabilities(Rc::new(RefCell::new(Some(
+                    capabilities
+                        .borrow()
+                        .clone()
+                        .expect("capabilities not set")
+                        .into_iter()
+                        .map(|(name, set)| (name, mapper(Label::Capability(name), set)))
+                        .collect(),
+                ))))
+            }
             scalar => scalar,
         };
         Constructor {
@@ -212,6 +252,13 @@ impl PartialOrd for Constructor {
             }
             (ConstructorKind::Enum(lhs), ConstructorKind::Enum(rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys())
+            }
+            (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
+                iter_set::cmp(
+                    lhs.borrow().as_ref().expect("capabilities not set").keys(),
+                    rhs.borrow().as_ref().expect("capabilities not set").keys(),
+                )
+                .map(Ordering::reverse)
             }
             _ => None,
         }
@@ -280,6 +327,7 @@ impl mlsub::Label for Label {
             | Label::ObjectData
             | Label::ObjectCapabilities
             | Label::Field(_)
+            | Label::Capability(_)
             | Label::Tag(_) => Polarity::Pos,
         }
     }
@@ -382,14 +430,14 @@ impl<'a> Context<'a> {
         pol: Polarity,
         span: Option<FileSpan>,
         data: ConstructorKind,
-        capabilities: OrdMap<Symbol, StateSet>,
+        capabilities: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
     ) -> StateId {
         let data = self
             .auto
             .build_constructed(pol, Constructor::new(data, span));
         let capabilities = self.auto.build_constructed(
             pol,
-            Constructor::new(ConstructorKind::Record(capabilities), span),
+            Constructor::new(ConstructorKind::Capabilities(capabilities), span),
         );
         self.auto.build_constructed(
             pol,
@@ -403,12 +451,8 @@ impl<'a> Context<'a> {
         )
     }
 
-    fn empty_capabilities(&self) -> OrdMap<Symbol, StateSet> {
-        thread_local! {
-            static EMPTY: Lazy<OrdMap<Symbol, StateSet>> = Lazy::new(Default::default);
-        }
-
-        EMPTY.with(|empty| (*empty).clone())
+    fn empty_capabilities(&self) -> Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>> {
+        self.capabilities.empty()
     }
 }
 
@@ -423,6 +467,11 @@ impl fmt::Display for Constructor {
             ConstructorKind::Object(_) => "object".fmt(f),
             ConstructorKind::Record(labels) => write!(f, "record {{{}}}", Labels(labels)),
             ConstructorKind::Enum(labels) => write!(f, "enum [{}]", Labels(labels)),
+            ConstructorKind::Capabilities(labels) => write!(
+                f,
+                "capabilities {{{}}}",
+                Labels(labels.borrow().as_ref().expect("capabilities not set"))
+            ),
         }
     }
 }
@@ -445,6 +494,7 @@ impl fmt::Display for Label {
             Label::ObjectCapabilities => "capabilities".fmt(f),
             Label::Field(field) => write!(f, "field `{}`", field),
             Label::Tag(field) => write!(f, "tag `{}`", field),
+            Label::Capability(name) => write!(f, "capability `{}`", name),
         }
     }
 }
