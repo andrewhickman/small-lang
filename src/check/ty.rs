@@ -6,6 +6,7 @@ use std::{cmp, fmt, vec};
 use im::OrdMap;
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
+use once_cell::unsync::Lazy;
 
 use crate::check::{Context, FileSpan};
 use crate::syntax::Symbol;
@@ -66,6 +67,13 @@ impl Constructor {
 
     pub fn spans(&self) -> &[FileSpan] {
         &self.spans
+    }
+
+    pub fn is_object(&self) -> bool {
+        match self.kind {
+            ConstructorKind::Object(_) => true,
+            _ => false,
+        }
     }
 }
 
@@ -279,13 +287,11 @@ impl mlsub::Label for Label {
 
 impl<'a> Context<'a> {
     pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Null, span))
+        self.build_object(pol, span, ConstructorKind::Null, self.empty_capabilities())
     }
 
     pub fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
+        self.build_object(pol, span, ConstructorKind::Bool, self.empty_capabilities())
     }
 
     pub fn build_number(
@@ -294,13 +300,21 @@ impl<'a> Context<'a> {
         span: Option<FileSpan>,
         num: NumberConstructor,
     ) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
+        self.build_object(
+            pol,
+            span,
+            ConstructorKind::Number(num),
+            self.empty_capabilities(),
+        )
     }
 
     pub fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.auto
-            .build_constructed(pol, Constructor::new(ConstructorKind::String, span))
+        self.build_object(
+            pol,
+            span,
+            ConstructorKind::String,
+            self.empty_capabilities(),
+        )
     }
 
     pub fn build_func(
@@ -310,15 +324,14 @@ impl<'a> Context<'a> {
         domain: StateId,
         range: StateId,
     ) -> StateId {
-        self.auto.build_constructed(
+        self.build_object(
             pol,
-            Constructor::new(
-                ConstructorKind::Func(FuncConstructor {
-                    domain: StateSet::new(domain),
-                    range: StateSet::new(range),
-                }),
-                span,
-            ),
+            span,
+            ConstructorKind::Func(FuncConstructor {
+                domain: StateSet::new(domain),
+                range: StateSet::new(range),
+            }),
+            self.empty_capabilities(),
         )
     }
 
@@ -326,16 +339,15 @@ impl<'a> Context<'a> {
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
-        self.auto.build_constructed(
+        self.build_object(
             pol,
-            Constructor::new(
-                ConstructorKind::Record(
-                    iter.into_iter()
-                        .map(|(sym, id)| (sym, StateSet::new(id)))
-                        .collect(),
-                ),
-                span,
+            span,
+            ConstructorKind::Record(
+                iter.into_iter()
+                    .map(|(sym, id)| (sym, StateSet::new(id)))
+                    .collect(),
             ),
+            self.empty_capabilities(),
         )
     }
 
@@ -343,16 +355,15 @@ impl<'a> Context<'a> {
     where
         I: IntoIterator<Item = (Symbol, StateId)>,
     {
-        self.auto.build_constructed(
+        self.build_object(
             pol,
-            Constructor::new(
-                ConstructorKind::Enum(
-                    iter.into_iter()
-                        .map(|(tag, ty)| (tag, StateSet::new(ty)))
-                        .collect(),
-                ),
-                span,
+            span,
+            ConstructorKind::Enum(
+                iter.into_iter()
+                    .map(|(tag, ty)| (tag, StateSet::new(ty)))
+                    .collect(),
             ),
+            self.empty_capabilities(),
         )
     }
 
@@ -364,6 +375,40 @@ impl<'a> Context<'a> {
         expr: StateId,
     ) -> StateId {
         self.build_enum(pol, span, once((field, expr)))
+    }
+
+    fn build_object(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        data: ConstructorKind,
+        capabilities: OrdMap<Symbol, StateSet>,
+    ) -> StateId {
+        let data = self
+            .auto
+            .build_constructed(pol, Constructor::new(data, span));
+        let capabilities = self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::Record(capabilities), span),
+        );
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Object(ObjectConstructor {
+                    data: StateSet::new(data),
+                    capabilities: StateSet::new(capabilities),
+                }),
+                span,
+            ),
+        )
+    }
+
+    fn empty_capabilities(&self) -> OrdMap<Symbol, StateSet> {
+        thread_local! {
+            static EMPTY: Lazy<OrdMap<Symbol, StateSet>> = Lazy::new(Default::default);
+        }
+
+        EMPTY.with(|empty| (*empty).clone())
     }
 }
 

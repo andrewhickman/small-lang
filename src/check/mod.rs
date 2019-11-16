@@ -588,13 +588,17 @@ impl Error {
                 diagnostic
                     .secondary_labels
                     .extend(err.stack.iter().filter_map(|(label, found, _)| {
-                        found.spans().get(0).map(|&(file, span)| {
-                            Label::new(
-                                file,
-                                span,
-                                format!("in {} of type `{}` here...", label, found),
-                            )
-                        })
+                        if found.is_object() {
+                            None
+                        } else {
+                            found.spans().get(0).map(|&(file, span)| {
+                                Label::new(
+                                    file,
+                                    span,
+                                    format!("in {} of type `{}` here...", label, found),
+                                )
+                            })
+                        }
                     }));
                 vec![diagnostic]
             }
