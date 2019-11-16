@@ -20,9 +20,9 @@ pub struct Constructor {
 pub enum ConstructorKind {
     Null,
     Bool,
-    Number(NumberConstructor),
     String,
-    Func(StateSet, StateSet),
+    Number(NumberConstructor),
+    Func(FuncConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
 }
@@ -31,6 +31,12 @@ pub enum ConstructorKind {
 pub enum NumberConstructor {
     Float,
     Int,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FuncConstructor {
+    domain: StateSet,
+    range: StateSet,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
@@ -75,10 +81,7 @@ impl mlsub::Constructor for Constructor {
                 *lhs = cmp::max(*lhs, *rhs)
             }
             (ConstructorKind::String, ConstructorKind::String) => (),
-            (ConstructorKind::Func(ld, lr), ConstructorKind::Func(rd, rr)) => {
-                ld.union(rd);
-                lr.union(rr);
-            }
+            (ConstructorKind::Func(lhs), ConstructorKind::Func(rhs)) => lhs.join(rhs),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => match pol {
                 Polarity::Pos => {
                     *lhs = lhs.clone().intersection_with(rhs.clone(), |mut l, r| {
@@ -117,9 +120,7 @@ impl mlsub::Constructor for Constructor {
             | ConstructorKind::Bool
             | ConstructorKind::Number(_)
             | ConstructorKind::String => vec![],
-            ConstructorKind::Func(d, r) => {
-                vec![(Label::Domain, d.clone()), (Label::Range, r.clone())]
-            }
+            ConstructorKind::Func(func) => func.params(),
             ConstructorKind::Record(fields) => fields
                 .clone()
                 .into_iter()
@@ -139,9 +140,7 @@ impl mlsub::Constructor for Constructor {
         F: FnMut(Self::Label, StateSet) -> StateSet,
     {
         let kind = match self.kind {
-            ConstructorKind::Func(d, r) => {
-                ConstructorKind::Func(mapper(Label::Domain, d), mapper(Label::Range, r))
-            }
+            ConstructorKind::Func(func) => ConstructorKind::Func(func.map(mapper)),
             ConstructorKind::Record(fields) => ConstructorKind::Record(
                 fields
                     .into_iter()
@@ -204,6 +203,30 @@ impl PartialEq for Constructor {
     }
 }
 
+impl FuncConstructor {
+    fn join(&mut self, other: &Self) {
+        self.domain.union(&other.domain);
+        self.range.union(&other.range);
+    }
+
+    fn params(&self) -> Vec<(Label, StateSet)> {
+        vec![
+            (Label::Domain, self.domain.clone()),
+            (Label::Range, self.range.clone()),
+        ]
+    }
+
+    fn map<F>(self, mut mapper: F) -> Self
+    where
+        F: FnMut(Label, StateSet) -> StateSet,
+    {
+        FuncConstructor {
+            domain: mapper(Label::Domain, self.domain),
+            range: mapper(Label::Range, self.range),
+        }
+    }
+}
+
 impl mlsub::Label for Label {
     fn polarity(&self) -> Polarity {
         match self {
@@ -224,7 +247,12 @@ impl<'a> Context<'a> {
             .build_constructed(pol, Constructor::new(ConstructorKind::Bool, span))
     }
 
-    pub fn build_number(&mut self, pol: Polarity, span: Option<FileSpan>, num: NumberConstructor) -> StateId {
+    pub fn build_number(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        num: NumberConstructor,
+    ) -> StateId {
         self.auto
             .build_constructed(pol, Constructor::new(ConstructorKind::Number(num), span))
     }
@@ -238,13 +266,16 @@ impl<'a> Context<'a> {
         &mut self,
         pol: Polarity,
         span: Option<FileSpan>,
-        dom: StateId,
+        domain: StateId,
         range: StateId,
     ) -> StateId {
         self.auto.build_constructed(
             pol,
             Constructor::new(
-                ConstructorKind::Func(StateSet::new(dom), StateSet::new(range)),
+                ConstructorKind::Func(FuncConstructor {
+                    domain: StateSet::new(domain),
+                    range: StateSet::new(range),
+                }),
                 span,
             ),
         )
