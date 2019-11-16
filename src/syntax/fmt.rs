@@ -33,7 +33,7 @@ impl Display for Expr {
             }
             Expr::Var(var) => write!(f, "{}", var),
             Expr::Record(map) => {
-                if map.len() == 0 {
+                if map.is_empty() {
                     write!(f, "{{}}")
                 } else {
                     writeln!(f, "{{")?;

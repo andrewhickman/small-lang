@@ -37,7 +37,7 @@ type FileSpan = (FileId, Span);
 enum Error {
     UndefinedVar(FileSpan, Symbol),
     Import(FileSpan, String, ErrorData),
-    TypeCheck(FileSpan, BiunifyError<Constructor>),
+    TypeCheck(FileSpan, Box<BiunifyError<Constructor>>),
 }
 
 struct Context<'a> {
@@ -88,7 +88,7 @@ impl<'a> Context<'a> {
     fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
         let cmd = Command::Load { var };
         if let Some(scheme) = self.get_var(var) {
-            return Ok((scheme, vec![cmd]));
+            Ok((scheme, vec![cmd]))
         } else {
             Err(Error::UndefinedVar(span, var))
         }
@@ -113,7 +113,7 @@ impl<'a> Context<'a> {
                 once((body_scheme.ty(), ret_pair.neg))
                     .chain(domain_ty.map(|ty| (arg_pair.pos, ty))),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
@@ -142,7 +142,7 @@ impl<'a> Context<'a> {
                     .iter()
                     .copied(),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         let mut cmds = arg_cmds;
         cmds.extend(func_cmds);
@@ -195,7 +195,7 @@ impl<'a> Context<'a> {
                 once((func_scheme.ty(), func_pair.neg))
                     .chain(domain_ty.map(|ty| (func_pair.pos, ty))),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         self.push_var(rec.name.val, func_scheme.clone());
         let (body_scheme, body_cmds) = self.check_expr(&rec.body, span.0)?;
@@ -234,7 +234,7 @@ impl<'a> Context<'a> {
                 .iter()
                 .copied(),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         let mut cmds = cond_cmds;
         cmds.push(Command::Test {
@@ -284,7 +284,7 @@ impl<'a> Context<'a> {
                     .iter()
                     .map(|&(_, val_pair, ref scheme, _)| (scheme.ty(), val_pair.neg)),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         let cmds = fields.iter_mut().fold(
             vec![Command::Push {
@@ -327,7 +327,7 @@ impl<'a> Context<'a> {
             self.build_enum_variant(Polarity::Pos, Some(span), enum_expr.tag.val, val_pair.pos);
         self.auto
             .biunify(expr_scheme.ty(), val_pair.neg)
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         Ok((expr_scheme.with_ty(enum_ty), cmds))
     }
@@ -377,7 +377,7 @@ impl<'a> Context<'a> {
 
         self.auto
             .biunify(expr_scheme.ty(), enum_ty)
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
         self.auto
             .biunify_all(
                 cases
@@ -387,7 +387,7 @@ impl<'a> Context<'a> {
                             .chain(val_ty.map(|ty| (val_pair.pos, ty)))
                     }),
             )
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         let (jump_offsets, mut cmds_total_len) = cases.iter().fold(
             (ImSymbolMap::default(), 0),
@@ -435,7 +435,7 @@ impl<'a> Context<'a> {
         );
         self.auto
             .biunify(expr_scheme.ty(), record_ty)
-            .map_err(|err| Error::TypeCheck(span, err))?;
+            .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
         let mut cmds = expr_cmds;
         cmds.push(Command::Get {
