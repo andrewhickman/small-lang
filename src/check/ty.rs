@@ -23,6 +23,7 @@ pub enum ConstructorKind {
     String,
     Number(NumberConstructor),
     Func(FuncConstructor),
+    Object(ObjectConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
 }
@@ -39,12 +40,20 @@ pub struct FuncConstructor {
     range: StateSet,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ObjectConstructor {
+    data: StateSet,
+    capabilities: StateSet,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Label {
     Domain,
     Range,
     Field(Symbol),
     Tag(Symbol),
+    ObjectData,
+    ObjectCapabilities,
 }
 
 impl Constructor {
@@ -82,6 +91,7 @@ impl mlsub::Constructor for Constructor {
             }
             (ConstructorKind::String, ConstructorKind::String) => (),
             (ConstructorKind::Func(lhs), ConstructorKind::Func(rhs)) => lhs.join(rhs),
+            (ConstructorKind::Object(lhs), ConstructorKind::Object(rhs)) => lhs.join(rhs),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => match pol {
                 Polarity::Pos => {
                     *lhs = lhs.clone().intersection_with(rhs.clone(), |mut l, r| {
@@ -121,6 +131,7 @@ impl mlsub::Constructor for Constructor {
             | ConstructorKind::Number(_)
             | ConstructorKind::String => vec![],
             ConstructorKind::Func(func) => func.params(),
+            ConstructorKind::Object(obj) => obj.params(),
             ConstructorKind::Record(fields) => fields
                 .clone()
                 .into_iter()
@@ -141,6 +152,7 @@ impl mlsub::Constructor for Constructor {
     {
         let kind = match self.kind {
             ConstructorKind::Func(func) => ConstructorKind::Func(func.map(mapper)),
+            ConstructorKind::Object(obj) => ConstructorKind::Object(obj.map(mapper)),
             ConstructorKind::Record(fields) => ConstructorKind::Record(
                 fields
                     .into_iter()
@@ -185,7 +197,8 @@ impl PartialOrd for Constructor {
             (ConstructorKind::Null, ConstructorKind::Null) => Some(Ordering::Equal),
             (ConstructorKind::Bool, ConstructorKind::Bool) => Some(Ordering::Equal),
             (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
-            (ConstructorKind::Func(..), ConstructorKind::Func(..)) => Some(Ordering::Equal),
+            (ConstructorKind::Func(_), ConstructorKind::Func(_)) => Some(Ordering::Equal),
+            (ConstructorKind::Object(_), ConstructorKind::Object(_)) => Some(Ordering::Equal),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
             }
@@ -227,11 +240,39 @@ impl FuncConstructor {
     }
 }
 
+impl ObjectConstructor {
+    fn join(&mut self, other: &Self) {
+        self.data.union(&other.data);
+        self.capabilities.union(&other.capabilities);
+    }
+
+    fn params(&self) -> Vec<(Label, StateSet)> {
+        vec![
+            (Label::ObjectData, self.data.clone()),
+            (Label::ObjectCapabilities, self.capabilities.clone()),
+        ]
+    }
+
+    fn map<F>(self, mut mapper: F) -> Self
+    where
+        F: FnMut(Label, StateSet) -> StateSet,
+    {
+        ObjectConstructor {
+            data: mapper(Label::ObjectData, self.data),
+            capabilities: mapper(Label::ObjectCapabilities, self.capabilities),
+        }
+    }
+}
+
 impl mlsub::Label for Label {
     fn polarity(&self) -> Polarity {
         match self {
             Label::Domain => Polarity::Neg,
-            Label::Range | Label::Field(_) | Label::Tag(_) => Polarity::Pos,
+            Label::Range
+            | Label::ObjectData
+            | Label::ObjectCapabilities
+            | Label::Field(_)
+            | Label::Tag(_) => Polarity::Pos,
         }
     }
 }
@@ -333,7 +374,8 @@ impl fmt::Display for Constructor {
             ConstructorKind::Bool => "bool".fmt(f),
             ConstructorKind::Number(num) => num.fmt(f),
             ConstructorKind::String => "string".fmt(f),
-            ConstructorKind::Func(..) => "func".fmt(f),
+            ConstructorKind::Func(_) => "func".fmt(f),
+            ConstructorKind::Object(_) => "object".fmt(f),
             ConstructorKind::Record(labels) => write!(f, "record {{{}}}", Labels(labels)),
             ConstructorKind::Enum(labels) => write!(f, "enum [{}]", Labels(labels)),
         }
@@ -354,6 +396,8 @@ impl fmt::Display for Label {
         match self {
             Label::Domain => "domain".fmt(f),
             Label::Range => "range".fmt(f),
+            Label::ObjectData => "data".fmt(f),
+            Label::ObjectCapabilities => "capabilities".fmt(f),
             Label::Field(field) => write!(f, "field `{}`", field),
             Label::Tag(field) => write!(f, "tag `{}`", field),
         }
