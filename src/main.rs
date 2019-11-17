@@ -28,6 +28,7 @@ fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
     eprintln!("Finished in {} operations", output.op_count);
     serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
         .map_err(|err| small_lang::Error::basic(err.into()))?;
+    println!();
     Ok(())
 }
 
