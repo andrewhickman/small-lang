@@ -138,6 +138,11 @@ impl mlsub::Constructor for Constructor {
             (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
                 let a = lhs.borrow().clone().expect("capabilities not set");
                 let b = rhs.borrow().clone().expect("capabilities not set");
+
+                if Rc::ptr_eq(lhs, rhs) {
+                    return;
+                }
+
                 let joined = match pol {
                     Polarity::Pos => a.intersection_with(b, |mut l, r| {
                         l.union(&r);
