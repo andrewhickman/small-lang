@@ -25,6 +25,9 @@ harness = false
 name = "fibonacci-run"
 harness = false
 
+[profile.release]
+debug = true
+
 [features]
 default = ["structopt", "paw"]
 
