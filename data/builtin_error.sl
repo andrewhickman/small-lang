@@ -1,1 +1,1 @@
-__builtin_add 1
+__builtin_get_add null

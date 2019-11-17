@@ -92,8 +92,8 @@ fn arb_var_symbol() -> impl Strategy<Value = Symbol> {
         4 => Just(Symbol::new("b")),
         3 => Just(Symbol::new("c")),
         1 => Just(Symbol::new("__builtin_eq")),
-        1 => Just(Symbol::new("__builtin_add")),
-        1 => Just(Symbol::new("__builtin_sub")),
+        1 => Just(Symbol::new("__builtin_get_add")),
+        1 => Just(Symbol::new("__builtin_get_sub")),
     ]
 }
 

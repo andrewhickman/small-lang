@@ -1,1 +1,1 @@
-__builtin_eq __builtin_sub
+__builtin_eq __builtin_get_sub

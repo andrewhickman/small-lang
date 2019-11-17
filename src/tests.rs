@@ -11,7 +11,14 @@ use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
-    crate::run_file(&file, rt::Opts::default()).map(|output| output.value)
+    crate::run_file(
+        &file,
+        rt::Opts {
+            max_stack: 512,
+            max_ops: Some(100_000),
+        },
+    )
+    .map(|output| output.value)
 }
 
 macro_rules! test_file {

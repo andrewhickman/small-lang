@@ -44,12 +44,12 @@ pub fn builtins() -> ImSymbolMap<Value> {
     ImSymbolMap::default()
         .update(Symbol::new("__builtin_eq"), binary_func("__builtin_eq", eq))
         .update(
-            Symbol::new("__builtin_add"),
-            binary_func("__builtin_add", add),
+            Symbol::new("__builtin_get_add"),
+            Value::builtin("__builtin_get_add", get_add),
         )
         .update(
-            Symbol::new("__builtin_sub"),
-            binary_func("__builtin_sub", sub),
+            Symbol::new("__builtin_get_sub"),
+            Value::builtin("__builtin_get_sub", get_sub),
         )
 }
 
@@ -68,6 +68,18 @@ where
 
 fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
     Ok(Value::Bool(lhs == rhs))
+}
+
+fn get_add(lhs: Value) -> Result<Value, Error> {
+    Ok(Value::builtin("__builtin_add", move |rhs| {
+        add(lhs.clone(), rhs)
+    }))
+}
+
+fn get_sub(lhs: Value) -> Result<Value, Error> {
+    Ok(Value::builtin("__builtin_sub", move |rhs| {
+        sub(lhs.clone(), rhs)
+    }))
 }
 
 fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {

@@ -335,11 +335,21 @@ impl mlsub::Label for Label {
 
 impl<'a> Context<'a> {
     pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(pol, span, ConstructorKind::Null, self.empty_capabilities())
+        self.build_object(
+            pol,
+            span,
+            ConstructorKind::Null,
+            self.capabilities.empty(pol),
+        )
     }
 
     pub fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(pol, span, ConstructorKind::Bool, self.empty_capabilities())
+        self.build_object(
+            pol,
+            span,
+            ConstructorKind::Bool,
+            self.capabilities.empty(pol),
+        )
     }
 
     pub fn build_number(
@@ -352,7 +362,7 @@ impl<'a> Context<'a> {
             pol,
             span,
             ConstructorKind::Number(num),
-            self.empty_capabilities(),
+            self.capabilities.number(pol, num),
         )
     }
 
@@ -361,7 +371,7 @@ impl<'a> Context<'a> {
             pol,
             span,
             ConstructorKind::String,
-            self.empty_capabilities(),
+            self.capabilities.empty(pol),
         )
     }
 
@@ -379,7 +389,7 @@ impl<'a> Context<'a> {
                 domain: StateSet::new(domain),
                 range: StateSet::new(range),
             }),
-            self.empty_capabilities(),
+            self.capabilities.empty(pol),
         )
     }
 
@@ -395,7 +405,7 @@ impl<'a> Context<'a> {
                     .map(|(sym, id)| (sym, StateSet::new(id)))
                     .collect(),
             ),
-            self.empty_capabilities(),
+            self.capabilities.empty(pol),
         )
     }
 
@@ -411,7 +421,7 @@ impl<'a> Context<'a> {
                     .map(|(tag, ty)| (tag, StateSet::new(ty)))
                     .collect(),
             ),
-            self.empty_capabilities(),
+            self.capabilities.empty(pol),
         )
     }
 
@@ -423,6 +433,35 @@ impl<'a> Context<'a> {
         expr: StateId,
     ) -> StateId {
         self.build_enum(pol, span, once((field, expr)))
+    }
+
+    pub fn build_capability(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        name: Symbol,
+        ty: StateId,
+    ) -> StateId {
+        let data = self.auto.build_empty(pol);
+        let capabilities = self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Capabilities(Rc::new(RefCell::new(Some(
+                    once((name, StateSet::new(ty))).collect(),
+                )))),
+                span,
+            ),
+        );
+        self.auto.build_constructed(
+            pol,
+            Constructor::new(
+                ConstructorKind::Object(ObjectConstructor {
+                    data: StateSet::new(data),
+                    capabilities: StateSet::new(capabilities),
+                }),
+                span,
+            ),
+        )
     }
 
     fn build_object(
@@ -449,10 +488,6 @@ impl<'a> Context<'a> {
                 span,
             ),
         )
-    }
-
-    fn empty_capabilities(&self) -> Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>> {
-        self.capabilities.empty()
     }
 }
 

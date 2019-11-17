@@ -55,7 +55,7 @@ optional = true
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
-rev = "98d3cb9fba8198cefb7f01d1d806c9ee9742b45b"
+rev = "a320e4a89381a30708a9f790266973d2e36aca7e"
 
 [dependencies.im]
 package = "im-rc"
