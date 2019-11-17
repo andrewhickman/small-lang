@@ -4,8 +4,6 @@ before_script:
 script:
   - cargo fmt --all -- --check
   - cargo test --verbose
-  - cargo bench
-  - cargo run -- data/null.sl
 env:
   - PROPTEST_CASES=8192
 cache: cargo
