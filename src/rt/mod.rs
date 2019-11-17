@@ -163,6 +163,13 @@ impl Value {
         }
     }
 
+    pub fn unwrap_string(self) -> String {
+        match self {
+            Value::String(s) => s,
+            _ => panic!("expected string"),
+        }
+    }
+
     pub fn unwrap_func(self) -> FuncValue {
         match self {
             Value::Func(f) => f,

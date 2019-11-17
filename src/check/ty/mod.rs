@@ -249,6 +249,7 @@ impl PartialOrd for Constructor {
         match (&self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => Some(Ordering::Equal),
             (ConstructorKind::Bool, ConstructorKind::Bool) => Some(Ordering::Equal),
+            (ConstructorKind::String, ConstructorKind::String) => Some(Ordering::Equal),
             (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
             (ConstructorKind::Func(_), ConstructorKind::Func(_)) => Some(Ordering::Equal),
             (ConstructorKind::Object(_), ConstructorKind::Object(_)) => Some(Ordering::Equal),
@@ -376,7 +377,7 @@ impl<'a> Context<'a> {
             pol,
             span,
             ConstructorKind::String,
-            self.capabilities.empty(pol),
+            self.capabilities.string(pol),
         )
     }
 

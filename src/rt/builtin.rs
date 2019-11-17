@@ -71,18 +71,24 @@ fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
 }
 
 fn get_add(lhs: Value) -> Result<Value, Error> {
-    Ok(Value::builtin("__builtin_add", move |rhs| {
-        add(lhs.clone(), rhs)
-    }))
+    match lhs {
+        Value::Number(_) => Ok(Value::builtin("__builtin_add_number", move |rhs| {
+            add_number(lhs.clone(), rhs)
+        })),
+        Value::String(_) => Ok(Value::builtin("__builtin_add_string", move |rhs| {
+            add_string(lhs.clone(), rhs)
+        })),
+        _ => panic!("expected addable"),
+    }
 }
 
 fn get_sub(lhs: Value) -> Result<Value, Error> {
     Ok(Value::builtin("__builtin_sub", move |rhs| {
-        sub(lhs.clone(), rhs)
+        sub_number(lhs.clone(), rhs)
     }))
 }
 
-fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {
+fn add_number(lhs: Value, rhs: Value) -> Result<Value, Error> {
     let num = coerce_for_binary_func(
         lhs.unwrap_number(),
         rhs.unwrap_number(),
@@ -96,7 +102,7 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, Error> {
     Ok(Value::Number(num))
 }
 
-fn sub(lhs: Value, rhs: Value) -> Result<Value, Error> {
+fn sub_number(lhs: Value, rhs: Value) -> Result<Value, Error> {
     let num = coerce_for_binary_func(
         lhs.unwrap_number(),
         rhs.unwrap_number(),
@@ -131,6 +137,12 @@ where
         (NumberValue::Float(lhs), NumberValue::Int(rhs)) => float_func(lhs, coerce_int(rhs)),
         (NumberValue::Float(lhs), NumberValue::Float(rhs)) => float_func(lhs, rhs),
     }
+}
+
+fn add_string(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    let mut s = lhs.unwrap_string();
+    s += &rhs.unwrap_string();
+    Ok(Value::String(s))
 }
 
 impl PartialEq for NumberValue {

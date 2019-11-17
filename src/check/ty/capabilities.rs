@@ -16,6 +16,8 @@ pub(in crate::check) struct Capabilities {
     int_neg: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
     float_pos: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
     float_neg: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
+    string_pos: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
+    string_neg: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
 }
 
 impl Capabilities {
@@ -32,6 +34,11 @@ impl Capabilities {
     pub fn set_float(&self, pos: OrdMap<Symbol, StateSet>, neg: OrdMap<Symbol, StateSet>) {
         *self.float_pos.borrow_mut() = Some(pos);
         *self.float_neg.borrow_mut() = Some(neg);
+    }
+
+    pub fn set_string(&self, pos: OrdMap<Symbol, StateSet>, neg: OrdMap<Symbol, StateSet>) {
+        *self.string_pos.borrow_mut() = Some(pos);
+        *self.string_neg.borrow_mut() = Some(neg);
     }
 
     pub fn empty(&self, pol: Polarity) -> Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>> {
@@ -51,6 +58,13 @@ impl Capabilities {
             (Polarity::Neg, NumberConstructor::Float) => self.float_neg.clone(),
             (Polarity::Pos, NumberConstructor::Int) => self.int_pos.clone(),
             (Polarity::Neg, NumberConstructor::Int) => self.int_neg.clone(),
+        }
+    }
+
+    pub fn string(&self, pol: Polarity) -> Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>> {
+        match pol {
+            Polarity::Pos => self.string_pos.clone(),
+            Polarity::Neg => self.string_neg.clone(),
         }
     }
 }

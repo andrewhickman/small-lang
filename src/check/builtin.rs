@@ -10,6 +10,7 @@ impl<'a> Context<'a> {
     pub(in crate::check) fn set_builtins(&mut self) {
         self.set_empty_capabilities();
         self.set_number_capabilities();
+        self.set_string_capabilities();
 
         let eq = self.build_eq();
         self.set_var(Symbol::new("__builtin_eq"), eq);
@@ -59,6 +60,12 @@ impl<'a> Context<'a> {
         self.capabilities.set_float(pos, neg);
     }
 
+    fn set_string_capabilities(&mut self) {
+        let pos = self.build_string_capabilities(Polarity::Pos);
+        let neg = self.build_string_capabilities(Polarity::Neg);
+        self.capabilities.set_string(pos, neg);
+    }
+
     fn build_number_capabilities(
         &mut self,
         pol: Polarity,
@@ -86,5 +93,14 @@ impl<'a> Context<'a> {
 
         let ret = self.auto.build_add(pol, [ret0, ret1].iter().copied());
         self.build_func(pol, None, arg, ret)
+    }
+
+    fn build_string_capabilities(&mut self, pol: Polarity) -> OrdMap<Symbol, StateSet> {
+        let add_arg = self.build_string(-pol, None);
+        let add_ret = self.build_string(pol, None);
+        let add = self.build_func(pol, None, add_arg, add_ret);
+        ordmap! {
+            Symbol::new("add") => StateSet::new(add)
+        }
     }
 }
