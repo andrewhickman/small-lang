@@ -5,7 +5,6 @@ use im::OrdMap;
 use mlsub::auto::StateSet;
 use mlsub::Polarity;
 
-use crate::check::ty::NumberConstructor;
 use crate::syntax::Symbol;
 
 #[derive(Default)]
@@ -48,16 +47,17 @@ impl Capabilities {
         }
     }
 
-    pub fn number(
-        &self,
-        pol: Polarity,
-        num: NumberConstructor,
-    ) -> Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>> {
-        match (pol, num) {
-            (Polarity::Pos, NumberConstructor::Float) => self.float_pos.clone(),
-            (Polarity::Neg, NumberConstructor::Float) => self.float_neg.clone(),
-            (Polarity::Pos, NumberConstructor::Int) => self.int_pos.clone(),
-            (Polarity::Neg, NumberConstructor::Int) => self.int_neg.clone(),
+    pub fn int(&self, pol: Polarity) -> Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>> {
+        match pol {
+            Polarity::Pos => self.int_pos.clone(),
+            Polarity::Neg => self.int_neg.clone(),
+        }
+    }
+
+    pub fn float(&self, pol: Polarity) -> Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>> {
+        match pol {
+            Polarity::Pos => self.float_pos.clone(),
+            Polarity::Neg => self.float_neg.clone(),
         }
     }
 

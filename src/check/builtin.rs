@@ -2,14 +2,14 @@ use im::{ordmap, OrdMap};
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
 
-use crate::check::ty::NumberConstructor;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
 impl<'a> Context<'a> {
     pub(in crate::check) fn set_builtins(&mut self) {
         self.set_empty_capabilities();
-        self.set_number_capabilities();
+        self.set_int_capabilities();
+        self.set_float_capabilities();
         self.set_string_capabilities();
 
         let eq = self.build_eq();
@@ -51,13 +51,10 @@ impl<'a> Context<'a> {
             .set_empty(OrdMap::default(), OrdMap::default())
     }
 
-    fn set_number_capabilities(&mut self) {
-        let pos = self.build_number_capabilities(Polarity::Pos, NumberConstructor::Int);
-        let neg = self.build_number_capabilities(Polarity::Neg, NumberConstructor::Int);
-        self.capabilities.set_int(pos, neg);
-        let pos = self.build_number_capabilities(Polarity::Pos, NumberConstructor::Float);
-        let neg = self.build_number_capabilities(Polarity::Neg, NumberConstructor::Float);
-        self.capabilities.set_float(pos, neg);
+    fn set_int_capabilities(&mut self) {
+        let pos = self.build_int_capabilities(Polarity::Pos);
+        let neg = self.build_int_capabilities(Polarity::Neg);
+        self.capabilities.set_int(pos, neg)
     }
 
     fn set_string_capabilities(&mut self) {
@@ -66,32 +63,37 @@ impl<'a> Context<'a> {
         self.capabilities.set_string(pos, neg);
     }
 
-    fn build_number_capabilities(
-        &mut self,
-        pol: Polarity,
-        num: NumberConstructor,
-    ) -> OrdMap<Symbol, StateSet> {
+    fn set_float_capabilities(&mut self) {
+        let pos = self.build_float_capabilities(Polarity::Pos);
+        let neg = self.build_float_capabilities(Polarity::Neg);
+        self.capabilities.set_float(pos, neg)
+    }
+
+    fn build_int_capabilities(&mut self, pol: Polarity) -> OrdMap<Symbol, StateSet> {
         ordmap! {
-            Symbol::new("add") => StateSet::new(self.build_binary_number_op(pol, num)),
-            Symbol::new("sub") => StateSet::new(self.build_binary_number_op(pol, num))
+            Symbol::new("add") => StateSet::new(self.build_binary_int_op(pol)),
+            Symbol::new("sub") => StateSet::new(self.build_binary_int_op(pol))
         }
     }
 
-    fn build_number_arg(&mut self, pol: Polarity, num: NumberConstructor) -> (StateId, StateId) {
-        let pair = self.auto.build_var();
-        let float = self.build_number(-pol, None, num);
-
-        let arg = self
-            .auto
-            .build_add(-pol, [pair.get(-pol), float].iter().copied());
-        (arg, pair.get(pol))
+    fn build_float_capabilities(&mut self, pol: Polarity) -> OrdMap<Symbol, StateSet> {
+        ordmap! {
+            Symbol::new("add") => StateSet::new(self.build_binary_float_op(pol)),
+            Symbol::new("sub") => StateSet::new(self.build_binary_float_op(pol))
+        }
     }
 
-    fn build_binary_number_op(&mut self, pol: Polarity, num: NumberConstructor) -> StateId {
-        let ret0 = self.build_number(pol, None, num);
-        let (arg, ret1) = self.build_number_arg(pol, NumberConstructor::Float);
+    fn build_binary_int_op(&mut self, pol: Polarity) -> StateId {
+        let arg = self.build_int(-pol, None);
+        let ret = self.build_int(pol, None);
 
-        let ret = self.auto.build_add(pol, [ret0, ret1].iter().copied());
+        self.build_func(pol, None, arg, ret)
+    }
+
+    fn build_binary_float_op(&mut self, pol: Polarity) -> StateId {
+        let arg = self.build_float(-pol, None);
+        let ret = self.build_float(pol, None);
+
         self.build_func(pol, None, arg, ret)
     }
 

@@ -4,7 +4,7 @@ use codespan::FileId;
 use proptest::proptest;
 
 use crate::check::check;
-use crate::rt::{self, EnumValue, NumberValue, Value};
+use crate::rt::{self, EnumValue, Value};
 use crate::syntax::tests::arb_expr;
 use crate::syntax::{ImSymbolMap, SourceMap, Symbol};
 use crate::Error;
@@ -88,12 +88,12 @@ test_file!(eq_record, Ok(Value::Bool(true)));
 test_file!(eq_func, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
 test_file!(curry, Ok(Value::Bool(true)));
-test_file!(int, Ok(Value::Number(NumberValue::Int(-300))));
-test_file!(add, Ok(Value::Number(NumberValue::Int(4))));
+test_file!(int, Ok(Value::Int(-300)));
+test_file!(add, Ok(Value::Int(4)));
 test_file!(add_error, Err);
-test_file!(sub, Ok(Value::Number(NumberValue::Int(4))));
+test_file!(sub, Ok(Value::Int(4)));
 test_file!(sub_error, Err);
-test_file!(fibonacci, Ok(Value::Number(NumberValue::Int(377))));
+test_file!(fibonacci, Ok(Value::Int(377)));
 test_file!(string, Ok(Value::String("hello".to_owned())));
 test_file!(
     string_escape,
@@ -107,7 +107,7 @@ test_file!(
         value: Box::new(Value::Bool(true)),
     }))
 );
-test_file!(match_simple, Ok(Value::Number(NumberValue::Int(1))));
+test_file!(match_simple, Ok(Value::Int(1)));
 test_file!(match_error, Err);
 test_file!(match_subtyping, Ok(Value::Bool(true)));
 test_file!(null, Ok(Value::Null));
@@ -119,40 +119,37 @@ test_file!(
     iter_range_find,
     Ok(Value::Enum(EnumValue {
         tag: Symbol::new("some"),
-        value: Box::new(Value::Number(NumberValue::Int(4))),
+        value: Box::new(Value::Int(4)),
     }))
 );
 test_file!(recursive_import_a, Err);
 test_file!(recursive_import_b, Err);
 test_file!(list_from_iter, Ok(Value::Bool(true)));
 test_file!(list_from_iter_take, Ok(Value::Bool(true)));
-test_file!(list_length, Ok(Value::Number(NumberValue::Int(3))));
-test_file!(
-    list_from_iter_length,
-    Ok(Value::Number(NumberValue::Int(6)))
-);
-test_file!(iter_length, Ok(Value::Number(NumberValue::Int(42 - 24))));
+test_file!(list_length, Ok(Value::Int(3)));
+test_file!(list_from_iter_length, Ok(Value::Int(6)));
+test_file!(iter_length, Ok(Value::Int(42 - 24)));
 test_file!(polymorphism, Ok);
 test_file!(builtin_error, Err);
 test_file!(flow_error, Err);
 test_file!(match_val_error, Err);
 test_file!(eq_func_env, Ok(Value::Bool(false)));
-test_file!(sugar_curry, Ok(Value::Number(NumberValue::Int(10))));
+test_file!(sugar_curry, Ok(Value::Int(10)));
 test_file!(
     sugar_curry_order,
     Ok(Value::Record(
         ImSymbolMap::default()
-            .update(Symbol::new("a"), Value::Number(NumberValue::Int(1)))
-            .update(Symbol::new("b"), Value::Number(NumberValue::Int(2)))
-            .update(Symbol::new("c"), Value::Number(NumberValue::Int(3)))
-            .update(Symbol::new("d"), Value::Number(NumberValue::Int(4)))
+            .update(Symbol::new("a"), Value::Int(1))
+            .update(Symbol::new("b"), Value::Int(2))
+            .update(Symbol::new("c"), Value::Int(3))
+            .update(Symbol::new("d"), Value::Int(4))
     ))
 );
-test_file!(float, Ok(Value::Number(NumberValue::Float(0.0002124))));
-test_file!(add_coerce, Ok(Value::Number(NumberValue::Float(3.5))));
-test_file!(add_float, Ok(Value::Number(NumberValue::Float(3.5))));
-test_file!(sub_coerce, Ok(Value::Number(NumberValue::Float(0.5))));
-test_file!(sub_float, Ok(Value::Number(NumberValue::Float(-197.5))));
+test_file!(float, Ok(Value::Float(0.0002124)));
+test_file!(add_coerce, Err);
+test_file!(add_float, Ok(Value::Float(3.5)));
+test_file!(sub_coerce, Err);
+test_file!(sub_float, Ok(Value::Float(-197.5)));
 test_file!(add_string, Ok(Value::String("Hello, world".to_owned())));
 test_file!(add_string_2, Ok(Value::String("Hello, world!".to_owned())));
 test_file!(add_string_error, Err);
