@@ -156,6 +156,7 @@ test_file!(sub_float, Ok(Value::Number(NumberValue::Float(-197.5))));
 test_file!(add_string, Ok(Value::String("Hello, world".to_owned())));
 test_file!(add_string_2, Ok(Value::String("Hello, world!".to_owned())));
 test_file!(add_string_error, Err);
+test_file!(var_in_module, Err);
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

@@ -454,7 +454,9 @@ impl<'a> Context<'a> {
     ) -> Result<(Scheme, Vec<Command>), Error> {
         match self.resolve_import(path) {
             Ok(SourceCacheResult::Miss(file, expr)) => {
+                let vars = self.vars.split_off(1);
                 let (ty, cmds) = self.check_expr(&expr, file)?;
+                self.vars.extend(vars);
                 self.source.end_file();
 
                 assert!(self
