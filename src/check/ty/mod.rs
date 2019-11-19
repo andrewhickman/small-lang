@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::{cmp, fmt, vec};
 
 use im::OrdMap;
+use itertools::Itertools;
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
 
@@ -160,7 +161,7 @@ impl mlsub::Constructor for Constructor {
     }
 
     fn params(&self) -> Self::Params {
-        match &self.kind {
+        let params = match &self.kind {
             ConstructorKind::Null
             | ConstructorKind::Bool
             | ConstructorKind::Number(_)
@@ -184,8 +185,15 @@ impl mlsub::Constructor for Constructor {
                 .into_iter()
                 .map(|(name, set)| (Label::Capability(name), set))
                 .collect(),
-        }
-        .into_iter()
+        };
+
+        #[cfg(debug_assertions)]
+        debug_assert!(params
+            .iter()
+            .tuple_windows()
+            .all(|(&(l, _), &(r, _))| l < r));
+
+        params.into_iter()
     }
 
     fn map<F>(self, mut mapper: F) -> Self
