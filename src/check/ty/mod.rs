@@ -268,11 +268,15 @@ impl PartialOrd for Constructor {
                 iter_set::cmp(lhs.keys(), rhs.keys())
             }
             (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
-                iter_set::cmp(
-                    lhs.borrow().as_ref().expect("capabilities not set").keys(),
-                    rhs.borrow().as_ref().expect("capabilities not set").keys(),
-                )
-                .map(Ordering::reverse)
+                if Rc::ptr_eq(lhs, rhs) {
+                    Some(Ordering::Equal)
+                } else {
+                    iter_set::cmp(
+                        lhs.borrow().as_ref().expect("capabilities not set").keys(),
+                        rhs.borrow().as_ref().expect("capabilities not set").keys(),
+                    )
+                    .map(Ordering::reverse)
+                }
             }
             _ => None,
         }
