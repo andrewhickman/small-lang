@@ -11,8 +11,8 @@ use mlsub::auto::{flow, Automaton, StateId};
 use mlsub::{BiunifyError, Polarity};
 
 use crate::check::scheme::{ReducedScheme, Scheme};
-use crate::check::ty::Constructor;
-use crate::rt::{Command, FuncValue, Value};
+use crate::check::ty::{Constructor, NumberConstructor};
+use crate::rt::{Command, FuncValue, NumberValue, Value};
 use crate::syntax::{
     CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
     SourceCacheResult, SourceMap, Spanned, Symbol, SymbolMap,
@@ -508,17 +508,17 @@ impl<'a> Context<'a> {
     }
 
     fn check_int(&mut self, val: i64, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
-        let ty = self.build_int(Polarity::Pos, Some(span));
+        let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Int);
         let cmd = vec![Command::Push {
-            value: Value::Int(val),
+            value: Value::Number(NumberValue::Int(val)),
         }];
         Ok((Scheme::empty(ty), cmd))
     }
 
     fn check_float(&mut self, val: f64, span: FileSpan) -> Result<(Scheme, Vec<Command>), Error> {
-        let ty = self.build_float(Polarity::Pos, Some(span));
+        let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Float);
         let cmd = vec![Command::Push {
-            value: Value::Float(val),
+            value: Value::Number(NumberValue::Float(val)),
         }];
         Ok((Scheme::empty(ty), cmd))
     }

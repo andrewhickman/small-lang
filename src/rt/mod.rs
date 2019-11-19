@@ -52,8 +52,7 @@ pub enum Error {
 pub enum Value {
     Null,
     Bool(bool),
-    Int(i64),
-    Float(f64),
+    Number(NumberValue),
     String(String),
     Record(ImSymbolMap<Value>),
     Enum(EnumValue),
@@ -82,6 +81,22 @@ pub struct EnumValue {
     pub tag: Symbol,
     #[serde(rename = "$value")]
     pub value: Box<Value>,
+}
+
+#[derive(Copy, Clone, Serialize)]
+#[serde(untagged)]
+pub enum NumberValue {
+    Int(i64),
+    Float(f64),
+}
+
+impl NumberValue {
+    pub fn unwrap_int(self) -> i64 {
+        match self {
+            NumberValue::Int(val) => val,
+            _ => panic!("expected int"),
+        }
+    }
 }
 
 impl FuncValue {
@@ -141,17 +156,10 @@ impl Value {
         }
     }
 
-    pub fn unwrap_int(self) -> i64 {
+    pub fn unwrap_number(self) -> NumberValue {
         match self {
-            Value::Int(n) => n,
-            _ => panic!("expected int"),
-        }
-    }
-
-    pub fn unwrap_float(self) -> f64 {
-        match self {
-            Value::Float(n) => n,
-            _ => panic!("expected float"),
+            Value::Number(n) => n,
+            _ => panic!("expected number"),
         }
     }
 

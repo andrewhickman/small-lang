@@ -1,8 +1,7 @@
 use std::fmt;
-use std::ops::{Add, Sub};
 use std::rc::Rc;
 
-use crate::rt::{Error, FuncValue, Runtime, Value};
+use crate::rt::{Error, FuncValue, NumberValue, Runtime, Value};
 use crate::syntax::{ImSymbolMap, Symbol};
 
 #[derive(Clone)]
@@ -71,50 +70,73 @@ fn eq(lhs: Value, rhs: Value) -> Result<Value, Error> {
     Ok(Value::Bool(lhs == rhs))
 }
 
-fn get_add(val: Value) -> Result<Value, Error> {
-    match val {
-        lhs @ Value::Int(_) => Ok(Value::builtin("__builtin_add_int", move |rhs| {
-            add_int(lhs.clone(), rhs)
+fn get_add(lhs: Value) -> Result<Value, Error> {
+    match lhs {
+        Value::Number(_) => Ok(Value::builtin("__builtin_add_number", move |rhs| {
+            add_number(lhs.clone(), rhs)
         })),
-        lhs @ Value::Float(_) => Ok(Value::builtin("__builtin_add_float", move |rhs| {
-            add_float(lhs.clone(), rhs)
-        })),
-        lhs @ Value::String(_) => Ok(Value::builtin("__builtin_add_string", move |rhs| {
+        Value::String(_) => Ok(Value::builtin("__builtin_add_string", move |rhs| {
             add_string(lhs.clone(), rhs)
         })),
-        _ => panic!("expected add capability"),
+        _ => panic!("expected addable"),
     }
 }
 
-fn get_sub(val: Value) -> Result<Value, Error> {
-    match val {
-        lhs @ Value::Int(_) => Ok(Value::builtin("__builtin_sub_int", move |rhs| {
-            sub_int(lhs.clone(), rhs)
-        })),
-        lhs @ Value::Float(_) => Ok(Value::builtin("__builtin_sub_float", move |rhs| {
-            sub_float(lhs.clone(), rhs)
-        })),
-        _ => panic!("expected add capability"),
+fn get_sub(lhs: Value) -> Result<Value, Error> {
+    Ok(Value::builtin("__builtin_sub", move |rhs| {
+        sub_number(lhs.clone(), rhs)
+    }))
+}
+
+fn add_number(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    let num = coerce_for_binary_func(
+        lhs.unwrap_number(),
+        rhs.unwrap_number(),
+        |lhs, rhs| {
+            i64::checked_add(lhs, rhs)
+                .map(NumberValue::Int)
+                .ok_or(Error::IntegerOverflow)
+        },
+        |lhs, rhs| Ok(NumberValue::Float(lhs + rhs)),
+    )?;
+    Ok(Value::Number(num))
+}
+
+fn sub_number(lhs: Value, rhs: Value) -> Result<Value, Error> {
+    let num = coerce_for_binary_func(
+        lhs.unwrap_number(),
+        rhs.unwrap_number(),
+        |lhs, rhs| {
+            i64::checked_sub(lhs, rhs)
+                .map(NumberValue::Int)
+                .ok_or(Error::IntegerOverflow)
+        },
+        |lhs, rhs| Ok(NumberValue::Float(lhs - rhs)),
+    )?;
+    Ok(Value::Number(num))
+}
+
+fn coerce_int(val: i64) -> f64 {
+    // Casts to nearest float if not exactly representable
+    val as f64
+}
+
+fn coerce_for_binary_func<T, I, F>(
+    lhs: NumberValue,
+    rhs: NumberValue,
+    int_func: I,
+    float_func: F,
+) -> T
+where
+    I: FnOnce(i64, i64) -> T,
+    F: FnOnce(f64, f64) -> T,
+{
+    match (lhs, rhs) {
+        (NumberValue::Int(lhs), NumberValue::Int(rhs)) => int_func(lhs, rhs),
+        (NumberValue::Int(lhs), NumberValue::Float(rhs)) => float_func(coerce_int(lhs), rhs),
+        (NumberValue::Float(lhs), NumberValue::Int(rhs)) => float_func(lhs, coerce_int(rhs)),
+        (NumberValue::Float(lhs), NumberValue::Float(rhs)) => float_func(lhs, rhs),
     }
-}
-
-fn add_int(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    Ok(Value::Int(
-        i64::checked_add(lhs.unwrap_int(), rhs.unwrap_int()).ok_or(Error::IntegerOverflow)?,
-    ))
-}
-
-fn sub_int(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    Ok(Value::Int(
-        i64::checked_sub(lhs.unwrap_int(), rhs.unwrap_int()).ok_or(Error::IntegerOverflow)?,
-    ))
-}
-
-fn add_float(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    Ok(Value::Float(f64::add(
-        lhs.unwrap_float(),
-        rhs.unwrap_float(),
-    )))
 }
 
 fn add_string(lhs: Value, rhs: Value) -> Result<Value, Error> {
@@ -123,11 +145,10 @@ fn add_string(lhs: Value, rhs: Value) -> Result<Value, Error> {
     Ok(Value::String(s))
 }
 
-fn sub_float(lhs: Value, rhs: Value) -> Result<Value, Error> {
-    Ok(Value::Float(f64::sub(
-        lhs.unwrap_float(),
-        rhs.unwrap_float(),
-    )))
+impl PartialEq for NumberValue {
+    fn eq(&self, other: &Self) -> bool {
+        coerce_for_binary_func(*self, *other, |l, r| l == r, |l, r| l == r)
+    }
 }
 
 impl PartialEq for FuncValue {
@@ -141,8 +162,7 @@ impl PartialEq for Value {
         match (self, other) {
             (Value::Null, Value::Null) => true,
             (Value::Bool(l), Value::Bool(r)) => l == r,
-            (Value::Int(l), Value::Int(r)) => l == r,
-            (Value::Float(l), Value::Float(r)) => l == r,
+            (Value::Number(l), Value::Number(r)) => l == r,
             (Value::String(l), Value::String(r)) => l == r,
             (Value::Record(l), Value::Record(r)) => l == r,
             (Value::Enum(l), Value::Enum(r)) => l == r,

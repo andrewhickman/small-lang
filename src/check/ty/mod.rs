@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::iter::{once, FromIterator};
 use std::mem::{discriminant, Discriminant};
 use std::rc::Rc;
-use std::{fmt, vec};
+use std::{cmp, fmt, vec};
 
 use im::OrdMap;
 use mlsub::auto::{StateId, StateSet};
@@ -27,13 +27,18 @@ pub enum ConstructorKind {
     Null,
     Bool,
     String,
-    Int,
-    Float,
+    Number(NumberConstructor),
     Func(FuncConstructor),
     Object(ObjectConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
     Capabilities(Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>>),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum NumberConstructor {
+    Float,
+    Int,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,8 +101,9 @@ impl mlsub::Constructor for Constructor {
         match (&mut self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => (),
             (ConstructorKind::Bool, ConstructorKind::Bool) => (),
-            (ConstructorKind::Int, ConstructorKind::Int) => (),
-            (ConstructorKind::Float, ConstructorKind::Float) => (),
+            (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => {
+                *lhs = cmp::max(*lhs, *rhs)
+            }
             (ConstructorKind::String, ConstructorKind::String) => (),
             (ConstructorKind::Func(lhs), ConstructorKind::Func(rhs)) => lhs.join(rhs),
             (ConstructorKind::Object(lhs), ConstructorKind::Object(rhs)) => lhs.join(rhs),
@@ -157,8 +163,7 @@ impl mlsub::Constructor for Constructor {
         match &self.kind {
             ConstructorKind::Null
             | ConstructorKind::Bool
-            | ConstructorKind::Int
-            | ConstructorKind::Float
+            | ConstructorKind::Number(_)
             | ConstructorKind::String => vec![],
             ConstructorKind::Func(func) => func.params(),
             ConstructorKind::Object(obj) => obj.params(),
@@ -222,14 +227,30 @@ impl mlsub::Constructor for Constructor {
     }
 }
 
+impl PartialOrd for NumberConstructor {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NumberConstructor {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (NumberConstructor::Float, NumberConstructor::Float) => Ordering::Equal,
+            (NumberConstructor::Int, NumberConstructor::Int) => Ordering::Equal,
+            (NumberConstructor::Int, NumberConstructor::Float) => Ordering::Less,
+            (NumberConstructor::Float, NumberConstructor::Int) => Ordering::Greater,
+        }
+    }
+}
+
 impl PartialOrd for Constructor {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (&self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => Some(Ordering::Equal),
             (ConstructorKind::Bool, ConstructorKind::Bool) => Some(Ordering::Equal),
             (ConstructorKind::String, ConstructorKind::String) => Some(Ordering::Equal),
-            (ConstructorKind::Int, ConstructorKind::Int) => Some(Ordering::Equal),
-            (ConstructorKind::Float, ConstructorKind::Float) => Some(Ordering::Equal),
+            (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
             (ConstructorKind::Func(_), ConstructorKind::Func(_)) => Some(Ordering::Equal),
             (ConstructorKind::Object(_), ConstructorKind::Object(_)) => Some(Ordering::Equal),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => {
@@ -337,16 +358,17 @@ impl<'a> Context<'a> {
         )
     }
 
-    pub fn build_int(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(pol, span, ConstructorKind::Int, self.capabilities.int(pol))
-    }
-
-    pub fn build_float(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
+    pub fn build_number(
+        &mut self,
+        pol: Polarity,
+        span: Option<FileSpan>,
+        num: NumberConstructor,
+    ) -> StateId {
         self.build_object(
             pol,
             span,
-            ConstructorKind::Float,
-            self.capabilities.float(pol),
+            ConstructorKind::Number(num),
+            self.capabilities.number(pol, num),
         )
     }
 
@@ -480,8 +502,7 @@ impl fmt::Display for Constructor {
         match &self.kind {
             ConstructorKind::Null => "null".fmt(f),
             ConstructorKind::Bool => "bool".fmt(f),
-            ConstructorKind::Int => "int".fmt(f),
-            ConstructorKind::Float => "float".fmt(f),
+            ConstructorKind::Number(num) => num.fmt(f),
             ConstructorKind::String => "string".fmt(f),
             ConstructorKind::Func(_) => "func".fmt(f),
             ConstructorKind::Object(_) => "object".fmt(f),
@@ -492,6 +513,15 @@ impl fmt::Display for Constructor {
                 "capabilities {{{}}}",
                 Labels(labels.borrow().as_ref().expect("capabilities not set"))
             ),
+        }
+    }
+}
+
+impl fmt::Display for NumberConstructor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            NumberConstructor::Int => "int".fmt(f),
+            NumberConstructor::Float => "number".fmt(f),
         }
     }
 }
@@ -534,8 +564,14 @@ mod tests {
     use mlsub::auto::{Automaton, StateId, StateSet};
     use mlsub::Polarity;
 
-    use crate::check::ty::{Constructor, ConstructorKind};
+    use crate::check::ty::{Constructor, ConstructorKind, NumberConstructor};
     use crate::syntax::Symbol;
+
+    #[test]
+    fn number_ordering() {
+        assert!(NumberConstructor::Int < NumberConstructor::Float);
+        assert!(NumberConstructor::Float > NumberConstructor::Int);
+    }
 
     #[test]
     fn record_ordering() {
