@@ -38,6 +38,7 @@ impl Error {
                 write!(writer, "error")?;
                 writer.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_bold(true))?;
                 write!(writer, ": {}", err)?;
+                writer.reset()?;
 
                 let mut err: &dyn std::error::Error = &**err;
                 while let Some(source) = err.source() {
