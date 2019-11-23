@@ -6,13 +6,13 @@ use proptest::proptest;
 use crate::check::check;
 use crate::rt::{self, EnumValue, NumberValue, Value};
 use crate::syntax::tests::arb_expr;
-use crate::syntax::{ImSymbolMap, SourceMap, Symbol};
+use crate::syntax::{ImSymbolMap, Source, SourceMap, Symbol};
 use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
-    crate::run_file(
-        &file,
+    crate::run(
+        Source::File(file.as_ref()),
         rt::Opts {
             max_stack: 512,
             max_ops: Some(100_000),

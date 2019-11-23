@@ -19,7 +19,7 @@ pub enum ErrorData {
 }
 
 impl Error {
-    pub fn new(source: SourceMap, data: ErrorData) -> Self {
+    pub(crate) fn new(source: SourceMap, data: ErrorData) -> Self {
         Error { source, data }
     }
 
@@ -27,7 +27,7 @@ impl Error {
         Error::new(SourceMap::new(), ErrorData::Basic(err))
     }
 
-    pub fn diagnostics(source: SourceMap, diagnostics: Vec<Diagnostic>) -> Self {
+    pub(crate) fn diagnostics(source: SourceMap, diagnostics: Vec<Diagnostic>) -> Self {
         Error::new(source, ErrorData::Diagnostics(diagnostics))
     }
 

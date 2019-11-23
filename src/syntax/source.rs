@@ -17,6 +17,11 @@ pub struct SourceMap {
     cache: HashMap<String, FileId>,
 }
 
+pub enum Source<'a> {
+    Input(String),
+    File(&'a Path),
+}
+
 pub enum SourceCacheResult {
     Miss(FileId, Spanned<Expr>),
     Hit(FileId),
@@ -33,6 +38,13 @@ impl SourceMap {
 
     pub fn files(&self) -> &Files {
         &self.files
+    }
+
+    pub fn parse_root(&mut self, source: Source<'_>) -> Result<SourceCacheResult, ErrorData> {
+        match source {
+            Source::File(path) => self.parse_file(path),
+            Source::Input(input) => self.parse_input("root", input),
+        }
     }
 
     pub fn parse_file(&mut self, path: impl AsRef<Path>) -> Result<SourceCacheResult, ErrorData> {
@@ -84,7 +96,7 @@ impl SourceMap {
         }
     }
 
-    pub fn end_file(&mut self) {
+    pub fn end_source(&mut self) {
         self.dir.pop();
     }
 

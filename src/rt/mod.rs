@@ -90,15 +90,6 @@ pub enum NumberValue {
     Float(f64),
 }
 
-impl NumberValue {
-    pub fn unwrap_int(self) -> i64 {
-        match self {
-            NumberValue::Int(val) => val,
-            _ => panic!("expected int"),
-        }
-    }
-}
-
 impl FuncValue {
     pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
         FuncValue {

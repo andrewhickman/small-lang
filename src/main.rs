@@ -4,13 +4,11 @@ use std::process;
 
 use codespan_reporting::term::termcolor::StandardStream;
 use codespan_reporting::term::ColorArg;
-
+use small_lang::Source;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct Args {
-    #[structopt(value_name = "FILE", parse(from_os_str))]
-    file: PathBuf,
     #[structopt(
         long = "color",
         parse(try_from_str),
@@ -19,16 +17,40 @@ struct Args {
         case_insensitive = true
     )]
     color: ColorArg,
-    #[structopt(flatten)]
-    rt_opts: small_lang::rt::Opts,
+    #[structopt(subcommand)]
+    command: Command,
+}
+
+#[derive(StructOpt)]
+enum Command {
+    Check {
+        #[structopt(value_name = "FILE", parse(from_os_str))]
+        file: PathBuf,
+    },
+    Run {
+        #[structopt(value_name = "FILE", parse(from_os_str))]
+        file: PathBuf,
+        #[structopt(flatten)]
+        rt_opts: small_lang::rt::Opts,
+    },
 }
 
 fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
-    let output = small_lang::run_file(&args.file, args.rt_opts)?;
-    eprintln!("Finished in {} operations", output.op_count);
-    serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
-        .map_err(|err| small_lang::Error::basic(err.into()))?;
-    println!();
+    match args.command {
+        Command::Check { ref file } => {
+            let func = small_lang::check(Source::File(file))?;
+            serde_json::to_writer_pretty(io::stdout().lock(), &func)
+                .map_err(|err| small_lang::Error::basic(err.into()))?;
+            println!();
+        }
+        Command::Run { ref file, rt_opts } => {
+            let output = small_lang::run(Source::File(file), rt_opts)?;
+            eprintln!("Finished in {} operations", output.op_count);
+            serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
+                .map_err(|err| small_lang::Error::basic(err.into()))?;
+            println!();
+        }
+    }
     Ok(())
 }
 

@@ -10,7 +10,7 @@ lalrpop_mod!(
 mod fmt;
 mod source;
 
-pub use source::{SourceCacheResult, SourceMap};
+pub use source::{Source, SourceCacheResult, SourceMap};
 pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
 pub(crate) use parser::Token;

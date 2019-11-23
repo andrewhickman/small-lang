@@ -4,13 +4,17 @@ use std::path::Path;
 use itertools::zip_eq;
 
 use crate::rt;
+use crate::Source;
 
 fn test_output(file: impl AsRef<Path>) {
     let file = file.as_ref();
     let expected = fs::read_to_string(file.with_extension("out")).unwrap();
-    let actual = crate::run_file(&file.with_extension("sl"), rt::Opts::default())
-        .unwrap_err()
-        .to_string();
+    let actual = crate::run(
+        Source::File(&file.with_extension("sl")),
+        rt::Opts::default(),
+    )
+    .unwrap_err()
+    .to_string();
 
     for (expected_line, actual_line) in zip_eq(expected.lines(), actual.lines()) {
         if !expected_line.ends_with("@skip") {

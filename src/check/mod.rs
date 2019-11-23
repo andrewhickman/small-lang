@@ -457,7 +457,7 @@ impl<'a> Context<'a> {
                 let vars = self.vars.split_off(1);
                 let (ty, cmds) = self.check_expr(&expr, file)?;
                 self.vars.extend(vars);
-                self.source.end_file();
+                self.source.end_source();
 
                 assert!(self
                     .cache
