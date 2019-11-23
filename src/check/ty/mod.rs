@@ -11,6 +11,7 @@ use std::{cmp, fmt};
 use im::OrdMap;
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
+use small_ord_set::SmallOrdSet;
 
 use crate::check::{Context, FileSpan};
 use crate::syntax::Symbol;
@@ -18,7 +19,7 @@ use crate::syntax::Symbol;
 #[derive(Clone, Debug)]
 pub struct Constructor {
     kind: ConstructorKind,
-    spans: Vec<FileSpan>,
+    spans: SmallOrdSet<[FileSpan; 4]>,
 }
 
 #[derive(Clone, Debug)]
@@ -81,7 +82,7 @@ impl Constructor {
     pub fn new(kind: ConstructorKind, span: Option<FileSpan>) -> Self {
         Constructor {
             kind,
-            spans: Vec::from_iter(span),
+            spans: SmallOrdSet::from_iter(span),
         }
     }
 
@@ -118,7 +119,7 @@ impl mlsub::Constructor for Constructor {
     fn join(&mut self, other: &Self, pol: Polarity) {
         debug_assert_eq!(self.component(), other.component());
 
-        self.spans.extend(&other.spans);
+        self.spans.extend(other.spans.iter().copied());
 
         match (&mut self.kind, &other.kind) {
             (ConstructorKind::Null, ConstructorKind::Null) => (),
