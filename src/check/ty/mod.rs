@@ -5,12 +5,10 @@ pub(in crate::check) use capabilities::Capabilities;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::iter::{once, FromIterator};
-use std::mem::{discriminant, Discriminant};
 use std::rc::Rc;
-use std::{cmp, fmt, vec};
+use std::{cmp, fmt};
 
 use im::OrdMap;
-use itertools::Itertools;
 use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
 
@@ -33,7 +31,21 @@ pub enum ConstructorKind {
     Object(ObjectConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
-    Capabilities(Rc<RefCell<Option<im::OrdMap<Symbol, StateSet>>>>),
+    Capabilities(Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>),
+}
+
+/// std::mem::Discriminant does not implement Ord so we cannot use it here :(
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum Component {
+    Null,
+    Bool,
+    String,
+    Number,
+    Func,
+    Object,
+    Record,
+    Enum,
+    Capabilities,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -54,7 +66,7 @@ pub struct ObjectConstructor {
     capabilities: StateSet,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Label {
     Domain,
     Range,
@@ -87,11 +99,20 @@ impl Constructor {
 
 impl mlsub::Constructor for Constructor {
     type Label = Label;
-    type Component = Discriminant<ConstructorKind>;
-    type Params = vec::IntoIter<(Label, StateSet)>;
+    type Component = Component;
 
     fn component(&self) -> Self::Component {
-        discriminant(&self.kind)
+        match &self.kind {
+            ConstructorKind::Null => Component::Null,
+            ConstructorKind::Bool => Component::Bool,
+            ConstructorKind::String => Component::String,
+            ConstructorKind::Number(_) => Component::Number,
+            ConstructorKind::Func(_) => Component::Func,
+            ConstructorKind::Object(_) => Component::Object,
+            ConstructorKind::Record(_) => Component::Record,
+            ConstructorKind::Enum(_) => Component::Enum,
+            ConstructorKind::Capabilities(_) => Component::Capabilities,
+        }
     }
 
     fn join(&mut self, other: &Self, pol: Polarity) {
@@ -160,40 +181,31 @@ impl mlsub::Constructor for Constructor {
         }
     }
 
-    fn params(&self) -> Self::Params {
-        let params = match &self.kind {
-            ConstructorKind::Null
-            | ConstructorKind::Bool
-            | ConstructorKind::Number(_)
-            | ConstructorKind::String => vec![],
-            ConstructorKind::Func(func) => func.params(),
-            ConstructorKind::Object(obj) => obj.params(),
-            ConstructorKind::Record(fields) => fields
-                .clone()
-                .into_iter()
-                .map(|(label, set)| (Label::Field(label), set))
-                .collect(),
-            ConstructorKind::Enum(fields) => fields
-                .clone()
-                .into_iter()
-                .map(|(label, set)| (Label::Tag(label), set))
-                .collect(),
-            ConstructorKind::Capabilities(capabilities) => capabilities
-                .borrow()
-                .clone()
-                .expect("capabilities not set")
-                .into_iter()
-                .map(|(name, set)| (Label::Capability(name), set))
-                .collect(),
-        };
+    fn visit_params_intersection<F, E>(&self, other: &Self, visit: F) -> Result<(), E>
+    where
+        F: FnMut(Self::Label, &StateSet, &StateSet) -> Result<(), E>,
+    {
+        debug_assert_eq!(self.component(), other.component());
 
-        #[cfg(debug_assertions)]
-        debug_assert!(params
-            .iter()
-            .tuple_windows()
-            .all(|(&(l, _), &(r, _))| l < r));
-
-        params.into_iter()
+        match (&self.kind, &other.kind) {
+            (ConstructorKind::Func(l), ConstructorKind::Func(r)) => l.visit_params(r, visit),
+            (ConstructorKind::Object(l), ConstructorKind::Object(r)) => l.visit_params(r, visit),
+            (ConstructorKind::Record(l), ConstructorKind::Record(r)) => {
+                visit_ordmap_intersection(l, r, visit, Label::Field)
+            }
+            (ConstructorKind::Enum(l), ConstructorKind::Enum(r)) => {
+                visit_ordmap_intersection(l, r, visit, Label::Tag)
+            }
+            (ConstructorKind::Capabilities(l), ConstructorKind::Capabilities(r)) => {
+                visit_ordmap_intersection(
+                    l.borrow().as_ref().expect("capabilities not set"),
+                    r.borrow().as_ref().expect("capabilities not set"),
+                    visit,
+                    Label::Capability,
+                )
+            }
+            _ => Ok(()),
+        }
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -295,11 +307,13 @@ impl FuncConstructor {
         self.range.union(&other.range);
     }
 
-    fn params(&self) -> Vec<(Label, StateSet)> {
-        vec![
-            (Label::Domain, self.domain.clone()),
-            (Label::Range, self.range.clone()),
-        ]
+    fn visit_params<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
+    where
+        F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
+    {
+        visit(Label::Domain, &self.domain, &other.domain)?;
+        visit(Label::Range, &self.range, &other.range)?;
+        Ok(())
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -319,11 +333,17 @@ impl ObjectConstructor {
         self.capabilities.union(&other.capabilities);
     }
 
-    fn params(&self) -> Vec<(Label, StateSet)> {
-        vec![
-            (Label::ObjectData, self.data.clone()),
-            (Label::ObjectCapabilities, self.capabilities.clone()),
-        ]
+    fn visit_params<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
+    where
+        F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
+    {
+        visit(Label::ObjectData, &self.data, &other.data)?;
+        visit(
+            Label::ObjectCapabilities,
+            &self.capabilities,
+            &other.capabilities,
+        )?;
+        Ok(())
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -568,6 +588,22 @@ impl<'a> fmt::Display for Labels<'a> {
         }
         Ok(())
     }
+}
+
+fn visit_ordmap_intersection<F, E, L>(
+    l: &OrdMap<Symbol, StateSet>,
+    r: &OrdMap<Symbol, StateSet>,
+    mut visit: F,
+    mut label: L,
+) -> Result<(), E>
+where
+    F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
+    L: FnMut(Symbol) -> Label,
+{
+    itertools::merge_join_by(l, r, |l, r| Ord::cmp(&l.0, &r.0)).try_for_each(|eob| match eob {
+        itertools::EitherOrBoth::Both(l, r) => visit(label(l.0), &l.1, &r.1),
+        _ => Ok(()),
+    })
 }
 
 #[cfg(test)]

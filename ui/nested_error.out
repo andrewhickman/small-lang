@@ -7,8 +7,5 @@ error: expected `bool` but found `null`
    ·
  6 │     tag: val => if val.a then null else null
    │                    ----- expected type inferred here
-   ·
- 2 │   then func _ => [tag: { a: true }]
-   │                        ----------- in field `a` of type `record {a}` here...
    │
 
