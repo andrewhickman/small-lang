@@ -13,16 +13,13 @@ use mlsub::{BiunifyError, Polarity};
 use crate::check::scheme::{ReducedScheme, Scheme};
 use crate::check::ty::{Constructor, NumberConstructor};
 use crate::rt::{Command, FuncValue, NumberValue, Value};
-use crate::syntax::{
-    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, ImSymbolMap, LetExpr, MatchExpr, ProjExpr, RecExpr,
-    SourceCacheResult, SourceMap, Spanned, Symbol, SymbolMap,
-};
+use crate::syntax::{ast, ImSymbolMap, SourceCacheResult, SourceMap, Symbol, SymbolMap};
 use crate::ErrorData;
 
 pub fn check(
     source: &mut SourceMap,
     file: FileId,
-    expr: &Spanned<Expr>,
+    expr: &ast::Spanned<ast::Expr>,
 ) -> Result<FuncValue, Vec<Diagnostic>> {
     let mut ctx = Context::new(source);
     let (_, cmds) = ctx
@@ -63,27 +60,27 @@ impl<'a> Context<'a> {
 
     fn check_expr(
         &mut self,
-        expr: &Spanned<Expr>,
+        expr: &ast::Spanned<ast::Expr>,
         file: FileId,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let span = (file, expr.span);
         match &expr.val {
-            Expr::Null => self.check_null(span),
-            Expr::Var(symbol) => self.check_var(*symbol, span),
-            Expr::Func(func) => self.check_func(func, span, None),
-            Expr::Call(call_expr) => self.check_call(call_expr, span),
-            Expr::Let(let_expr) => self.check_let(let_expr, span),
-            Expr::Rec(rec) => self.check_rec(rec, span),
-            Expr::Bool(val) => self.check_bool(*val, span),
-            Expr::Int(val) => self.check_int(*val, span),
-            Expr::Float(val) => self.check_float(*val, span),
-            Expr::String(val) => self.check_string(val.clone(), span),
-            Expr::If(if_expr) => self.check_if(if_expr, span),
-            Expr::Record(map) => self.check_record(map, span),
-            Expr::Enum(enum_expr) => self.check_enum(enum_expr, span),
-            Expr::Match(match_expr) => self.check_match(match_expr, span),
-            Expr::Proj(proj) => self.check_proj(proj, span),
-            Expr::Import(path) => self.check_import(path, span),
+            ast::Expr::Null => self.check_null(span),
+            ast::Expr::Var(symbol) => self.check_var(*symbol, span),
+            ast::Expr::Func(func) => self.check_func(func, span, None),
+            ast::Expr::Call(call_expr) => self.check_call(call_expr, span),
+            ast::Expr::Let(let_expr) => self.check_let(let_expr, span),
+            ast::Expr::Rec(rec) => self.check_rec(rec, span),
+            ast::Expr::Bool(val) => self.check_bool(*val, span),
+            ast::Expr::Int(val) => self.check_int(*val, span),
+            ast::Expr::Float(val) => self.check_float(*val, span),
+            ast::Expr::String(val) => self.check_string(val.clone(), span),
+            ast::Expr::If(if_expr) => self.check_if(if_expr, span),
+            ast::Expr::Record(map) => self.check_record(map, span),
+            ast::Expr::Enum(enum_expr) => self.check_enum(enum_expr, span),
+            ast::Expr::Match(match_expr) => self.check_match(match_expr, span),
+            ast::Expr::Proj(proj) => self.check_proj(proj, span),
+            ast::Expr::Import(path) => self.check_import(path, span),
         }
     }
 
@@ -98,7 +95,7 @@ impl<'a> Context<'a> {
 
     fn check_func(
         &mut self,
-        func: &FuncExpr,
+        func: &ast::FuncExpr,
         span: FileSpan,
         name: Option<Symbol>,
     ) -> Result<(Scheme, Vec<Command>), Error> {
@@ -129,7 +126,7 @@ impl<'a> Context<'a> {
 
     fn check_call(
         &mut self,
-        call: &CallExpr,
+        call: &ast::CallExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (func_scheme, func_cmds) = self.check_expr(&call.func, span.0)?;
@@ -158,7 +155,7 @@ impl<'a> Context<'a> {
 
     fn check_let(
         &mut self,
-        let_expr: &LetExpr,
+        let_expr: &ast::LetExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (val_scheme, val_cmds) = self.check_expr(&let_expr.val, span.0)?;
@@ -182,7 +179,7 @@ impl<'a> Context<'a> {
 
     fn check_rec(
         &mut self,
-        rec: &RecExpr,
+        rec: &ast::RecExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let func_pair = self.auto.build_var();
@@ -216,7 +213,7 @@ impl<'a> Context<'a> {
 
     fn check_if(
         &mut self,
-        if_expr: &IfExpr,
+        if_expr: &ast::IfExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (cond_scheme, cond_cmds) = self.check_expr(&if_expr.cond, span.0)?;
@@ -262,7 +259,7 @@ impl<'a> Context<'a> {
 
     fn check_record(
         &mut self,
-        rec: &SymbolMap<Spanned<Expr>>,
+        rec: &SymbolMap<ast::Spanned<ast::Expr>>,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let mut fields = rec
@@ -311,7 +308,7 @@ impl<'a> Context<'a> {
 
     fn check_enum(
         &mut self,
-        enum_expr: &EnumExpr,
+        enum_expr: &ast::EnumExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr_scheme, expr_cmds) = match &enum_expr.expr {
@@ -336,7 +333,7 @@ impl<'a> Context<'a> {
 
     fn check_match(
         &mut self,
-        match_expr: &MatchExpr,
+        match_expr: &ast::MatchExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr_scheme, expr_cmds) = self.check_expr(&match_expr.expr, span.0)?;
@@ -424,7 +421,7 @@ impl<'a> Context<'a> {
 
     fn check_proj(
         &mut self,
-        proj: &ProjExpr,
+        proj: &ast::ProjExpr,
         span: FileSpan,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let (expr_scheme, expr_cmds) = self.check_expr(&proj.expr, span.0)?;

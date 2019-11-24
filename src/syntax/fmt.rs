@@ -1,7 +1,7 @@
 use std::fmt::*;
 use std::str::FromStr;
 
-use crate::syntax::*;
+use crate::syntax::ast;
 
 macro_rules! impl_debug_with_display {
     ($t:ty) => {
@@ -13,13 +13,13 @@ macro_rules! impl_debug_with_display {
     };
 }
 
-impl Display for Expr {
-    fn fmt(&self, mut f: &mut Formatter) -> fmt::Result {
+impl Display for ast::Expr {
+    fn fmt(&self, mut f: &mut Formatter) -> Result {
         match self {
-            Expr::Null => write!(f, "null"),
-            Expr::Bool(val) => write!(f, "{}", val),
-            Expr::Int(val) => write!(f, "{}", val),
-            Expr::Float(val) => {
+            ast::Expr::Null => write!(f, "null"),
+            ast::Expr::Bool(val) => write!(f, "{}", val),
+            ast::Expr::Int(val) => write!(f, "{}", val),
+            ast::Expr::Float(val) => {
                 let s = val.to_string();
                 // avoid ambiguity between int and float
                 if i64::from_str(&s).is_ok() {
@@ -28,11 +28,11 @@ impl Display for Expr {
                     write!(f, "{}", s)
                 }
             }
-            Expr::String(val) => {
+            ast::Expr::String(val) => {
                 write!(f, "\"{}\"", val.replace("\\", "\\\\").replace("\"", "\\\""))
             }
-            Expr::Var(var) => write!(f, "{}", var),
-            Expr::Record(map) => {
+            ast::Expr::Var(var) => write!(f, "{}", var),
+            ast::Expr::Record(map) => {
                 if map.is_empty() {
                     write!(f, "{{}}")
                 } else {
@@ -43,20 +43,20 @@ impl Display for Expr {
                     write!(f, "}}")
                 }
             }
-            Expr::Enum(expr) => write!(f, "{}", expr),
-            Expr::Func(expr) => write!(f, "{}", expr),
-            Expr::Call(expr) => write!(f, "{}", expr),
-            Expr::Let(expr) => write!(f, "{}", expr),
-            Expr::Rec(expr) => write!(f, "{}", expr),
-            Expr::If(expr) => write!(f, "{}", expr),
-            Expr::Proj(expr) => write!(f, "{}", expr),
-            Expr::Match(expr) => write!(f, "{}", expr),
-            Expr::Import(val) => write!(f, "import {}", Expr::String(val.clone())),
+            ast::Expr::Enum(expr) => write!(f, "{}", expr),
+            ast::Expr::Func(expr) => write!(f, "{}", expr),
+            ast::Expr::Call(expr) => write!(f, "{}", expr),
+            ast::Expr::Let(expr) => write!(f, "{}", expr),
+            ast::Expr::Rec(expr) => write!(f, "{}", expr),
+            ast::Expr::If(expr) => write!(f, "{}", expr),
+            ast::Expr::Proj(expr) => write!(f, "{}", expr),
+            ast::Expr::Match(expr) => write!(f, "{}", expr),
+            ast::Expr::Import(val) => write!(f, "import {}", ast::Expr::String(val.clone())),
         }
     }
 }
 
-impl Display for EnumExpr {
+impl Display for ast::EnumExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if let Some(expr) = &self.expr {
             write!(f, "[{}: {}]", self.tag, expr)
@@ -66,13 +66,13 @@ impl Display for EnumExpr {
     }
 }
 
-impl Display for FuncExpr {
+impl Display for ast::FuncExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "func {} => {}", self.arg, self.body)
     }
 }
 
-impl Display for CallExpr {
+impl Display for ast::CallExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(
             f,
@@ -83,32 +83,32 @@ impl Display for CallExpr {
     }
 }
 
-impl Display for LetExpr {
+impl Display for ast::LetExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "let {} = {} in\n{}", self.name, self.val, self.body)
     }
 }
 
-impl Display for RecExpr {
+impl Display for ast::RecExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "let rec {} = {} in\n{}", self.name, self.func, self.body)
     }
 }
 
-impl Display for IfExpr {
+impl Display for ast::IfExpr {
     fn fmt(&self, mut f: &mut Formatter) -> Result {
         writeln!(f, "if {}", self.cond)?;
         write!(indented(&mut f), "then {}\nelse {}", self.cons, self.alt)
     }
 }
 
-impl Display for ProjExpr {
+impl Display for ast::ProjExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{}.{}", ProjValExpr(&self.expr.val), self.field)
     }
 }
 
-impl Display for MatchExpr {
+impl Display for ast::MatchExpr {
     fn fmt(&self, mut f: &mut Formatter) -> Result {
         write!(f, "match {} with ", self.expr)?;
         if self.cases.len() == 0 {
@@ -123,7 +123,7 @@ impl Display for MatchExpr {
     }
 }
 
-impl Display for MatchExprCase {
+impl Display for ast::MatchExprCase {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if let Some(name) = self.name {
             write!(f, ": {}", name)?;
@@ -132,54 +132,58 @@ impl Display for MatchExprCase {
     }
 }
 
-impl<T: Display> Display for Spanned<T> {
+impl<T: Display> Display for ast::Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{}", self.val)
     }
 }
 
-impl<T: Debug> Debug for Spanned<T> {
+impl<T: Debug> Debug for ast::Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{:?}", self.val)
     }
 }
 
-impl Expr {
+impl ast::Expr {
     fn is_simple(&self) -> bool {
         match self {
-            Expr::Null
-            | Expr::Bool(_)
-            | Expr::Var(_)
-            | Expr::Int(_)
-            | Expr::Float(_)
-            | Expr::String(_)
-            | Expr::Record(_)
-            | Expr::Match(_)
-            | Expr::Enum(_)
-            | Expr::Proj(_)
-            | Expr::Import(_) => true,
-            Expr::Func(_) | Expr::Call(_) | Expr::Let(_) | Expr::Rec(_) | Expr::If(_) => false,
+            ast::Expr::Null
+            | ast::Expr::Bool(_)
+            | ast::Expr::Var(_)
+            | ast::Expr::Int(_)
+            | ast::Expr::Float(_)
+            | ast::Expr::String(_)
+            | ast::Expr::Record(_)
+            | ast::Expr::Match(_)
+            | ast::Expr::Enum(_)
+            | ast::Expr::Proj(_)
+            | ast::Expr::Import(_) => true,
+            ast::Expr::Func(_)
+            | ast::Expr::Call(_)
+            | ast::Expr::Let(_)
+            | ast::Expr::Rec(_)
+            | ast::Expr::If(_) => false,
         }
     }
 
     fn is_call_func(&self) -> bool {
         match self {
-            Expr::Call(_) => true,
+            ast::Expr::Call(_) => true,
             _ => self.is_simple(),
         }
     }
 
     fn is_proj_val(&self) -> bool {
         match self {
-            Expr::Int(_) | Expr::Float(_) => false,
+            ast::Expr::Int(_) | ast::Expr::Float(_) => false,
             _ => self.is_simple(),
         }
     }
 }
 
-struct SimpleExpr<'a>(&'a Expr);
-struct CallFuncExpr<'a>(&'a Expr);
-struct ProjValExpr<'a>(&'a Expr);
+struct SimpleExpr<'a>(&'a ast::Expr);
+struct CallFuncExpr<'a>(&'a ast::Expr);
+struct ProjValExpr<'a>(&'a ast::Expr);
 
 impl<'a> Display for SimpleExpr<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -211,16 +215,16 @@ impl<'a> Display for ProjValExpr<'a> {
     }
 }
 
-impl_debug_with_display!(Expr);
-impl_debug_with_display!(EnumExpr);
-impl_debug_with_display!(FuncExpr);
-impl_debug_with_display!(CallExpr);
-impl_debug_with_display!(LetExpr);
-impl_debug_with_display!(RecExpr);
-impl_debug_with_display!(IfExpr);
-impl_debug_with_display!(ProjExpr);
-impl_debug_with_display!(MatchExpr);
-impl_debug_with_display!(MatchExprCase);
+impl_debug_with_display!(ast::Expr);
+impl_debug_with_display!(ast::EnumExpr);
+impl_debug_with_display!(ast::FuncExpr);
+impl_debug_with_display!(ast::CallExpr);
+impl_debug_with_display!(ast::LetExpr);
+impl_debug_with_display!(ast::RecExpr);
+impl_debug_with_display!(ast::IfExpr);
+impl_debug_with_display!(ast::ProjExpr);
+impl_debug_with_display!(ast::MatchExpr);
+impl_debug_with_display!(ast::MatchExprCase);
 
 struct Indented<W> {
     writer: W,
@@ -231,7 +235,7 @@ impl<W> Write for Indented<W>
 where
     W: Write,
 {
-    fn write_str(&mut self, mut s: &str) -> fmt::Result {
+    fn write_str(&mut self, mut s: &str) -> Result {
         while !s.is_empty() {
             if self.on_newline {
                 self.writer.write_str("  ")?;

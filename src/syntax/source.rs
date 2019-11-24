@@ -7,7 +7,7 @@ use codespan::{ByteIndex, FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use lalrpop_util::ParseError;
 
-use crate::syntax::{Error, Expr, Spanned, Token};
+use crate::syntax::{ast, Error, Token};
 use crate::ErrorData;
 
 #[derive(Debug)]
@@ -23,7 +23,7 @@ pub enum Source<'a> {
 }
 
 pub enum SourceCacheResult {
-    Miss(FileId, Spanned<Expr>),
+    Miss(FileId, ast::Spanned<ast::Expr>),
     Hit(FileId),
 }
 
@@ -81,7 +81,7 @@ impl SourceMap {
             hash_map::Entry::Vacant(entry) => {
                 let file = self.files.add(name, source);
 
-                let expr = match Expr::parse(self.files.source(file)) {
+                let expr = match ast::Expr::parse(self.files.source(file)) {
                     Ok(expr) => expr,
                     Err(err) => {
                         return Err(ErrorData::Diagnostics(vec![
@@ -144,7 +144,7 @@ impl Default for SourceMap {
 }
 
 impl SourceCacheResult {
-    pub fn unwrap_miss(self) -> (FileId, Spanned<Expr>) {
+    pub fn unwrap_miss(self) -> (FileId, ast::Spanned<ast::Expr>) {
         match self {
             SourceCacheResult::Miss(file, expr) => (file, expr),
             _ => panic!("expected source cache miss"),

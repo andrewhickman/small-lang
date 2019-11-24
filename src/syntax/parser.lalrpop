@@ -6,10 +6,7 @@ use itertools::rev;
 use lalrpop_util::ParseError;
 
 use crate::syntax::symbol::{Interner, Symbol};
-use crate::syntax::{
-    CallExpr, EnumExpr, Expr, FuncExpr, IfExpr, LetExpr, MatchExpr, MatchExprCase, ProjExpr,
-    RecExpr, Spanned, Error,
-};
+use crate::syntax::{ast, Error};
 
 grammar(interner: &mut RwLockWriteGuard<'_, Interner>);
 
@@ -19,23 +16,23 @@ extern {
 
 pub(crate) SpannedExpr = Spanned<Expr>;
 
-Expr: Expr = {
-    FuncExpr => Expr::Func(Box::new(<>)),
-    CallExpr => Expr::Call(Box::new(<>)),
-    LetExpr => Expr::Let(Box::new(<>)),
-    RecExpr => Expr::Rec(Box::new(<>)),
-    IfExpr => Expr::If(Box::new(<>)),
+Expr: ast::Expr = {
+    FuncExpr => ast::Expr::Func(Box::new(<>)),
+    CallExpr => ast::Expr::Call(Box::new(<>)),
+    LetExpr => ast::Expr::Let(Box::new(<>)),
+    RecExpr => ast::Expr::Rec(Box::new(<>)),
+    IfExpr => ast::Expr::If(Box::new(<>)),
     SimpleExpr,
 }
 
-FuncExpr: FuncExpr = {
+FuncExpr: ast::FuncExpr = {
     "func" <args:Spanned<Symbol>*> <arg:Spanned<Symbol>> "=>" <body:Spanned<Expr>> => {
-        let mut func = FuncExpr { arg, body };
+        let mut func = ast::FuncExpr { arg, body };
         for arg in rev(args) {
             let span = Span::new(arg.span.start(), func.body.span.end());
-            func = FuncExpr { arg, body:
-                Spanned {
-                    span, val: Expr::Func(Box::new(func))
+            func = ast::FuncExpr { arg, body:
+                ast::Spanned {
+                    span, val: ast::Expr::Func(Box::new(func))
                 }
             };
         }
@@ -43,84 +40,84 @@ FuncExpr: FuncExpr = {
     }
 }
 
-CallExpr: CallExpr = {
-    <func:Spanned<CallFuncExpr>> <arg:Spanned<SimpleExpr>> => CallExpr { <> },
+CallExpr: ast::CallExpr = {
+    <func:Spanned<CallFuncExpr>> <arg:Spanned<SimpleExpr>> => ast::CallExpr { <> },
 }
 
-CallFuncExpr: Expr = {
+CallFuncExpr: ast::Expr = {
     SimpleExpr,
-    CallExpr => Expr::Call(Box::new(<>)),
+    CallExpr => ast::Expr::Call(Box::new(<>)),
 }
 
-LetExpr: LetExpr = {
-    "let" <name:Spanned<Symbol>> "=" <val:Spanned<Expr>> "in" <body:Spanned<Expr>> => LetExpr { <> },
+LetExpr: ast::LetExpr = {
+    "let" <name:Spanned<Symbol>> "=" <val:Spanned<Expr>> "in" <body:Spanned<Expr>> => ast::LetExpr { <> },
 }
 
-RecExpr: RecExpr = {
-    "let" "rec" <name:Spanned<Symbol>> "=" <func:Spanned<FuncExpr>> "in" <body:Spanned<Expr>> => RecExpr { <> },
+RecExpr: ast::RecExpr = {
+    "let" "rec" <name:Spanned<Symbol>> "=" <func:Spanned<FuncExpr>> "in" <body:Spanned<Expr>> => ast::RecExpr { <> },
 }
 
-IfExpr: IfExpr = {
-    "if" <cond:Spanned<Expr>> "then" <cons:Spanned<Expr>> "else" <alt:Spanned<Expr>> => IfExpr { <> },
+IfExpr: ast::IfExpr = {
+    "if" <cond:Spanned<Expr>> "then" <cons:Spanned<Expr>> "else" <alt:Spanned<Expr>> => ast::IfExpr { <> },
 }
 
-ProjExpr: ProjExpr = {
-    <expr:Spanned<SimpleExpr>> "." <field:Spanned<Symbol>> => ProjExpr { <> },
+ProjExpr: ast::ProjExpr = {
+    <expr:Spanned<SimpleExpr>> "." <field:Spanned<Symbol>> => ast::ProjExpr { <> },
 }
 
-MatchExpr: MatchExpr = {
-    "match" <expr:Spanned<Expr>> "with" "[" <cases:Comma<Spanned<MatchCase>>> "]" => MatchExpr {
-        expr, cases: cases.into_iter().map(|spanned| (spanned.val.0, Spanned {
+MatchExpr: ast::MatchExpr = {
+    "match" <expr:Spanned<Expr>> "with" "[" <cases:Comma<Spanned<MatchCase>>> "]" => ast::MatchExpr {
+        expr, cases: cases.into_iter().map(|spanned| (spanned.val.0, ast::Spanned {
             val: spanned.val.1,
             span: spanned.span,
         })).collect(),
     }
 }
 
-EnumExpr: EnumExpr = {
-    "[" <tag:Spanned<Symbol>> <expr:(":" <Spanned<Expr>>)?> "]" => EnumExpr { <> },
+EnumExpr: ast::EnumExpr = {
+    "[" <tag:Spanned<Symbol>> <expr:(":" <Spanned<Expr>>)?> "]" => ast::EnumExpr { <> },
 }
 
-MatchCase: (Symbol, MatchExprCase) = {
-    <tag:Symbol> "=>" <expr:Spanned<Expr>> => (tag, MatchExprCase {
+MatchCase: (Symbol, ast::MatchExprCase) = {
+    <tag:Symbol> "=>" <expr:Spanned<Expr>> => (tag, ast::MatchExprCase {
         name: None, expr,
     }),
-    <tag:Symbol> ":" <name:Spanned<Symbol>> "=>" <expr:Spanned<Expr>> => (tag, MatchExprCase {
+    <tag:Symbol> ":" <name:Spanned<Symbol>> "=>" <expr:Spanned<Expr>> => (tag, ast::MatchExprCase {
         name: Some(name), expr,
     }),
 }
 
-ImportExpr: Expr = {
-    "import" <path:String> => Expr::Import(path),
+ImportExpr: ast::Expr = {
+    "import" <path:String> => ast::Expr::Import(path),
 }
 
-SimpleExpr: Expr = {
-    "null" => Expr::Null,
-    "(" ")" => Expr::Null,
-    "true" => Expr::Bool(true),
-    "false" => Expr::Bool(false),
-    Symbol => Expr::Var(<>),
-    Int => Expr::Int(<>),
-    Float => Expr::Float(<>),
-    String => Expr::String(<>),
-    "{" <fields:Comma<Entry>> "}" => Expr::Record(fields.into_iter().collect()),
-    EnumExpr => Expr::Enum(Box::new(<>)),
-    ProjExpr => Expr::Proj(Box::new(<>)),
-    MatchExpr => Expr::Match(Box::new(<>)),
+SimpleExpr: ast::Expr = {
+    "null" => ast::Expr::Null,
+    "(" ")" => ast::Expr::Null,
+    "true" => ast::Expr::Bool(true),
+    "false" => ast::Expr::Bool(false),
+    Symbol => ast::Expr::Var(<>),
+    Int => ast::Expr::Int(<>),
+    Float => ast::Expr::Float(<>),
+    String => ast::Expr::String(<>),
+    "{" <fields:Comma<Entry>> "}" => ast::Expr::Record(fields.into_iter().collect()),
+    EnumExpr => ast::Expr::Enum(Box::new(<>)),
+    ProjExpr => ast::Expr::Proj(Box::new(<>)),
+    MatchExpr => ast::Expr::Match(Box::new(<>)),
     ImportExpr,
     "(" <Expr> ")",
 }
 
-Entry: (Symbol, Spanned<Expr>) = {
+Entry: (Symbol, ast::Spanned<ast::Expr>) = {
     <s:Symbol> ":" <e:Spanned<Expr>> => (s, e),
-    <s:Spanned<Symbol>> => (s.val, Spanned {
-        val: Expr::Var(s.val),
+    <s:Spanned<Symbol>> => (s.val, ast::Spanned {
+        val: ast::Expr::Var(s.val),
         span: s.span,
     }),
 }
 
-Spanned<T>: Spanned<T> = {
-    <l:@L> <val:T> <r:@R> => Spanned {
+Spanned<T>: ast::Spanned<T> = {
+    <l:@L> <val:T> <r:@R> => ast::Spanned {
         val, span: Span::new(l as RawIndex, r as RawIndex)
     }
 }
