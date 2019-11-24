@@ -2,7 +2,8 @@
 
 use codespan::FileId;
 
-use small_lang::rt::{FuncValue, Opts, Output};
+use small_lang::check::ir;
+use small_lang::rt::{Command, Opts, Output};
 use small_lang::syntax::{ast, SourceMap};
 
 pub fn parse(input: &'static str) -> (SourceMap, FileId, ast::Spanned<ast::Expr>) {
@@ -11,10 +12,14 @@ pub fn parse(input: &'static str) -> (SourceMap, FileId, ast::Spanned<ast::Expr>
     (source, file, expr)
 }
 
-pub fn check((mut source, file, expr): (SourceMap, FileId, ast::Spanned<ast::Expr>)) -> FuncValue {
+pub fn check((mut source, file, expr): (SourceMap, FileId, ast::Spanned<ast::Expr>)) -> ir::Expr {
     small_lang::check::check(&mut source, file, &expr).unwrap()
 }
 
-pub fn run(func: FuncValue) -> Output {
-    small_lang::rt::run(func, Opts::default()).unwrap()
+pub fn generate(expr: ir::Expr) -> Vec<Command> {
+    small_lang::generate::generate(&expr)
+}
+
+pub fn run(cmds: Vec<Command>) -> Output {
+    small_lang::rt::run(&cmds, Opts::default()).unwrap()
 }

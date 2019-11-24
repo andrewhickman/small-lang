@@ -4,6 +4,7 @@ use codespan::FileId;
 use proptest::proptest;
 
 use crate::check::check;
+use crate::generate::generate;
 use crate::rt::{self, EnumValue, NumberValue, Value};
 use crate::syntax::tests::arb_expr;
 use crate::syntax::{ImSymbolMap, Source, SourceMap, Symbol};
@@ -167,8 +168,9 @@ test_file!(pr3, Err);
 proptest! {
     #[test]
     fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok(func) = check(&mut SourceMap::new(), dummy_file_id(), &expr) {
-            rt::run(func, rt::Opts {
+        if let Ok(expr) = check(&mut SourceMap::new(), dummy_file_id(), &expr) {
+            let cmds = generate(&expr);
+            rt::run(&cmds, rt::Opts {
                 max_stack: 1024,
                 max_ops: Some(1_048_576),
             }).ok();

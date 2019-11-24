@@ -10,9 +10,10 @@ use crate::rt::builtin::Builtin;
 use crate::rt::state::Runtime;
 use crate::syntax::symbol::{ImSymbolMap, Symbol};
 
-pub fn run(func: FuncValue, opts: Opts) -> Result<Output, Error> {
-    let mut ctx = Runtime::new(func, builtin::builtins(), opts);
-    Command::Call.exec(&mut ctx)?;
+pub fn run(cmds: &[Command], opts: Opts) -> Result<Output, Error> {
+    assert!(!cmds.is_empty());
+    let mut ctx = Runtime::new(builtin::builtins(), opts);
+    ctx.exec_all(cmds)?;
     Ok(ctx.finish())
 }
 
@@ -136,7 +137,11 @@ pub enum Command {
     WrapEnum {
         tag: Symbol,
     },
+    Import {
+        cmds: Rc<[Command]>,
+    },
     End,
+    Trap,
 }
 
 impl Value {
@@ -200,8 +205,6 @@ impl Command {
     fn exec(&self, ctx: &mut Runtime) -> Result<Option<usize>, Error> {
         log::trace!("exec {:?}", self);
 
-        ctx.incr_op_count()?;
-
         Ok(match *self {
             Command::Pop => {
                 ctx.pop_stack();
@@ -223,11 +226,7 @@ impl Command {
             Command::Call => match ctx.pop_stack() {
                 Value::Func(func) => {
                     ctx.push_vars(func.env())?;
-                    let mut idx = 0;
-                    while let Some(cmd) = func.cmds.get(idx) {
-                        idx += cmd.exec(ctx)?.unwrap_or(0);
-                        idx += 1;
-                    }
+                    ctx.exec_all(&func.cmds)?;
                     ctx.pop_vars();
                     None
                 }
@@ -282,10 +281,15 @@ impl Command {
                 ctx.push_stack(variant);
                 None
             }
+            Command::Import { ref cmds } => {
+                ctx.exec_all(&cmds)?;
+                None
+            }
             Command::End => {
                 ctx.pop_vars();
                 None
             }
+            Command::Trap => panic!("invalid instruction"),
         })
     }
 }

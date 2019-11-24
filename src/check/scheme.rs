@@ -9,7 +9,7 @@ use crate::syntax::{ImSymbolMap, Symbol};
 
 /// Represents a typing scheme, with variable substitutions produced by biunification.
 #[derive(Debug, Clone)]
-pub(in crate::check) struct Scheme {
+pub struct Scheme {
     ty: StateId,
     env: ImSymbolMap<StateId>,
 }
@@ -40,19 +40,19 @@ impl Scheme {
         Scheme { ty, env: self.env }
     }
 
-    pub fn join(auto: &mut Automaton<Constructor>, ty: StateId, lhs: Self, rhs: Self) -> Self {
-        let env = ImSymbolMap::union_with(lhs.env, rhs.env, |l, r| {
+    pub fn join(auto: &mut Automaton<Constructor>, ty: StateId, lhs: &Self, rhs: &Self) -> Self {
+        let env = ImSymbolMap::union_with(lhs.env.clone(), rhs.env.clone(), |l, r| {
             auto.build_add(Polarity::Neg, [l, r].iter().cloned())
         });
         Scheme { ty, env }
     }
 
-    pub fn join_all<I>(auto: &mut Automaton<Constructor>, ty: StateId, schemes: I) -> Self
+    pub fn join_all<'a, I>(auto: &mut Automaton<Constructor>, ty: StateId, schemes: I) -> Self
     where
-        I: IntoIterator<Item = Self>,
+        I: IntoIterator<Item = &'a Self>,
     {
         schemes.into_iter().fold(Scheme::empty(ty), |lhs, rhs| {
-            Scheme::join(auto, ty, lhs, rhs)
+            Scheme::join(auto, ty, &lhs, rhs)
         })
     }
 
@@ -60,11 +60,14 @@ impl Scheme {
         self.ty
     }
 
-    pub fn remove_var(&mut self, var: Symbol) -> Option<StateId> {
-        self.env.remove(&var)
+    pub fn without_var(&self, var: Symbol) -> (Self, Option<StateId>) {
+        match self.env.extract(&var) {
+            Some((ty, env)) => (Scheme { env, ty: self.ty }, Some(ty)),
+            None => (self.clone(), None),
+        }
     }
 
-    pub fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
+    pub(in crate::check) fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
         let env: Vec<(Symbol, StateId)> = self.env.iter().copied().collect();
 
         let mut reduced_auto = Automaton::new();

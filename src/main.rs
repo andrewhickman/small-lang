@@ -38,10 +38,7 @@ enum Command {
 fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
     match args.command {
         Command::Check { ref file } => {
-            let func = small_lang::check(Source::File(file))?;
-            serde_json::to_writer_pretty(io::stdout().lock(), &func)
-                .map_err(|err| small_lang::Error::basic(err.into()))?;
-            println!();
+            small_lang::check(Source::File(file))?;
         }
         Command::Run { ref file, rt_opts } => {
             let output = small_lang::run(Source::File(file), rt_opts)?;

@@ -1,4 +1,4 @@
-use crate::rt::{Error, FuncValue, Opts, Output, Value};
+use crate::rt::{Command, Error, Opts, Output, Value};
 use crate::syntax::{ImSymbolMap, Symbol};
 
 #[derive(Debug)]
@@ -10,9 +10,9 @@ pub(in crate::rt) struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(func: FuncValue, vars: ImSymbolMap<Value>, opts: Opts) -> Self {
+    pub fn new(vars: ImSymbolMap<Value>, opts: Opts) -> Self {
         Runtime {
-            stack: vec![Value::Func(func)],
+            stack: vec![],
             vars: vec![vars],
             opts,
             op_count: 0,
@@ -36,6 +36,17 @@ impl Runtime {
             value: self.stack.into_iter().next().unwrap(),
             op_count: self.op_count,
         }
+    }
+
+    pub fn exec_all(&mut self, cmds: &[Command]) -> Result<(), Error> {
+        let mut idx = 0;
+        while let Some(cmd) = cmds.get(idx) {
+            self.incr_op_count()?;
+
+            idx += cmd.exec(self)?.unwrap_or(0);
+            idx += 1;
+        }
+        Ok(())
     }
 
     pub fn pop_stack(&mut self) -> Value {
