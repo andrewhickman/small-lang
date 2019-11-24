@@ -68,7 +68,7 @@ pub enum Value {
 #[derive(Clone, Serialize)]
 pub struct FuncValue {
     #[serde(rename = "$name", skip_serializing_if = "Option::is_none")]
-    pub name: Option<Symbol>,
+    pub rec_name: Option<Symbol>,
     #[serde(rename = "$ops")]
     pub cmds: Rc<[Command]>,
     #[serde(rename = "$env")]
@@ -93,7 +93,7 @@ pub enum NumberValue {
 impl FuncValue {
     pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
         FuncValue {
-            name: None,
+            rec_name: None,
             cmds: cmds.into(),
             env: ImSymbolMap::default(),
         }
@@ -108,7 +108,7 @@ pub enum Command {
         value: Value,
     },
     Capture {
-        name: Option<Symbol>,
+        rec_name: Option<Symbol>,
         cmds: Rc<[Command]>,
     },
     Call,
@@ -188,7 +188,7 @@ impl FuncValue {
     // lazily.
     fn env(&self) -> ImSymbolMap<Value> {
         let env = self.env.clone();
-        if let Some(name) = self.name {
+        if let Some(name) = self.rec_name {
             env.update(name, Value::Func(self.clone()))
         } else {
             env
@@ -211,10 +211,10 @@ impl Command {
                 ctx.push_stack(value.clone());
                 None
             }
-            Command::Capture { name, ref cmds } => {
+            Command::Capture { rec_name, ref cmds } => {
                 let env = ctx.vars().clone();
                 ctx.push_stack(Value::Func(FuncValue {
-                    name,
+                    rec_name,
                     cmds: cmds.clone(),
                     env,
                 }));

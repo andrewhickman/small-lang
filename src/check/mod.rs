@@ -97,7 +97,7 @@ impl<'a> Context<'a> {
         &mut self,
         func: &ast::FuncExpr,
         span: FileSpan,
-        name: Option<Symbol>,
+        rec_name: Option<Symbol>,
     ) -> Result<(Scheme, Vec<Command>), Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
@@ -117,7 +117,7 @@ impl<'a> Context<'a> {
         body_cmds.insert(0, Command::Store { var: func.arg.val });
         body_cmds.push(Command::End);
         let cmd = Command::Capture {
-            name,
+            rec_name,
             cmds: body_cmds.into(),
         };
 
