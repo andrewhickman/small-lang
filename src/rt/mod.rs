@@ -2,9 +2,10 @@ mod builtin;
 mod state;
 
 use std::fmt;
-
-use serde::Serialize;
 use std::rc::Rc;
+
+use im::OrdMap;
+use serde::Serialize;
 
 use crate::rt::builtin::Builtin;
 use crate::rt::state::Runtime;
@@ -55,7 +56,7 @@ pub enum Value {
     Bool(bool),
     Number(NumberValue),
     String(String),
-    Record(ImSymbolMap<Value>),
+    Record(OrdMap<Symbol, Value>),
     Enum(EnumValue),
     Func(FuncValue),
     Builtin {
@@ -73,7 +74,7 @@ pub struct FuncValue {
     #[serde(rename = "$ops")]
     pub cmds: Rc<[Command]>,
     #[serde(rename = "$env")]
-    pub env: ImSymbolMap<Value>,
+    pub env: OrdMap<Symbol, Value>,
 }
 
 #[derive(Clone, Serialize, PartialEq)]
@@ -96,7 +97,7 @@ impl FuncValue {
         FuncValue {
             rec_name: None,
             cmds: cmds.into(),
-            env: ImSymbolMap::default(),
+            env: OrdMap::default(),
         }
     }
 }
@@ -173,7 +174,7 @@ impl Value {
         }
     }
 
-    pub fn unwrap_record(self) -> ImSymbolMap<Value> {
+    pub fn unwrap_record(self) -> OrdMap<Symbol, Value> {
         match self {
             Value::Record(r) => r,
             _ => panic!("expected record"),
@@ -191,7 +192,7 @@ impl Value {
 impl FuncValue {
     // HACK: to avoid making function types self referential, add them to their own environment
     // lazily.
-    fn env(&self) -> ImSymbolMap<Value> {
+    fn env(&self) -> OrdMap<Symbol, Value> {
         let env = self.env.clone();
         if let Some(name) = self.rec_name {
             env.update(name, Value::Func(self.clone()))
@@ -269,7 +270,7 @@ impl Command {
             }
             Command::Store { var } => {
                 let val = ctx.pop_stack();
-                ctx.push_vars(ImSymbolMap::default().update(var, val))?;
+                ctx.push_vars(im::ordmap![var => val])?;
                 None
             }
             Command::WrapEnum { tag } => {

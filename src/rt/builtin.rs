@@ -1,8 +1,10 @@
 use std::fmt;
 use std::rc::Rc;
 
+use im::OrdMap;
+
 use crate::rt::{Error, FuncValue, NumberValue, Runtime, Value};
-use crate::syntax::{ImSymbolMap, Symbol};
+use crate::syntax::Symbol;
 
 #[derive(Clone)]
 pub struct Builtin(Rc<dyn Fn(Value) -> Result<Value, Error>>);
@@ -40,17 +42,12 @@ impl Value {
     }
 }
 
-pub fn builtins() -> ImSymbolMap<Value> {
-    ImSymbolMap::default()
-        .update(Symbol::new("__builtin_eq"), binary_func("__builtin_eq", eq))
-        .update(
-            Symbol::new("__builtin_get_add"),
-            Value::builtin("__builtin_get_add", get_add),
-        )
-        .update(
-            Symbol::new("__builtin_get_sub"),
-            Value::builtin("__builtin_get_sub", get_sub),
-        )
+pub fn builtins() -> OrdMap<Symbol, Value> {
+    im::ordmap! [
+        Symbol::new("__builtin_eq") => binary_func("__builtin_eq", eq),
+        Symbol::new("__builtin_get_add") => Value::builtin("__builtin_get_add", get_add),
+        Symbol::new("__builtin_get_sub") => Value::builtin("__builtin_get_sub", get_sub)
+    ]
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value

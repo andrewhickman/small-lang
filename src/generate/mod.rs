@@ -108,7 +108,7 @@ impl Context {
 
     fn generate_record(&mut self, record_expr: &SymbolMap<ir::RecordEntry>) {
         self.cmds.push(rt::Command::Push {
-            value: rt::Value::Record(ImSymbolMap::default()),
+            value: rt::Value::Record(Default::default()),
         });
         for (&field, entry) in record_expr {
             self.generate_expr(&entry.expr);

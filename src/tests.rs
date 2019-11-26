@@ -7,7 +7,7 @@ use crate::check::check;
 use crate::generate::generate;
 use crate::rt::{self, EnumValue, NumberValue, Value};
 use crate::syntax::tests::arb_expr;
-use crate::syntax::{ImSymbolMap, Source, SourceMap, Symbol};
+use crate::syntax::{Source, SourceMap, Symbol};
 use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
@@ -141,13 +141,12 @@ test_file!(eq_func_env, Ok(Value::Bool(false)));
 test_file!(sugar_curry, Ok(Value::Number(NumberValue::Int(10))));
 test_file!(
     sugar_curry_order,
-    Ok(Value::Record(
-        ImSymbolMap::default()
-            .update(Symbol::new("a"), Value::Number(NumberValue::Int(1)))
-            .update(Symbol::new("b"), Value::Number(NumberValue::Int(2)))
-            .update(Symbol::new("c"), Value::Number(NumberValue::Int(3)))
-            .update(Symbol::new("d"), Value::Number(NumberValue::Int(4)))
-    ))
+    Ok(Value::Record(im::ordmap![
+            Symbol::new("a") => Value::Number(NumberValue::Int(1)),
+            Symbol::new("b") => Value::Number(NumberValue::Int(2)),
+            Symbol::new("c") => Value::Number(NumberValue::Int(3)),
+            Symbol::new("d") => Value::Number(NumberValue::Int(4))
+    ]))
 );
 test_file!(float, Ok(Value::Number(NumberValue::Float(0.0002124))));
 test_file!(add_coerce, Ok(Value::Number(NumberValue::Float(3.5))));
