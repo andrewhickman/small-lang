@@ -3,14 +3,14 @@ use std::path::Path;
 
 use itertools::zip_eq;
 
-use crate::rt;
-use crate::Source;
+use crate::{optimize, rt, Source};
 
 fn test_output(file: impl AsRef<Path>) {
     let file = file.as_ref();
     let expected = fs::read_to_string(file.with_extension("out")).unwrap();
     let actual = crate::run(
         Source::File(&file.with_extension("sl")),
+        optimize::Opts::default(),
         rt::Opts::default(),
     )
     .unwrap_err()

@@ -526,7 +526,7 @@ impl Error {
                                 Label::new(
                                     file,
                                     span,
-                                    format!("in {} of type `{}` here...", label, found),
+                                    format!("in {} of type `{}` here", label, found),
                                 )
                             })
                         }

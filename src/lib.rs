@@ -1,5 +1,6 @@
 pub mod check;
 pub mod generate;
+pub mod optimize;
 pub mod rt;
 pub mod syntax;
 
@@ -28,10 +29,15 @@ pub fn check(root: Source) -> Result<check::ir::Expr, Error> {
     }
 }
 
-pub fn run(root: Source, opts: rt::Opts) -> Result<rt::Output, Error> {
+pub fn run(
+    root: Source,
+    optimize_opts: optimize::Opts,
+    rt_opts: rt::Opts,
+) -> Result<rt::Output, Error> {
     let expr = check(root)?;
+    let expr = optimize::optimize(expr, optimize_opts);
     let cmds = generate::generate(&expr);
-    match rt::run(&cmds, opts) {
+    match rt::run(&cmds, rt_opts) {
         Ok(result) => Ok(result),
         Err(err) => Err(Error::basic(Box::new(err))),
     }

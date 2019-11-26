@@ -32,6 +32,8 @@ enum Command {
         file: PathBuf,
         #[structopt(flatten)]
         rt_opts: small_lang::rt::Opts,
+        #[structopt(flatten)]
+        optimize_opts: small_lang::optimize::Opts,
     },
 }
 
@@ -40,8 +42,12 @@ fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
         Command::Check { ref file } => {
             small_lang::check(Source::File(file))?;
         }
-        Command::Run { ref file, rt_opts } => {
-            let output = small_lang::run(Source::File(file), rt_opts)?;
+        Command::Run {
+            ref file,
+            rt_opts,
+            optimize_opts,
+        } => {
+            let output = small_lang::run(Source::File(file), optimize_opts, rt_opts)?;
             eprintln!("Finished in {} operations", output.op_count);
             serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
                 .map_err(|err| small_lang::Error::basic(err.into()))?;

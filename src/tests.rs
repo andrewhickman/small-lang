@@ -1,12 +1,12 @@
 use std::path::Path;
 
-use codespan::FileId;
 use proptest::proptest;
 
 use crate::check::check;
 use crate::generate::generate;
+use crate::optimize;
 use crate::rt::{self, EnumValue, NumberValue, Value};
-use crate::syntax::tests::arb_expr;
+use crate::syntax::tests::{arb_expr, dummy_file_id};
 use crate::syntax::{Source, SourceMap, Symbol};
 use crate::Error;
 
@@ -14,6 +14,7 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
     crate::run(
         Source::File(file.as_ref()),
+        optimize::Opts::default(),
         rt::Opts {
             max_stack: 512,
             max_ops: Some(100_000),
@@ -175,8 +176,4 @@ proptest! {
             }).ok();
         }
     }
-}
-
-fn dummy_file_id() -> FileId {
-    codespan::Files::new().add("", "")
 }

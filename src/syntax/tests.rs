@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use codespan::Span;
+use codespan::{FileId, Span};
 use proptest::prelude::*;
 
 use crate::syntax::*;
@@ -104,6 +104,10 @@ fn spanned<T>(val: T) -> ast::Spanned<T> {
         val,
         span: Span::initial(),
     }
+}
+
+pub fn dummy_file_id() -> FileId {
+    codespan::Files::new().add("", "")
 }
 
 proptest! {
