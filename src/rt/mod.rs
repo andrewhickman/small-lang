@@ -104,6 +104,7 @@ impl FuncValue {
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
+#[derive(PartialEq, Eq)]
 pub enum Command {
     Pop,
     Push {

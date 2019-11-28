@@ -4,6 +4,8 @@ pub mod optimize;
 pub mod rt;
 pub mod syntax;
 
+#[cfg(test)]
+mod codegen_tests;
 mod error;
 #[cfg(test)]
 mod tests;
