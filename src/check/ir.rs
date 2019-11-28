@@ -1,17 +1,9 @@
 use std::rc::Rc;
 
-use mlsub::auto::{flow, StateId};
-
-use crate::check::scheme::Scheme;
 use crate::rt::Value;
 use crate::syntax::{Symbol, SymbolMap};
 
-pub struct Expr {
-    pub scheme: Scheme,
-    pub kind: ExprKind,
-}
-
-pub enum ExprKind {
+pub enum Expr {
     Literal(Value),
     Var(Symbol),
     Call(Box<Call>),
@@ -20,7 +12,7 @@ pub enum ExprKind {
     If(Box<If>),
     Proj(Box<Proj>),
     Enum(Box<Enum>),
-    Record(SymbolMap<RecordEntry>),
+    Record(SymbolMap<Expr>),
     Match(Box<Match>),
     Import(Rc<Expr>),
 }
@@ -58,11 +50,6 @@ pub struct Enum {
     pub expr: Expr,
 }
 
-pub struct RecordEntry {
-    pub pair: flow::Pair,
-    pub expr: Expr,
-}
-
 pub struct Match {
     pub expr: Expr,
     pub cases: SymbolMap<MatchCase>,
@@ -71,7 +58,4 @@ pub struct Match {
 pub struct MatchCase {
     pub expr: Expr,
     pub name: Option<Symbol>,
-    pub val_pair: flow::Pair,
-    pub val_ty: Option<StateId>,
-    pub scheme: Scheme,
 }

@@ -25,18 +25,18 @@ impl Context {
     }
 
     fn generate_expr(&mut self, expr: &ir::Expr) {
-        match &expr.kind {
-            ir::ExprKind::Literal(value) => self.generate_literal(value.clone()),
-            ir::ExprKind::Var(var) => self.generate_var(*var),
-            ir::ExprKind::Call(call_expr) => self.generate_call(&*call_expr),
-            ir::ExprKind::Let(let_expr) => self.generate_let(&*let_expr),
-            ir::ExprKind::Func(func_expr) => self.generate_func(&*func_expr),
-            ir::ExprKind::If(if_expr) => self.generate_if(&*if_expr),
-            ir::ExprKind::Proj(proj_expr) => self.generate_proj(&*proj_expr),
-            ir::ExprKind::Enum(enum_expr) => self.generate_enum(&*enum_expr),
-            ir::ExprKind::Record(record_expr) => self.generate_record(record_expr),
-            ir::ExprKind::Match(match_expr) => self.generate_match(&*match_expr),
-            ir::ExprKind::Import(import_expr) => self.generate_import(import_expr),
+        match expr {
+            ir::Expr::Literal(value) => self.generate_literal(value.clone()),
+            ir::Expr::Var(var) => self.generate_var(*var),
+            ir::Expr::Call(call_expr) => self.generate_call(&*call_expr),
+            ir::Expr::Let(let_expr) => self.generate_let(&*let_expr),
+            ir::Expr::Func(func_expr) => self.generate_func(&*func_expr),
+            ir::Expr::If(if_expr) => self.generate_if(&*if_expr),
+            ir::Expr::Proj(proj_expr) => self.generate_proj(&*proj_expr),
+            ir::Expr::Enum(enum_expr) => self.generate_enum(&*enum_expr),
+            ir::Expr::Record(record_expr) => self.generate_record(record_expr),
+            ir::Expr::Match(match_expr) => self.generate_match(&*match_expr),
+            ir::Expr::Import(import_expr) => self.generate_import(import_expr),
         }
     }
 
@@ -106,12 +106,12 @@ impl Context {
         self.cmds.push(rt::Command::WrapEnum { tag: enum_expr.tag });
     }
 
-    fn generate_record(&mut self, record_expr: &SymbolMap<ir::RecordEntry>) {
+    fn generate_record(&mut self, record_expr: &SymbolMap<ir::Expr>) {
         self.cmds.push(rt::Command::Push {
             value: rt::Value::Record(Default::default()),
         });
-        for (&field, entry) in record_expr {
-            self.generate_expr(&entry.expr);
+        for (&field, val) in record_expr {
+            self.generate_expr(&val);
             self.cmds.push(rt::Command::Set { field });
         }
     }
