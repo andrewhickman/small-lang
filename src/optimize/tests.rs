@@ -42,10 +42,22 @@ proptest! {
 
 fn structural_eq(lhs: &Option<rt::Value>, rhs: &Option<rt::Value>) -> bool {
     match (lhs, rhs) {
-        (Some(lhs), Some(rhs)) => {
-            serde_json::to_string(lhs).unwrap() == serde_json::to_string(rhs).unwrap()
-        }
+        (Some(lhs), Some(rhs)) => structural_eq_value(lhs, rhs),
         (Some(_), None) | (None, Some(_)) => false,
         (None, None) => true,
+    }
+}
+
+fn structural_eq_value(lhs: &rt::Value, rhs: &rt::Value) -> bool {
+    match (lhs, rhs) {
+        (rt::Value::Func(_), rt::Value::Func(_)) => true, // may be different due to optimization,
+        (rt::Value::Builtin { name: l, .. }, rt::Value::Builtin { name: r, .. }) => l == r,
+        (rt::Value::Enum(lhs), rt::Value::Enum(rhs)) => {
+            lhs.tag == rhs.tag && structural_eq_value(&lhs.value, &rhs.value)
+        }
+        (rt::Value::Record(lhs), rt::Value::Record(rhs)) => {
+            itertools::zip_eq(lhs, rhs).all(|(l, r)| l.0 == r.0 && structural_eq_value(&l.1, &r.1))
+        }
+        _ => PartialEq::eq(lhs, rhs),
     }
 }

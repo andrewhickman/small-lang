@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 107ce68213e4d48a9d0dea7aaf1bf4bfa099e0895c68579816ab2f031718fce0 # shrinks to expr = [p: let a = null in func a => null]
+cc 7f41d47ea5918f295a062852fc7ef8e3d3d80ef87e69bcef1fd71cd33d97c5ab # shrinks to expr = func c => (func a => null) null
+cc 61ed89be090c33b841d2ff78377515b7733634a38ca3878e3f4cbd14ef7d7450 # shrinks to expr = {   p: __builtin_eq, }
