@@ -16,7 +16,7 @@ pub struct Scheme {
 
 /// A typing scheme in reduced form.
 #[derive(Debug, Clone)]
-pub(in crate::check) struct ReducedScheme {
+pub struct ReducedScheme {
     auto: Rc<Automaton<Constructor>>,
     scheme: Scheme,
 }

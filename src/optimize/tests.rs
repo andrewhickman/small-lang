@@ -5,7 +5,6 @@ use crate::generate::generate;
 use crate::optimize::{optimize, Opts};
 use crate::rt;
 use crate::syntax::tests::{arb_expr, dummy_file_id};
-use crate::syntax::SourceMap;
 
 const RUNTIME_OPTIONS: rt::Opts = rt::Opts {
     max_stack: 1024,
@@ -27,7 +26,7 @@ fn run_optimized(expr: ir::Expr) -> Option<rt::Value> {
 proptest! {
     #[test]
     fn optimization_correctness(expr in arb_expr()) {
-        if let Ok(expr) = check(&mut SourceMap::new(), dummy_file_id(), &expr) {
+        if let Ok((_, expr)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
             let original = run(&expr);
             let optimized = run_optimized(expr);
             assert!(

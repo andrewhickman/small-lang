@@ -6,7 +6,7 @@ use crate::check::ty::NumberConstructor;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
-impl<'a> Context<'a> {
+impl<F> Context<F> {
     pub(in crate::check) fn set_builtins(&mut self) {
         self.set_empty_capabilities();
         self.set_number_capabilities();

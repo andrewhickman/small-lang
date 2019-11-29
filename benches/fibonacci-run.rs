@@ -2,7 +2,7 @@ mod common;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-const INPUT: &'static str = include_str!("../data/fibonacci.sl");
+const INPUT: &'static str = include_str!("fibonacci.sl");
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let func = common::generate(common::check(common::parse(INPUT)));

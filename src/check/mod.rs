@@ -1,12 +1,10 @@
 pub mod ir;
+pub mod scheme;
 
 mod builtin;
-mod scheme;
 mod ty;
 
-use std::collections::HashMap;
 use std::iter::once;
-use std::rc::Rc;
 
 use codespan::{FileId, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
@@ -16,27 +14,27 @@ use mlsub::{BiunifyError, Polarity};
 use crate::check::scheme::{ReducedScheme, Scheme};
 use crate::check::ty::{Constructor, NumberConstructor};
 use crate::rt::{NumberValue, Value};
-use crate::syntax::{ast, ImSymbolMap, SourceCacheResult, SourceMap, Symbol, SymbolMap};
+use crate::syntax::{ast, ImSymbolMap, Symbol, SymbolMap};
 use crate::ErrorData;
 
-pub fn check(
-    source: &mut SourceMap,
+pub fn check<T, F>(
     file: FileId,
     expr: &ast::Spanned<ast::Expr>,
-) -> Result<ir::Expr, Vec<Diagnostic>> {
-    let mut ctx = Context::new(source);
+    import: F,
+) -> Result<(ReducedScheme, ir::Expr<T>), ErrorData>
+where
+    F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
+{
+    let mut ctx = Context::new(import);
     ctx.set_builtins();
-    ctx.check_expr(expr, file)
-        .map(|output| output.expr)
+    let output = ctx
+        .check_expr(expr, file)
         .map_err(Error::into_diagnostics)
+        .map_err(ErrorData::Diagnostics)?;
+    Ok((output.scheme.reduce(&ctx.auto), output.expr))
 }
 
 type FileSpan = (FileId, Span);
-
-struct CheckOutput {
-    scheme: Scheme,
-    expr: ir::Expr,
-}
 
 #[derive(Debug)]
 enum Error {
@@ -45,22 +43,28 @@ enum Error {
     TypeCheck(FileSpan, Box<BiunifyError<Constructor>>),
 }
 
-struct Context<'a> {
+struct Context<F> {
     auto: Automaton<Constructor>,
     vars: Vec<ImSymbolMap<ReducedScheme>>,
-    cache: HashMap<FileId, (Scheme, Rc<ir::Expr>)>,
-    source: &'a mut SourceMap,
     capabilities: ty::Capabilities,
+    import: F,
 }
 
-impl<'a> Context<'a> {
-    fn new(source: &'a mut SourceMap) -> Self {
+struct CheckOutput<T> {
+    scheme: Scheme,
+    expr: ir::Expr<T>,
+}
+
+impl<T, F> Context<F>
+where
+    F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
+{
+    fn new(import: F) -> Self {
         Context {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
-            cache: HashMap::default(),
             capabilities: ty::Capabilities::default(),
-            source,
+            import,
         }
     }
 
@@ -68,7 +72,7 @@ impl<'a> Context<'a> {
         &mut self,
         expr: &ast::Spanned<ast::Expr>,
         file: FileId,
-    ) -> Result<CheckOutput, Error> {
+    ) -> Result<CheckOutput<T>, Error> {
         let span = (file, expr.span);
         match &expr.val {
             ast::Expr::Null => self.check_null(span),
@@ -90,7 +94,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         if let Some(scheme) = self.get_var(var) {
             Ok(CheckOutput {
                 scheme,
@@ -106,7 +110,7 @@ impl<'a> Context<'a> {
         func: &ast::FuncExpr,
         span: FileSpan,
         rec_name: Option<Symbol>,
-    ) -> Result<CheckOutput, Error> {
+    ) -> Result<CheckOutput<T>, Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
         self.push_var(func.arg.val, Scheme::from_var(func.arg.val, arg_pair));
@@ -132,7 +136,11 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_call(&mut self, call: &ast::CallExpr, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_call(
+        &mut self,
+        call: &ast::CallExpr,
+        span: FileSpan,
+    ) -> Result<CheckOutput<T>, Error> {
         let func = self.check_expr(&call.func, span.0)?;
         let arg = self.check_expr(&call.arg, span.0)?;
 
@@ -156,7 +164,11 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_let(&mut self, let_expr: &ast::LetExpr, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_let(
+        &mut self,
+        let_expr: &ast::LetExpr,
+        span: FileSpan,
+    ) -> Result<CheckOutput<T>, Error> {
         let val = self.check_expr(&let_expr.val, span.0)?;
 
         self.push_var(let_expr.name.val, val.scheme.clone());
@@ -173,7 +185,7 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let func_pair = self.auto.build_var();
         self.push_var(rec.name.val, Scheme::from_var(rec.name.val, func_pair));
         let func = self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
@@ -201,7 +213,7 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_if(&mut self, if_expr: &ast::IfExpr, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_if(&mut self, if_expr: &ast::IfExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let cond = self.check_expr(&if_expr.cond, span.0)?;
         let cons = self.check_expr(&if_expr.cons, span.0)?;
         let alt = self.check_expr(&if_expr.alt, span.0)?;
@@ -241,10 +253,10 @@ impl<'a> Context<'a> {
         &mut self,
         rec: &SymbolMap<ast::Spanned<ast::Expr>>,
         span: FileSpan,
-    ) -> Result<CheckOutput, Error> {
-        struct CheckRecordEntryOutput {
+    ) -> Result<CheckOutput<T>, Error> {
+        struct CheckRecordEntryOutput<T> {
             field: Symbol,
-            expr: ir::Expr,
+            expr: ir::Expr<T>,
             scheme: Scheme,
             pair: flow::Pair,
         }
@@ -294,7 +306,7 @@ impl<'a> Context<'a> {
         &mut self,
         enum_expr: &ast::EnumExpr,
         span: FileSpan,
-    ) -> Result<CheckOutput, Error> {
+    ) -> Result<CheckOutput<T>, Error> {
         let expr = match &enum_expr.expr {
             Some(expr) => self.check_expr(expr, span.0)?,
             None => self.check_null(span)?,
@@ -320,10 +332,10 @@ impl<'a> Context<'a> {
         &mut self,
         match_expr: &ast::MatchExpr,
         span: FileSpan,
-    ) -> Result<CheckOutput, Error> {
-        struct CheckMatchCaseOutput {
+    ) -> Result<CheckOutput<T>, Error> {
+        struct CheckMatchCaseOutput<T> {
             tag: Symbol,
-            ir: ir::MatchCase,
+            ir: ir::MatchCase<T>,
             val_pair: flow::Pair,
             val_ty: Option<StateId>,
             scheme: Scheme,
@@ -393,7 +405,11 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_proj(&mut self, proj: &ast::ProjExpr, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_proj(
+        &mut self,
+        proj: &ast::ProjExpr,
+        span: FileSpan,
+    ) -> Result<CheckOutput<T>, Error> {
         let expr = self.check_expr(&proj.expr, span.0)?;
 
         let field_pair = self.auto.build_var();
@@ -415,56 +431,17 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_import(&mut self, path: &str, span: FileSpan) -> Result<CheckOutput, Error> {
-        let (scheme, expr) = match self.resolve_import(path) {
-            Ok(SourceCacheResult::Miss(file, expr)) => {
-                let vars = self.vars.split_off(1);
-                let CheckOutput { scheme, expr } = self.check_expr(&expr, file)?;
-                self.vars.extend(vars);
-                self.source.end_source();
-
-                let entry = (scheme, Rc::new(expr));
-                self.cache.insert(file, entry.clone());
-                entry
-            }
-            Ok(SourceCacheResult::Hit(file)) => match self.cache.get(&file) {
-                Some(entry) => entry.clone(),
-                None => {
-                    return Err(Error::Import(
-                        span,
-                        path.to_owned(),
-                        ErrorData::Basic("recursive import detected".into()),
-                    ))
-                }
-            },
-            Err(err) => return Err(Error::Import(span, path.to_owned(), err)),
-        };
-
+    fn check_import(&mut self, path: &str, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+        let (reduced_scheme, expr) =
+            (self.import)(path).map_err(|err| Error::Import(span, path.to_owned(), err))?;
+        let scheme = reduced_scheme.add_to(&mut self.auto);
         Ok(CheckOutput {
             scheme,
             expr: ir::Expr::Import(expr),
         })
     }
 
-    fn resolve_import(&mut self, path: &str) -> Result<SourceCacheResult, ErrorData> {
-        match path {
-            "cmp" => self
-                .source
-                .parse_input("cmp", include_str!("../../std/cmp.sl")),
-            "iter" => self
-                .source
-                .parse_input("iter", include_str!("../../std/iter.sl")),
-            "math" => self
-                .source
-                .parse_input("math", include_str!("../../std/math.sl")),
-            "list" => self
-                .source
-                .parse_input("list", include_str!("../../std/list.sl")),
-            path => self.source.parse_file(path),
-        }
-    }
-
-    fn check_null(&mut self, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_null(&mut self, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let ty = self.build_null(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
@@ -472,7 +449,7 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_bool(&mut self, val: bool, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_bool(&mut self, val: bool, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let ty = self.build_bool(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
@@ -480,7 +457,7 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_int(&mut self, val: i64, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_int(&mut self, val: i64, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Int);
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
@@ -488,7 +465,7 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_float(&mut self, val: f64, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_float(&mut self, val: f64, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Float);
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
@@ -496,14 +473,16 @@ impl<'a> Context<'a> {
         })
     }
 
-    fn check_string(&mut self, val: String, span: FileSpan) -> Result<CheckOutput, Error> {
+    fn check_string(&mut self, val: String, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let ty = self.build_string(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
             expr: ir::Expr::Literal(Value::String(val)),
         })
     }
+}
 
+impl<F> Context<F> {
     fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {
         let vars = self.vars.last().unwrap().clone();
         self.vars.push(vars);

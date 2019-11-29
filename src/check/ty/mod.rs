@@ -372,7 +372,7 @@ impl mlsub::Label for Label {
     }
 }
 
-impl<'a> Context<'a> {
+impl<F> Context<F> {
     pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
         self.build_object(
             pol,

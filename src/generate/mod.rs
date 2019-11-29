@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::check::ir;
@@ -13,14 +12,12 @@ pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
 
 struct Context {
     cmds: Vec<rt::Command>,
-    cache: HashMap<*const ir::Expr, Rc<[rt::Command]>>,
 }
 
 impl Context {
     fn new() -> Self {
         Context {
             cmds: Vec::with_capacity(16),
-            cache: HashMap::with_capacity(8),
         }
     }
 
@@ -36,7 +33,7 @@ impl Context {
             ir::Expr::Enum(enum_expr) => self.generate_enum(&*enum_expr),
             ir::Expr::Record(record_expr) => self.generate_record(record_expr),
             ir::Expr::Match(match_expr) => self.generate_match(&*match_expr),
-            ir::Expr::Import(import_expr) => self.generate_import(import_expr),
+            ir::Expr::Import(import_expr) => self.generate_import(import_expr.clone()),
         }
     }
 
@@ -148,15 +145,7 @@ impl Context {
         self.cmds[cases_pos - 1] = rt::Command::Match { jump_offsets };
     }
 
-    fn generate_import(&mut self, import_expr: &Rc<ir::Expr>) {
-        let key = &**import_expr as *const ir::Expr;
-        if !self.cache.contains_key(&key) {
-            let start = self.cmds.len();
-            self.generate_expr(import_expr);
-            self.cache.insert(key, self.cmds.drain(start..).collect());
-        }
-        self.cmds.push(rt::Command::Import {
-            cmds: self.cache[&key].clone(),
-        });
+    fn generate_import(&mut self, cmds: Rc<[rt::Command]>) {
+        self.cmds.push(rt::Command::Import { cmds });
     }
 }

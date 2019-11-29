@@ -1,79 +1,79 @@
 use std::rc::Rc;
 
-use crate::rt::Value;
+use crate::rt::{Command, Value};
 use crate::syntax::{Symbol, SymbolMap};
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub enum Expr {
+pub enum Expr<T = Rc<[Command]>> {
     Literal(Value),
     Var(Symbol),
-    Call(Box<Call>),
-    Let(Box<Let>),
-    Func(Box<Func>),
-    If(Box<If>),
-    Proj(Box<Proj>),
-    Enum(Box<Enum>),
-    Record(SymbolMap<Expr>),
-    Match(Box<Match>),
-    Import(Rc<Expr>),
+    Call(Box<Call<T>>),
+    Let(Box<Let<T>>),
+    Func(Box<Func<T>>),
+    If(Box<If<T>>),
+    Proj(Box<Proj<T>>),
+    Enum(Box<Enum<T>>),
+    Record(SymbolMap<Self>),
+    Match(Box<Match<T>>),
+    Import(T),
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Func {
+pub struct Func<T = Rc<[Command]>> {
     pub arg: Symbol,
-    pub body: Expr,
+    pub body: Expr<T>,
     pub rec_name: Option<Symbol>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Call {
-    pub arg: Expr,
-    pub func: Expr,
+pub struct Call<T = Rc<[Command]>> {
+    pub arg: Expr<T>,
+    pub func: Expr<T>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Let {
+pub struct Let<T = Rc<[Command]>> {
     pub name: Symbol,
-    pub val: Expr,
-    pub body: Expr,
+    pub val: Expr<T>,
+    pub body: Expr<T>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct If {
-    pub cond: Expr,
-    pub cons: Expr,
-    pub alt: Expr,
+pub struct If<T = Rc<[Command]>> {
+    pub cond: Expr<T>,
+    pub cons: Expr<T>,
+    pub alt: Expr<T>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Proj {
-    pub expr: Expr,
+pub struct Proj<T = Rc<[Command]>> {
+    pub expr: Expr<T>,
     pub field: Symbol,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Enum {
+pub struct Enum<T = Rc<[Command]>> {
     pub tag: Symbol,
-    pub expr: Expr,
+    pub expr: Expr<T>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct Match {
-    pub expr: Expr,
-    pub cases: SymbolMap<MatchCase>,
+pub struct Match<T = Rc<[Command]>> {
+    pub expr: Expr<T>,
+    pub cases: SymbolMap<MatchCase<T>>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct MatchCase {
-    pub expr: Expr,
+pub struct MatchCase<T = Rc<[Command]>> {
+    pub expr: Expr<T>,
     pub name: Option<Symbol>,
 }

@@ -114,7 +114,7 @@ proptest! {
     #[test]
     fn parse_roundtrip(expr in arb_expr()) {
         let source = expr.to_string();
-        let parsed = ast::Expr::parse(&source).unwrap();
+        let parsed = parse(dummy_file_id(), &source).unwrap();
         assert_eq!(expr, parsed)
     }
 }

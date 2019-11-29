@@ -1,18 +1,21 @@
-use crate::generate::generate;
+use crate::generate;
+use crate::optimize::Opts;
 use crate::rt::{Command, NumberValue, Value};
-use crate::syntax::Symbol;
-use crate::{optimize, Source};
+use crate::syntax::{Source, Symbol};
 
 macro_rules! test_case {
     ($name:ident, $cmds:expr) => {
         #[test]
         fn $name() {
-            let expr = crate::check(Source::File(
-                concat!("codegen/", stringify!($name), ".sl").as_ref(),
-            ))
-            .unwrap();
-            let optimized = optimize::optimize(expr, optimize::Opts { opt_level: 3 });
-            assert_eq!(generate(&optimized).as_slice(), $cmds);
+            assert_eq!(
+                generate(
+                    Source::File(concat!("codegen/", stringify!($name), ".sl").as_ref(),),
+                    Opts { opt_level: 3 }
+                )
+                .unwrap()
+                .as_ref(),
+                $cmds
+            );
         }
     };
 }

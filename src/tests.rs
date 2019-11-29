@@ -7,7 +7,7 @@ use crate::generate::generate;
 use crate::optimize;
 use crate::rt::{self, EnumValue, NumberValue, Value};
 use crate::syntax::tests::{arb_expr, dummy_file_id};
-use crate::syntax::{Source, SourceMap, Symbol};
+use crate::syntax::{Source, Symbol};
 use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
@@ -168,7 +168,7 @@ test_file!(pr3, Err);
 proptest! {
     #[test]
     fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok(expr) = check(&mut SourceMap::new(), dummy_file_id(), &expr) {
+        if let Ok((_, expr)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
             let cmds = generate(&expr);
             rt::run(&cmds, rt::Opts {
                 max_stack: 1024,

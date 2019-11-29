@@ -1,14 +1,13 @@
 use std::{fmt, io};
 
+use codespan::Files;
 use codespan_reporting::diagnostic::Diagnostic;
 use codespan_reporting::term::termcolor::{Color, ColorSpec, NoColor, WriteColor};
 use codespan_reporting::term::{emit, Config};
 
-use crate::syntax::SourceMap;
-
 #[derive(Debug)]
 pub struct Error {
-    source: SourceMap,
+    files: Files,
     data: ErrorData,
 }
 
@@ -19,16 +18,15 @@ pub enum ErrorData {
 }
 
 impl Error {
-    pub(crate) fn new(source: SourceMap, data: ErrorData) -> Self {
-        Error { source, data }
+    pub(crate) fn new(files: impl Into<Files>, data: ErrorData) -> Self {
+        Error {
+            files: files.into(),
+            data,
+        }
     }
 
-    pub fn basic(err: Box<dyn std::error::Error>) -> Self {
-        Error::new(SourceMap::new(), ErrorData::Basic(err))
-    }
-
-    pub(crate) fn diagnostics(source: SourceMap, diagnostics: Vec<Diagnostic>) -> Self {
-        Error::new(source, ErrorData::Diagnostics(diagnostics))
+    pub fn basic(err: impl Into<Box<dyn std::error::Error>>) -> Self {
+        Error::new(Files::new(), ErrorData::Basic(err.into()))
     }
 
     pub fn emit(&self, writer: &mut impl WriteColor) -> io::Result<()> {
@@ -53,7 +51,7 @@ impl Error {
             ErrorData::Diagnostics(diagnostics) => {
                 let config = Config::default();
                 for diagnostic in diagnostics {
-                    emit(writer, &config, self.source.files(), diagnostic)?;
+                    emit(writer, &config, &self.files, diagnostic)?;
                 }
                 Ok(())
             }

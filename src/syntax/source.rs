@@ -1,20 +1,17 @@
 use std::collections::hash_map::{self, HashMap};
-use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use codespan::{ByteIndex, FileId, Files, Span};
-use codespan_reporting::diagnostic::{Diagnostic, Label};
-use lalrpop_util::ParseError;
+use codespan::{FileId, Files};
 
-use crate::syntax::{ast, Error, Token};
-use crate::ErrorData;
+use crate::{Error, ErrorData};
 
 #[derive(Debug)]
-pub struct SourceMap {
+pub struct SourceMap<T> {
     files: Files,
     dir: Vec<PathBuf>,
-    cache: HashMap<String, FileId>,
+    cache: HashMap<String, Option<T>>,
 }
 
 pub enum Source<'a> {
@@ -22,12 +19,7 @@ pub enum Source<'a> {
     File(&'a Path),
 }
 
-pub enum SourceCacheResult {
-    Miss(FileId, ast::Spanned<ast::Expr>),
-    Hit(FileId),
-}
-
-impl SourceMap {
+impl<T> SourceMap<T> {
     pub fn new() -> Self {
         SourceMap {
             files: Files::new(),
@@ -35,19 +27,42 @@ impl SourceMap {
             cache: HashMap::new(),
         }
     }
+}
 
-    pub fn files(&self) -> &Files {
-        &self.files
-    }
-
-    pub fn parse_root(&mut self, source: Source<'_>) -> Result<SourceCacheResult, ErrorData> {
+impl<T> SourceMap<T>
+where
+    T: Clone,
+{
+    pub fn parse_root(
+        &mut self,
+        source: Source<'_>,
+        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, ErrorData> {
         match source {
-            Source::File(path) => self.parse_file(path),
-            Source::Input(input) => self.parse_input("root", input),
+            Source::File(path) => self.parse_file(path, import),
+            Source::Input(input) => self.parse_input("root", input, import),
         }
     }
 
-    pub fn parse_file(&mut self, path: impl AsRef<Path>) -> Result<SourceCacheResult, ErrorData> {
+    pub fn parse_import(
+        &mut self,
+        path: &str,
+        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, ErrorData> {
+        match path {
+            "cmp" => self.parse_input("cmp", include_str!("../../std/cmp.sl"), import),
+            "iter" => self.parse_input("iter", include_str!("../../std/iter.sl"), import),
+            "math" => self.parse_input("math", include_str!("../../std/math.sl"), import),
+            "list" => self.parse_input("list", include_str!("../../std/list.sl"), import),
+            path => self.parse_file(path, import),
+        }
+    }
+
+    pub fn parse_file(
+        &mut self,
+        path: impl AsRef<Path>,
+        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, ErrorData> {
         let path = match self.dir.last() {
             Some(dir) => dir.join(path),
             None => path.as_ref().to_owned(),
@@ -57,115 +72,75 @@ impl SourceMap {
             None => return Err(ErrorData::Basic("invalid path".into())),
         }
         let source = fs::read_to_string(&path).map_err(ErrorData::io)?;
-        self.add_file(path.to_string_lossy(), source)
+        self.add_file(path.to_string_lossy(), source, import)
     }
 
     pub fn parse_input(
         &mut self,
         name: impl Into<String>,
         input: impl Into<String>,
-    ) -> Result<SourceCacheResult, ErrorData> {
+        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, ErrorData> {
         self.dir.push(PathBuf::default());
-        self.add_file(name, input)
+        self.add_file(name, input, import)
     }
 
     fn add_file(
         &mut self,
         name: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<SourceCacheResult, ErrorData> {
+        mut import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, ErrorData> {
         let name = name.into();
 
         match self.cache.entry(name.clone()) {
-            hash_map::Entry::Occupied(entry) => Ok(SourceCacheResult::Hit(*entry.get())),
-            hash_map::Entry::Vacant(entry) => {
-                let file = self.files.add(name, source);
-
-                let expr = match ast::Expr::parse(self.files.source(file)) {
-                    Ok(expr) => expr,
-                    Err(err) => {
-                        return Err(ErrorData::Diagnostics(vec![
-                            self.build_diagnostic(file, err)
-                        ]))
-                    }
-                };
-
-                entry.insert(file);
-                Ok(SourceCacheResult::Miss(file, expr))
+            hash_map::Entry::Occupied(entry) => {
+                return Ok(entry
+                    .get()
+                    .clone()
+                    .ok_or_else(|| ErrorData::Basic("recursive import detected".into()))?)
             }
-        }
+            hash_map::Entry::Vacant(entry) => entry.insert(None),
+        };
+
+        let file = self.files.add(name.clone(), source);
+        let result = import(self, file, self.files.source(file).to_owned())?;
+
+        self.cache.insert(name, Some(result.clone()));
+        Ok(result)
     }
 
     pub fn end_source(&mut self) {
         self.dir.pop();
     }
+}
 
-    fn build_diagnostic(
-        &self,
-        file: FileId,
-        err: ParseError<ByteIndex, Token<'_>, Error>,
-    ) -> Diagnostic {
-        match err {
-            ParseError::InvalidToken { location: start } => Diagnostic::new_error(
-                "invalid token found",
-                Label::new(file, Span::new(start, start), "invalid token here"),
-            ),
-            ParseError::UnrecognizedEOF {
-                location: end,
-                expected,
-            } => Diagnostic::new_error(
-                format!("expected {}, found end of file", fmt_expected(&expected)),
-                Label::new(file, Span::new(end, end), "unexpected EOF here"),
-            ),
-            ParseError::UnrecognizedToken {
-                token: (start, token, end),
-                expected,
-            } => Diagnostic::new_error(
-                format!("expected {}, found `{}`", fmt_expected(&expected), token),
-                Label::new(file, Span::new(start, end), "unexpected token here"),
-            ),
-            ParseError::ExtraToken {
-                token: (start, token, end),
-            } => Diagnostic::new_error(
-                format!("extra token found `{}`", token),
-                Label::new(file, Span::new(start, end), "extra token here"),
-            ),
-            ParseError::User { error } => {
-                Diagnostic::new_error(error.message, Label::new(file, error.span, "here"))
+impl<T> SourceMap<Rc<T>> {
+    pub fn parse_root_rc(
+        mut self,
+        source: Source<'_>,
+        mut import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+    ) -> Result<T, Error> {
+        match self.parse_root(source, |this, file, input| {
+            import(this, file, input).map(Rc::new)
+        }) {
+            Ok(result) => {
+                drop(self);
+                Ok(Rc::try_unwrap(result).unwrap_or_else(|_| unreachable!()))
             }
+            Err(err) => Err(Error::new(self, err)),
         }
     }
 }
 
-impl Default for SourceMap {
+impl<T> Default for SourceMap<T> {
     fn default() -> Self {
         SourceMap::new()
     }
 }
 
-impl SourceCacheResult {
-    pub fn unwrap_miss(self) -> (FileId, ast::Spanned<ast::Expr>) {
-        match self {
-            SourceCacheResult::Miss(file, expr) => (file, expr),
-            _ => panic!("expected source cache miss"),
-        }
+impl<T> Into<Files> for SourceMap<T> {
+    fn into(self) -> Files {
+        self.files
     }
-}
-
-/// Format a list of expected tokens.
-fn fmt_expected(expected: &[String]) -> String {
-    let mut s = String::new();
-    let len = expected.len();
-    if len > 0 {
-        if len == 1 {
-            write!(s, "{}", expected[0]).unwrap();
-        } else {
-            write!(s, "one of {}", expected[0]).unwrap();
-            for token in &expected[1..(len - 1)] {
-                write!(s, ", {}", token).unwrap();
-            }
-            write!(s, " or {}", expected[len - 1]).unwrap();
-        }
-    }
-    s
 }
