@@ -111,7 +111,7 @@ impl Display for ast::ProjExpr {
 impl Display for ast::MatchExpr {
     fn fmt(&self, mut f: &mut Formatter) -> Result {
         write!(f, "match {} with ", self.expr)?;
-        if self.cases.len() == 0 {
+        if self.cases.is_empty() {
             write!(f, "[]")
         } else {
             writeln!(f, "[")?;

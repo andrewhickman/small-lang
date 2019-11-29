@@ -314,7 +314,7 @@ fn write_debug_json<T: Serialize>(val: &T, f: &mut fmt::Formatter) -> fmt::Resul
     } else {
         serde_json::to_string(val).unwrap()
     };
-    if s.len() < 256000 {
+    if s.len() < 20_000 {
         write!(f, "{}", s)
     } else {
         write!(f, "...")

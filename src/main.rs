@@ -50,7 +50,7 @@ fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
             let output = small_lang::run(Source::File(file), optimize_opts, rt_opts)?;
             eprintln!("Finished in {} operations", output.op_count);
             serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
-                .map_err(|err| small_lang::Error::basic(err))?;
+                .map_err(small_lang::Error::basic)?;
             println!();
         }
     }
