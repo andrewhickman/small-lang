@@ -25,6 +25,7 @@ pub fn check(
     expr: &ast::Spanned<ast::Expr>,
 ) -> Result<ir::Expr, Vec<Diagnostic>> {
     let mut ctx = Context::new(source);
+    ctx.set_builtins();
     ctx.check_expr(expr, file)
         .map(|output| output.expr)
         .map_err(Error::into_diagnostics)
@@ -54,15 +55,13 @@ struct Context<'a> {
 
 impl<'a> Context<'a> {
     fn new(source: &'a mut SourceMap) -> Self {
-        let mut ctx = Context {
+        Context {
             auto: Automaton::new(),
             vars: vec![ImSymbolMap::default()],
             cache: HashMap::default(),
             capabilities: ty::Capabilities::default(),
             source,
-        };
-        ctx.set_builtins();
-        ctx
+        }
     }
 
     fn check_expr(
