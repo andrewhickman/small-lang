@@ -1,0 +1,16 @@
+warning: Unused variable `y`
+
+   ┌── ui/unused_var.sl:2:6 ───                                        @skip
+   │
+ 2 │ func y => null
+   │      ^ defined here
+   │
+
+warning: Unused variable `x`
+
+   ┌── ui/unused_var.sl:1:5 ───                                        @skip
+   │
+ 1 │ let x = 5 in
+   │     ^ defined here
+   │
+

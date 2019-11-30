@@ -117,7 +117,11 @@ where
     ) -> Result<CheckOutput<T>, Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
-        self.push_var(func.arg.val, Scheme::from_var(func.arg.val, arg_pair));
+        self.push_var(
+            func.arg.val,
+            (span.0, func.arg.span),
+            Scheme::from_var(func.arg.val, arg_pair),
+        );
         let body = self.check_expr(&func.body, span.0)?;
         self.pop_var(func.arg.val);
 
@@ -175,7 +179,11 @@ where
     ) -> Result<CheckOutput<T>, Error> {
         let val = self.check_expr(&let_expr.val, span.0)?;
 
-        self.push_var(let_expr.name.val, val.scheme.clone());
+        self.push_var(
+            let_expr.name.val,
+            (span.0, let_expr.name.span),
+            val.scheme.clone(),
+        );
         let body = self.check_expr(&let_expr.body, span.0)?;
         self.pop_var(let_expr.name.val);
 
@@ -191,7 +199,11 @@ where
 
     fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let func_pair = self.auto.build_var();
-        self.push_var(rec.name.val, Scheme::from_var(rec.name.val, func_pair));
+        self.push_var(
+            rec.name.val,
+            (span.0, rec.name.span),
+            Scheme::from_var(rec.name.val, func_pair),
+        );
         let func = self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
         self.pop_var(rec.name.val);
 
@@ -203,7 +215,7 @@ where
             )
             .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
-        self.push_var(rec.name.val, func.scheme.clone());
+        self.push_var(rec.name.val, (span.0, rec.name.span), func.scheme.clone());
         let body = self.check_expr(&rec.body, span.0)?;
         self.pop_var(rec.name.val);
 
@@ -354,15 +366,18 @@ where
             .iter()
             .map(|(&tag, case)| {
                 let case_pair = self.auto.build_var();
-                let name = case.val.name.map(|name| name.val);
 
-                if let Some(name) = name {
-                    self.push_var(name, Scheme::from_var(name, case_pair));
+                if let Some(name) = case.val.name {
+                    self.push_var(
+                        name.val,
+                        (span.0, name.span),
+                        Scheme::from_var(name.val, case_pair),
+                    );
                 }
                 let case_expr = self.check_expr(&case.val.expr, span.0)?;
-                let (scheme, val_ty) = if let Some(name) = name {
-                    self.pop_var(name);
-                    case_expr.scheme.without_var(name)
+                let (scheme, val_ty) = if let Some(name) = case.val.name {
+                    self.pop_var(name.val);
+                    case_expr.scheme.without_var(name.val)
                 } else {
                     (case_expr.scheme.clone(), None)
                 };
@@ -371,7 +386,7 @@ where
                     tag,
                     ir: ir::MatchCase {
                         expr: case_expr.expr,
-                        name,
+                        name: case.val.name.map(|name| name.val),
                     },
                     scheme,
                     val_pair: case_pair,
@@ -487,20 +502,33 @@ where
 }
 
 impl<F> Context<F> {
-    fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {
+    fn push_var(&mut self, symbol: Symbol, span: impl Into<Option<FileSpan>>, scheme: Scheme) {
         let reduced = scheme.reduce(&self.auto);
-        self.vars.push(symbol, reduced);
+        self.vars.push(symbol, span.into(), reduced);
     }
 
     fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
-        match self.vars.get(symbol) {
-            Some(data) => Some(data.scheme().add_to(&mut self.auto)),
-            None => None,
+        let id = self.vars.get_id(symbol);
+        if let Some(id) = id {
+            let data = self.vars.get_mut(id);
+            data.uses += 1;
+            Some(data.scheme.add_to(&mut self.auto))
+        } else {
+            None
         }
     }
 
     fn pop_var(&mut self, symbol: Symbol) -> VarId {
-        self.vars.pop(symbol)
+        let id = self.vars.pop(symbol);
+        let data = self.vars.get(id);
+        if data.uses == 0 {
+            let (file, span) = data.span.unwrap();
+            self.warnings.push(Diagnostic::new_warning(
+                format!("Unused variable `{}`", data.name),
+                Label::new(file, span, "defined here"),
+            ));
+        }
+        id
     }
 }
 

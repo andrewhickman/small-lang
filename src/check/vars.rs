@@ -1,4 +1,5 @@
 use crate::check::scheme::ReducedScheme;
+use crate::check::FileSpan;
 use crate::syntax::{Symbol, SymbolMap};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -11,32 +12,38 @@ pub(crate) struct Vars {
 }
 
 pub(crate) struct VarData {
-    scheme: ReducedScheme,
+    pub name: Symbol,
+    pub span: Option<FileSpan>,
+    pub scheme: ReducedScheme,
+    pub uses: u32,
 }
 
 impl Vars {
-    pub fn push(&mut self, symbol: Symbol, scheme: ReducedScheme) -> VarId {
+    pub fn push(&mut self, name: Symbol, span: Option<FileSpan>, scheme: ReducedScheme) -> VarId {
         let id = VarId(self.data.len() as u32);
-        self.data.push(VarData { scheme });
-        self.ids.entry(symbol).or_default().push(id);
+        self.data.push(VarData {
+            name,
+            scheme,
+            span,
+            uses: 0,
+        });
+        self.ids.entry(name).or_default().push(id);
         id
     }
 
-    pub fn get(&mut self, symbol: Symbol) -> Option<&VarData> {
-        let id = self.ids.entry(symbol).or_default().last().copied();
-        match id {
-            Some(VarId(id)) => Some(&self.data[id as usize]),
-            None => None,
-        }
+    pub fn get_id(&mut self, name: Symbol) -> Option<VarId> {
+        self.ids.entry(name).or_default().last().copied()
     }
 
-    pub fn pop(&mut self, symbol: Symbol) -> VarId {
-        self.ids.get_mut(&symbol).unwrap().pop().unwrap()
+    pub fn get(&self, id: VarId) -> &VarData {
+        &self.data[id.0 as usize]
     }
-}
 
-impl VarData {
-    pub fn scheme(&self) -> &ReducedScheme {
-        &self.scheme
+    pub fn get_mut(&mut self, id: VarId) -> &mut VarData {
+        &mut self.data[id.0 as usize]
+    }
+
+    pub fn pop(&mut self, name: Symbol) -> VarId {
+        self.ids.get_mut(&name).unwrap().pop().unwrap()
     }
 }

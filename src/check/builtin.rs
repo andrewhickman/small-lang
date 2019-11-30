@@ -13,11 +13,11 @@ impl<F> Context<F> {
         self.set_string_capabilities();
 
         let eq = self.build_eq();
-        self.push_var(Symbol::new("__builtin_eq"), eq);
+        self.push_var(Symbol::new("__builtin_eq"), None, eq);
         let add = self.build_capability_getter(Symbol::new("add"));
-        self.push_var(Symbol::new("__builtin_get_add"), add);
+        self.push_var(Symbol::new("__builtin_get_add"), None, add);
         let sub = self.build_capability_getter(Symbol::new("sub"));
-        self.push_var(Symbol::new("__builtin_get_sub"), sub);
+        self.push_var(Symbol::new("__builtin_get_sub"), None, sub);
     }
 
     fn build_eq(&mut self) -> Scheme {
