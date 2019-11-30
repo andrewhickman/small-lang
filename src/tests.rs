@@ -21,6 +21,7 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
             max_ops: Some(100_000),
         },
     )
+    .into_result()
     .map(|output| output.value)
 }
 
@@ -169,7 +170,7 @@ test_file!(pr3, Err);
 proptest! {
     #[test]
     fn typecheck_soundness(expr in arb_expr()) {
-        if let Ok((_, expr)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
+        if let Ok((_, expr, _)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
             let cmds = generate(&expr);
             rt::run(&cmds, rt::Opts {
                 max_stack: 1024,

@@ -2,7 +2,7 @@ use std::io;
 use std::path::PathBuf;
 use std::process;
 
-use codespan_reporting::term::termcolor::StandardStream;
+use codespan_reporting::term::termcolor::{StandardStream, WriteColor};
 use codespan_reporting::term::ColorArg;
 use small_lang::Source;
 use structopt::StructOpt;
@@ -37,33 +37,39 @@ enum Command {
     },
 }
 
-fn run(args: &Args) -> Result<(), Box<small_lang::Error>> {
+fn run(args: &Args, stderr: &mut impl WriteColor) -> Result<(), small_lang::Error> {
     match args.command {
         Command::Check { ref file } => {
-            small_lang::check(Source::File(file))?;
+            let result = small_lang::check(Source::File(file));
+            result.emit_warnings(stderr)?;
+            result.into_result().map(drop)
         }
         Command::Run {
             ref file,
             rt_opts,
             optimize_opts,
         } => {
-            let output = small_lang::run(Source::File(file), optimize_opts, rt_opts)?;
+            let result = small_lang::run(Source::File(file), optimize_opts, rt_opts);
+            result.emit_warnings(stderr)?;
+
+            let output = result.into_result()?;
             eprintln!("Finished in {} operations", output.op_count);
             serde_json::to_writer_pretty(io::stdout().lock(), &output.value)
                 .map_err(small_lang::Error::basic)?;
             println!();
+            Ok(())
         }
     }
-    Ok(())
 }
 
 #[paw::main]
 fn main(args: Args) {
     #[cfg(feature = "env_logger")]
     env_logger::init();
-    if let Err(err) = run(&args) {
-        err.emit(&mut StandardStream::stderr(args.color.into()).lock())
-            .expect("failed to print to stderr");
+    let stderr = StandardStream::stderr(args.color.into());
+    let mut stderr = stderr.lock();
+    if let Err(err) = run(&args, &mut stderr) {
+        err.emit(&mut stderr).expect("failed to print to stderr");
         process::exit(1);
     }
 }

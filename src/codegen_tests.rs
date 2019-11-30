@@ -13,6 +13,7 @@ macro_rules! test_case {
                     Source::File(concat!("codegen/", stringify!($name), ".sl").as_ref(),),
                     Opts { opt_level: 3 }
                 )
+                .into_result()
                 .unwrap()
                 .as_ref(),
                 $cmds

@@ -1,9 +1,13 @@
 use std::collections::hash_map::{self, HashMap};
+use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use codespan::{FileId, Files};
+use codespan_reporting::diagnostic::Diagnostic;
+use codespan_reporting::term::termcolor::WriteColor;
+use codespan_reporting::term::{emit, Config};
 
 use crate::{Error, ErrorData};
 
@@ -12,7 +16,21 @@ pub struct Pipeline<T> {
     files: Files,
     dir: Vec<PathBuf>,
     cache: HashMap<String, Option<T>>,
+    warnings: Vec<Diagnostic>,
 }
+
+pub struct PipelineResult<U> {
+    files: Files,
+    warnings: Vec<Diagnostic>,
+    result: Result<U, ErrorData>,
+}
+
+pub struct ProcessOutput<T> {
+    pub value: T,
+    pub warnings: Vec<Diagnostic>,
+}
+
+pub type ProcessResult<T> = Result<ProcessOutput<T>, ErrorData>;
 
 pub enum Source<'a> {
     Input(String),
@@ -25,6 +43,7 @@ impl<T> Pipeline<T> {
             files: Files::new(),
             dir: vec![],
             cache: HashMap::new(),
+            warnings: vec![],
         }
     }
 }
@@ -36,7 +55,7 @@ where
     pub fn process_root(
         &mut self,
         source: Source<'_>,
-        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         match source {
             Source::File(path) => self.process_file(path, import),
@@ -47,7 +66,7 @@ where
     pub fn process_import(
         &mut self,
         path: &str,
-        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         match path {
             "cmp" => self.process_input("cmp", include_str!("../std/cmp.sl"), import),
@@ -61,7 +80,7 @@ where
     pub fn process_file(
         &mut self,
         path: impl AsRef<Path>,
-        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         let path = match self.dir.last() {
             Some(dir) => dir.join(path),
@@ -81,7 +100,7 @@ where
         &mut self,
         name: impl Into<String>,
         input: impl Into<String>,
-        import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         self.add_file(name, input, import)
     }
@@ -90,7 +109,7 @@ where
         &mut self,
         name: impl Into<String>,
         source: impl Into<String>,
-        mut import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
+        mut import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         let name = name.into();
 
@@ -105,28 +124,36 @@ where
         };
 
         let file = self.files.add(name.clone(), source);
-        let result = import(self, file, self.files.source(file).to_owned())?;
+        let output = import(self, file, self.files.source(file).to_owned())?;
 
-        self.cache.insert(name, Some(result.clone()));
-        Ok(result)
+        self.cache.insert(name, Some(output.value.clone()));
+        self.warnings.extend(output.warnings);
+        Ok(output.value)
+    }
+
+    pub fn finish<U>(self, result: Result<U, ErrorData>) -> PipelineResult<U> {
+        PipelineResult {
+            files: self.files,
+            warnings: self.warnings,
+            result,
+        }
     }
 }
 
-impl<T> Pipeline<Rc<T>> {
+impl<T: Debug> Pipeline<Rc<T>> {
     pub fn process_root_rc(
         mut self,
         source: Source<'_>,
-        mut import: impl FnMut(&mut Self, FileId, String) -> Result<T, ErrorData>,
-    ) -> Result<T, Error> {
-        match self.process_root(source, |this, file, input| {
-            import(this, file, input).map(Rc::new)
-        }) {
-            Ok(result) => {
-                drop(self);
-                Ok(Rc::try_unwrap(result).unwrap_or_else(|_| unreachable!()))
-            }
-            Err(err) => Err(Error::new(self, err)),
-        }
+        mut import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+    ) -> PipelineResult<T> {
+        let result = self.process_root(source, |this, file, input| {
+            import(this, file, input).map(|output| ProcessOutput {
+                value: Rc::new(output.value),
+                warnings: output.warnings,
+            })
+        });
+        let result = self.finish(result);
+        result.map(|value| Rc::try_unwrap(value).unwrap())
     }
 }
 
@@ -136,8 +163,36 @@ impl<T> Default for Pipeline<T> {
     }
 }
 
-impl<T> Into<Files> for Pipeline<T> {
-    fn into(self) -> Files {
-        self.files
+impl<U> PipelineResult<U> {
+    pub fn emit_warnings(&self, sink: &mut impl WriteColor) -> Result<(), Error> {
+        for warning in &self.warnings {
+            emit(sink, &Config::default(), &self.files, warning).map_err(Error::basic)?;
+        }
+        Ok(())
+    }
+
+    pub fn into_result(self) -> Result<U, Error> {
+        match self.result {
+            Ok(value) => Ok(value),
+            Err(err) => Err(Error::new(self.files, err)),
+        }
+    }
+
+    pub fn map<V, F>(self, f: F) -> PipelineResult<V>
+    where
+        F: FnOnce(U) -> V,
+    {
+        self.and_then(|value| Ok(f(value)))
+    }
+
+    pub fn and_then<V, F>(self, f: F) -> PipelineResult<V>
+    where
+        F: FnOnce(U) -> Result<V, ErrorData>,
+    {
+        PipelineResult {
+            files: self.files,
+            warnings: self.warnings,
+            result: self.result.and_then(f),
+        }
     }
 }

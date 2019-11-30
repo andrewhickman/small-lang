@@ -10,7 +10,9 @@ use small_lang::syntax::ast;
 pub fn parse(input: impl Into<String>) -> (FileId, ast::Spanned<ast::Expr>) {
     (
         dummy_file_id(),
-        small_lang::parse(Source::Input(input.into())).unwrap(),
+        small_lang::parse(Source::Input(input.into()))
+            .into_result()
+            .unwrap(),
     )
 }
 

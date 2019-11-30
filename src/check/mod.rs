@@ -23,7 +23,7 @@ pub fn check<T, F>(
     file: FileId,
     expr: &ast::Spanned<ast::Expr>,
     import: F,
-) -> Result<(ReducedScheme, ir::Expr<T>), ErrorData>
+) -> Result<(ReducedScheme, ir::Expr<T>, Vec<Diagnostic>), ErrorData>
 where
     F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
 {
@@ -33,7 +33,7 @@ where
         .check_expr(expr, file)
         .map_err(Error::into_diagnostics)
         .map_err(ErrorData::Diagnostics)?;
-    Ok((output.scheme.reduce(&ctx.auto), output.expr))
+    Ok((output.scheme.reduce(&ctx.auto), output.expr, ctx.warnings))
 }
 
 type FileSpan = (FileId, Span);
@@ -50,6 +50,7 @@ struct Context<F> {
     vars: Vars,
     capabilities: ty::Capabilities,
     import: F,
+    warnings: Vec<Diagnostic>,
 }
 
 struct CheckOutput<T> {
@@ -66,6 +67,7 @@ where
             auto: Automaton::new(),
             vars: Vars::default(),
             capabilities: ty::Capabilities::default(),
+            warnings: vec![],
             import,
         }
     }

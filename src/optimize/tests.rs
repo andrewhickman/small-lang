@@ -26,7 +26,7 @@ fn run_optimized(expr: ir::Expr) -> Option<rt::Value> {
 proptest! {
     #[test]
     fn optimization_correctness(expr in arb_expr()) {
-        if let Ok((_, expr)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
+        if let Ok((_, expr, _)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
             let original = run(&expr);
             let optimized = run_optimized(expr);
             assert!(

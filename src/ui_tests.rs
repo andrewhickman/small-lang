@@ -13,6 +13,7 @@ fn test_output(file: impl AsRef<Path>) {
         optimize::Opts::default(),
         rt::Opts::default(),
     )
+    .into_result()
     .unwrap_err()
     .to_string();
 

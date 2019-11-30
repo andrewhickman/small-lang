@@ -23,49 +23,56 @@ use std::rc::Rc;
 use codespan::FileId;
 
 use crate::check::scheme::ReducedScheme;
-use crate::pipeline::Pipeline;
+use crate::pipeline::{Pipeline, PipelineResult, ProcessOutput, ProcessResult};
 use crate::syntax::ast;
 
-pub fn parse(root: Source) -> Result<ast::Spanned<ast::Expr>, Error> {
-    Pipeline::new().process_root_rc(root, |_, file, input| syntax::parse(file, &input))
+pub fn parse(root: Source) -> PipelineResult<ast::Spanned<ast::Expr>> {
+    Pipeline::new().process_root_rc(root, |_, file, input| {
+        Ok(ProcessOutput {
+            value: syntax::parse(file, &input)?,
+            warnings: vec![],
+        })
+    })
 }
 
-pub fn check(root: Source) -> Result<ReducedScheme, Error> {
+pub fn check(root: Source) -> PipelineResult<ReducedScheme> {
     let mut pipeline = Pipeline::new();
-    pipeline
-        .process_root(root, check_impl)
-        .map_err(|err| Error::new(pipeline, err))
+    let result = pipeline.process_root(root, check_impl);
+    pipeline.finish(result)
 }
 
-pub fn generate(root: Source, optimize_opts: optimize::Opts) -> Result<Rc<[rt::Command]>, Error> {
+pub fn generate(root: Source, optimize_opts: optimize::Opts) -> PipelineResult<Rc<[rt::Command]>> {
     let mut pipeline = Pipeline::new();
-    let (_, cmds) = pipeline
+    let result = pipeline
         .process_root(root, |pipeline, file, input| {
             run_impl(pipeline, file, input, optimize_opts)
         })
-        .map_err(|err| Error::new(pipeline, err))?;
-    Ok(cmds)
+        .map(|(_, cmds)| cmds);
+    pipeline.finish(result)
 }
 
 pub fn run(
     root: Source,
     optimize_opts: optimize::Opts,
     rt_opts: rt::Opts,
-) -> Result<rt::Output, Error> {
-    let cmds = generate(root, optimize_opts)?;
-    rt::run(&cmds, rt_opts).map_err(Error::basic)
+) -> PipelineResult<rt::Output> {
+    generate(root, optimize_opts)
+        .and_then(|cmds| rt::run(&cmds, rt_opts).map_err(|err| ErrorData::Basic(err.into())))
 }
 
 fn check_impl(
     pipeline: &mut Pipeline<ReducedScheme>,
     file: FileId,
     input: String,
-) -> Result<ReducedScheme, ErrorData> {
+) -> ProcessResult<ReducedScheme> {
     let ast = syntax::parse(file, &input)?;
-    let (scheme, _) = check::check(file, &ast, |path| {
+    let (scheme, _, warnings) = check::check(file, &ast, |path| {
         Ok((pipeline.process_import(path, check_impl)?, ()))
     })?;
-    Ok(scheme)
+    Ok(ProcessOutput {
+        value: scheme,
+        warnings,
+    })
 }
 
 fn run_impl(
@@ -73,14 +80,17 @@ fn run_impl(
     file: FileId,
     input: String,
     optimize_opts: optimize::Opts,
-) -> Result<(ReducedScheme, Rc<[rt::Command]>), ErrorData> {
+) -> ProcessResult<(ReducedScheme, Rc<[rt::Command]>)> {
     let ast = syntax::parse(file, &input)?;
-    let (scheme, expr) = check::check(file, &ast, |path| {
+    let (scheme, expr, warnings) = check::check(file, &ast, |path| {
         pipeline.process_import(path, |pipeline, file, input| {
             run_impl(pipeline, file, input, optimize_opts)
         })
     })?;
     let expr = optimize::optimize(expr, optimize_opts);
     let cmds = generate::generate(&expr);
-    Ok((scheme, cmds.into()))
+    Ok(ProcessOutput {
+        value: (scheme, cmds.into()),
+        warnings,
+    })
 }
