@@ -1,8 +1,8 @@
+use crate::check::vars::VarId;
 use crate::generate;
 use crate::optimize::Opts;
 use crate::pipeline::Source;
 use crate::rt::{Command, NumberValue, Value};
-use crate::syntax::Symbol;
 
 macro_rules! test_case {
     ($name:ident, $cmds:expr) => {
@@ -28,12 +28,8 @@ test_case!(
         Command::Push {
             value: Value::Number(NumberValue::Int(5)),
         },
-        Command::Store {
-            var: Symbol::new("x"),
-        },
-        Command::Load {
-            var: Symbol::new("x"),
-        },
+        Command::Store { var: VarId::new(3) },
+        Command::Load { var: VarId::new(3) },
         Command::End,
     ]
 );

@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use crate::check::ir;
+use crate::check::vars::VarId;
 use crate::rt;
-use crate::syntax::{ImSymbolMap, Symbol, SymbolMap};
+use crate::syntax::{ImSymbolMap, SymbolMap};
 
 pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
     let mut ctx = Context::new();
@@ -41,7 +42,7 @@ impl Context {
         self.cmds.push(rt::Command::Push { value })
     }
 
-    fn generate_var(&mut self, var: Symbol) {
+    fn generate_var(&mut self, var: VarId) {
         self.cmds.push(rt::Command::Load { var })
     }
 
@@ -66,7 +67,7 @@ impl Context {
         self.cmds.push(rt::Command::End);
 
         let capture = rt::Command::Capture {
-            rec_name: func_expr.rec_name,
+            rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
         };
         self.cmds.push(capture);

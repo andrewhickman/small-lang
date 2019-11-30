@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::check::VarId;
 use crate::rt::{Command, Value};
 use crate::syntax::{Symbol, SymbolMap};
 
@@ -7,7 +8,7 @@ use crate::syntax::{Symbol, SymbolMap};
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum Expr<T = Rc<[Command]>> {
     Literal(Value),
-    Var(Symbol),
+    Var(VarId),
     Call(Box<Call<T>>),
     Let(Box<Let<T>>),
     Func(Box<Func<T>>),
@@ -22,9 +23,9 @@ pub enum Expr<T = Rc<[Command]>> {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Func<T = Rc<[Command]>> {
-    pub arg: Symbol,
+    pub arg: VarId,
     pub body: Expr<T>,
-    pub rec_name: Option<Symbol>,
+    pub rec_var: Option<VarId>,
 }
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ pub struct Call<T = Rc<[Command]>> {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Let<T = Rc<[Command]>> {
-    pub name: Symbol,
+    pub name: VarId,
     pub val: Expr<T>,
     pub body: Expr<T>,
 }
@@ -75,5 +76,5 @@ pub struct Match<T = Rc<[Command]>> {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct MatchCase<T = Rc<[Command]>> {
     pub expr: Expr<T>,
-    pub name: Option<Symbol>,
+    pub name: Option<VarId>,
 }

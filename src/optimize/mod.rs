@@ -76,7 +76,7 @@ impl ir::Expr {
             ir::Expr::Import(_) => self,
             ir::Expr::Func(func_expr) => ir::Expr::Func(Box::new(ir::Func {
                 arg: func_expr.arg,
-                rec_name: func_expr.rec_name,
+                rec_var: func_expr.rec_var,
                 body: func_expr.body.map(transform),
             })),
             ir::Expr::Call(call_expr) => ir::Expr::Call(Box::new(ir::Call {

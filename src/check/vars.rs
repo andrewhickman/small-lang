@@ -1,9 +1,11 @@
+use serde::Serialize;
+
 use crate::check::scheme::ReducedScheme;
 use crate::check::FileSpan;
 use crate::syntax::{Symbol, SymbolMap};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub(crate) struct VarId(u32);
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize)]
+pub struct VarId(u32);
 
 #[derive(Default)]
 pub(crate) struct Vars {
@@ -46,4 +48,15 @@ impl Vars {
     pub fn pop(&mut self, name: Symbol) -> VarId {
         self.ids.get_mut(&name).unwrap().pop().unwrap()
     }
+}
+
+impl VarId {
+    #[cfg(test)]
+    pub fn new(id: u32) -> Self {
+        VarId(id)
+    }
+
+    pub const BUILTIN_EQ: Self = VarId(0);
+    pub const BUILTIN_GET_ADD: Self = VarId(1);
+    pub const BUILTIN_GET_SUB: Self = VarId(2);
 }

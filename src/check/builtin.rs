@@ -3,6 +3,7 @@ use mlsub::auto::{StateId, StateSet};
 use mlsub::Polarity;
 
 use crate::check::ty::NumberConstructor;
+use crate::check::vars::VarId;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
@@ -13,11 +14,20 @@ impl<F> Context<F> {
         self.set_string_capabilities();
 
         let eq = self.build_eq();
-        self.push_var(Symbol::new("__builtin_eq"), None, eq);
+        assert_eq!(
+            self.push_var(Symbol::new("__builtin_eq"), None, &eq),
+            VarId::BUILTIN_EQ
+        );
         let add = self.build_capability_getter(Symbol::new("add"));
-        self.push_var(Symbol::new("__builtin_get_add"), None, add);
+        assert_eq!(
+            self.push_var(Symbol::new("__builtin_get_add"), None, &add),
+            VarId::BUILTIN_GET_ADD
+        );
         let sub = self.build_capability_getter(Symbol::new("sub"));
-        self.push_var(Symbol::new("__builtin_get_sub"), None, sub);
+        assert_eq!(
+            self.push_var(Symbol::new("__builtin_get_sub"), None, &sub),
+            VarId::BUILTIN_GET_SUB
+        );
     }
 
     fn build_eq(&mut self) -> Scheme {

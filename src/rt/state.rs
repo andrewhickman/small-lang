@@ -1,18 +1,18 @@
 use im::OrdMap;
 
+use crate::check::vars::VarId;
 use crate::rt::{Command, Error, Opts, Output, Value};
-use crate::syntax::Symbol;
 
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
     stack: Vec<Value>,
-    vars: Vec<OrdMap<Symbol, Value>>,
+    vars: Vec<OrdMap<VarId, Value>>,
     opts: Opts,
     op_count: u64,
 }
 
 impl Runtime {
-    pub fn new(vars: OrdMap<Symbol, Value>, opts: Opts) -> Self {
+    pub fn new(vars: OrdMap<VarId, Value>, opts: Opts) -> Self {
         Runtime {
             stack: vec![],
             vars: vec![vars],
@@ -62,7 +62,7 @@ impl Runtime {
         self.stack.push(value)
     }
 
-    pub fn push_vars(&mut self, new_vars: OrdMap<Symbol, Value>) -> Result<(), Error> {
+    pub fn push_vars(&mut self, new_vars: OrdMap<VarId, Value>) -> Result<(), Error> {
         if self.vars.len() as u64 >= self.opts.max_stack {
             return Err(Error::StackOverflow);
         }
@@ -71,11 +71,11 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn vars(&self) -> &OrdMap<Symbol, Value> {
+    pub fn vars(&self) -> &OrdMap<VarId, Value> {
         self.vars.last().unwrap()
     }
 
-    pub fn get_var(&self, var: Symbol) -> Value {
+    pub fn get_var(&self, var: VarId) -> Value {
         self.vars()[&var].clone()
     }
 

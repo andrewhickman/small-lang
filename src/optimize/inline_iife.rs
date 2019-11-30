@@ -40,23 +40,23 @@ fn transform(expr: ir::Expr) -> (ir::Expr, u32) {
 
 #[test]
 fn inline_iife() {
+    use crate::check::vars::VarId;
     use crate::rt;
-    use crate::syntax::Symbol;
 
     assert_eq!(
         transform(ir::Expr::Call(Box::new(ir::Call {
             func: ir::Expr::Func(Box::new(ir::Func {
-                arg: Symbol::new("a"),
-                body: ir::Expr::Var(Symbol::new("a")),
-                rec_name: None,
+                arg: VarId::new(3),
+                body: ir::Expr::Var(VarId::new(3)),
+                rec_var: None,
             })),
             arg: ir::Expr::Literal(rt::Value::Null),
         }))),
         (
             ir::Expr::Let(Box::new(ir::Let {
-                name: Symbol::new("a"),
+                name: VarId::new(3),
                 val: ir::Expr::Literal(rt::Value::Null),
-                body: ir::Expr::Var(Symbol::new("a")),
+                body: ir::Expr::Var(VarId::new(3)),
             })),
             4
         )

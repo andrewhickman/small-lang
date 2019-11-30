@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use im::OrdMap;
 
+use crate::check::vars::VarId;
 use crate::rt::{Error, FuncValue, NumberValue, Runtime, Value};
 use crate::syntax::Symbol;
 
@@ -42,11 +43,11 @@ impl Value {
     }
 }
 
-pub fn builtins() -> OrdMap<Symbol, Value> {
+pub fn builtins() -> OrdMap<VarId, Value> {
     im::ordmap! [
-        Symbol::new("__builtin_eq") => binary_func("__builtin_eq", eq),
-        Symbol::new("__builtin_get_add") => Value::builtin("__builtin_get_add", get_add),
-        Symbol::new("__builtin_get_sub") => Value::builtin("__builtin_get_sub", get_sub)
+        VarId::BUILTIN_EQ => binary_func("__builtin_eq", eq),
+        VarId::BUILTIN_GET_ADD => Value::builtin("__builtin_get_add", get_add),
+        VarId::BUILTIN_GET_SUB => Value::builtin("__builtin_get_sub", get_sub)
     ]
 }
 

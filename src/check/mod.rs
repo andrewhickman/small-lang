@@ -1,9 +1,9 @@
 pub mod ir;
 pub mod scheme;
+pub mod vars;
 
 mod builtin;
 mod ty;
-mod vars;
 
 use std::iter::once;
 
@@ -99,10 +99,10 @@ where
     }
 
     fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
-        if let Some(scheme) = self.get_var(var) {
+        if let Some((scheme, id)) = self.get_var(var) {
             Ok(CheckOutput {
                 scheme,
-                expr: ir::Expr::Var(var),
+                expr: ir::Expr::Var(id),
             })
         } else {
             Err(Error::UndefinedVar(span, var))
@@ -113,14 +113,14 @@ where
         &mut self,
         func: &ast::FuncExpr,
         span: FileSpan,
-        rec_name: Option<Symbol>,
+        rec_var: Option<VarId>,
     ) -> Result<CheckOutput<T>, Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
-        self.push_var(
+        let arg_var = self.push_var(
             func.arg.val,
             (span.0, func.arg.span),
-            Scheme::from_var(func.arg.val, arg_pair),
+            &Scheme::from_var(func.arg.val, arg_pair),
         );
         let body = self.check_expr(&func.body, span.0)?;
         self.pop_var(func.arg.val);
@@ -137,9 +137,9 @@ where
         Ok(CheckOutput {
             scheme: scheme.with_ty(func_ty),
             expr: ir::Expr::Func(Box::new(ir::Func {
-                arg: func.arg.val,
+                arg: arg_var,
                 body: body.expr,
-                rec_name,
+                rec_var,
             })),
         })
     }
@@ -179,18 +179,14 @@ where
     ) -> Result<CheckOutput<T>, Error> {
         let val = self.check_expr(&let_expr.val, span.0)?;
 
-        self.push_var(
-            let_expr.name.val,
-            (span.0, let_expr.name.span),
-            val.scheme.clone(),
-        );
+        let name_var = self.push_var(let_expr.name.val, (span.0, let_expr.name.span), &val.scheme);
         let body = self.check_expr(&let_expr.body, span.0)?;
         self.pop_var(let_expr.name.val);
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &val.scheme, &body.scheme),
             expr: ir::Expr::Let(Box::new(ir::Let {
-                name: let_expr.name.val,
+                name: name_var,
                 val: val.expr,
                 body: body.expr,
             })),
@@ -199,13 +195,12 @@ where
 
     fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         let func_pair = self.auto.build_var();
-        self.push_var(
+        let rec_var = self.push_var(
             rec.name.val,
             (span.0, rec.name.span),
-            Scheme::from_var(rec.name.val, func_pair),
+            &Scheme::from_var(rec.name.val, func_pair),
         );
-        let func = self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
-        self.pop_var(rec.name.val);
+        let func = self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec_var))?;
 
         let (scheme, func_ty) = func.scheme.without_var(rec.name.val);
         self.auto
@@ -215,14 +210,14 @@ where
             )
             .map_err(|err| Error::TypeCheck(span, err.into()))?;
 
-        self.push_var(rec.name.val, (span.0, rec.name.span), func.scheme.clone());
+        self.set_var_scheme(rec_var, &func.scheme);
         let body = self.check_expr(&rec.body, span.0)?;
         self.pop_var(rec.name.val);
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &scheme, &body.scheme),
             expr: ir::Expr::Let(Box::new(ir::Let {
-                name: rec.name.val,
+                name: rec_var,
                 val: func.expr,
                 body: body.expr,
             })),
@@ -367,14 +362,18 @@ where
             .map(|(&tag, case)| {
                 let case_pair = self.auto.build_var();
 
-                if let Some(name) = case.val.name {
-                    self.push_var(
+                let name_var = if let Some(name) = case.val.name {
+                    Some(self.push_var(
                         name.val,
                         (span.0, name.span),
-                        Scheme::from_var(name.val, case_pair),
-                    );
-                }
+                        &Scheme::from_var(name.val, case_pair),
+                    ))
+                } else {
+                    None
+                };
+
                 let case_expr = self.check_expr(&case.val.expr, span.0)?;
+
                 let (scheme, val_ty) = if let Some(name) = case.val.name {
                     self.pop_var(name.val);
                     case_expr.scheme.without_var(name.val)
@@ -386,7 +385,7 @@ where
                     tag,
                     ir: ir::MatchCase {
                         expr: case_expr.expr,
-                        name: case.val.name.map(|name| name.val),
+                        name: name_var,
                     },
                     scheme,
                     val_pair: case_pair,
@@ -502,17 +501,27 @@ where
 }
 
 impl<F> Context<F> {
-    fn push_var(&mut self, symbol: Symbol, span: impl Into<Option<FileSpan>>, scheme: Scheme) {
+    fn push_var(
+        &mut self,
+        symbol: Symbol,
+        span: impl Into<Option<FileSpan>>,
+        scheme: &Scheme,
+    ) -> VarId {
         let reduced = scheme.reduce(&self.auto);
-        self.vars.push(symbol, span.into(), reduced);
+        self.vars.push(symbol, span.into(), reduced)
     }
 
-    fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
+    fn set_var_scheme(&mut self, id: VarId, scheme: &Scheme) {
+        let reduced = scheme.reduce(&self.auto);
+        self.vars.get_mut(id).scheme = reduced;
+    }
+
+    fn get_var(&mut self, symbol: Symbol) -> Option<(Scheme, VarId)> {
         let id = self.vars.get_id(symbol);
         if let Some(id) = id {
             let data = self.vars.get_mut(id);
             data.uses += 1;
-            Some(data.scheme.add_to(&mut self.auto))
+            Some((data.scheme.add_to(&mut self.auto), id))
         } else {
             None
         }

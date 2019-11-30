@@ -7,6 +7,7 @@ use std::rc::Rc;
 use im::OrdMap;
 use serde::Serialize;
 
+use crate::check::vars::VarId;
 use crate::rt::builtin::Builtin;
 use crate::rt::state::Runtime;
 use crate::syntax::symbol::{ImSymbolMap, Symbol};
@@ -69,12 +70,12 @@ pub enum Value {
 
 #[derive(Clone, Serialize)]
 pub struct FuncValue {
-    #[serde(rename = "$name", skip_serializing_if = "Option::is_none")]
-    pub rec_name: Option<Symbol>,
+    #[serde(rename = "$rec-var", skip_serializing_if = "Option::is_none")]
+    pub rec_var: Option<VarId>,
     #[serde(rename = "$ops")]
     pub cmds: Rc<[Command]>,
     #[serde(rename = "$env")]
-    pub env: OrdMap<Symbol, Value>,
+    pub env: OrdMap<VarId, Value>,
 }
 
 #[derive(Clone, Serialize, PartialEq)]
@@ -95,7 +96,7 @@ pub enum NumberValue {
 impl FuncValue {
     pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
         FuncValue {
-            rec_name: None,
+            rec_var: None,
             cmds: cmds.into(),
             env: OrdMap::default(),
         }
@@ -111,7 +112,7 @@ pub enum Command {
         value: Value,
     },
     Capture {
-        rec_name: Option<Symbol>,
+        rec_var: Option<VarId>,
         cmds: Rc<[Command]>,
     },
     Call,
@@ -131,10 +132,10 @@ pub enum Command {
         field: Symbol,
     },
     Load {
-        var: Symbol,
+        var: VarId,
     },
     Store {
-        var: Symbol,
+        var: VarId,
     },
     WrapEnum {
         tag: Symbol,
@@ -193,10 +194,10 @@ impl Value {
 impl FuncValue {
     // HACK: to avoid making function types self referential, add them to their own environment
     // lazily.
-    fn env(&self) -> OrdMap<Symbol, Value> {
+    fn env(&self) -> OrdMap<VarId, Value> {
         let env = self.env.clone();
-        if let Some(name) = self.rec_name {
-            env.update(name, Value::Func(self.clone()))
+        if let Some(var) = self.rec_var {
+            env.update(var, Value::Func(self.clone()))
         } else {
             env
         }
@@ -216,10 +217,10 @@ impl Command {
                 ctx.push_stack(value.clone());
                 None
             }
-            Command::Capture { rec_name, ref cmds } => {
+            Command::Capture { rec_var, ref cmds } => {
                 let env = ctx.vars().clone();
                 ctx.push_stack(Value::Func(FuncValue {
-                    rec_name,
+                    rec_var,
                     cmds: cmds.clone(),
                     env,
                 }));
