@@ -9,9 +9,7 @@ lalrpop_mod!(
     "/syntax/parser.rs"
 );
 mod fmt;
-mod source;
 
-pub use source::{Source, SourceMap};
 pub use symbol::{ImSymbolMap, Symbol, SymbolMap};
 
 pub(crate) use parser::Token;

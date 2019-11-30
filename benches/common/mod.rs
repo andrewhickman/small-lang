@@ -3,8 +3,9 @@
 use codespan::FileId;
 
 use small_lang::check::ir;
+use small_lang::pipeline::Source;
 use small_lang::rt::{Command, Opts, Output};
-use small_lang::syntax::{ast, Source};
+use small_lang::syntax::ast;
 
 pub fn parse(input: impl Into<String>) -> (FileId, ast::Spanned<ast::Expr>) {
     (

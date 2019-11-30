@@ -1,7 +1,8 @@
 use crate::generate;
 use crate::optimize::Opts;
+use crate::pipeline::Source;
 use crate::rt::{Command, NumberValue, Value};
-use crate::syntax::{Source, Symbol};
+use crate::syntax::Symbol;
 
 macro_rules! test_case {
     ($name:ident, $cmds:expr) => {

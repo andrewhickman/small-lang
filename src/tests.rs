@@ -5,9 +5,10 @@ use proptest::proptest;
 use crate::check::check;
 use crate::generate::generate;
 use crate::optimize;
+use crate::pipeline::Source;
 use crate::rt::{self, EnumValue, NumberValue, Value};
 use crate::syntax::tests::{arb_expr, dummy_file_id};
-use crate::syntax::{Source, Symbol};
+use crate::syntax::Symbol;
 use crate::Error;
 
 fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
