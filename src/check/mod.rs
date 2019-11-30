@@ -3,6 +3,7 @@ pub mod scheme;
 
 mod builtin;
 mod ty;
+mod vars;
 
 use std::iter::once;
 
@@ -13,8 +14,9 @@ use mlsub::{BiunifyError, Polarity};
 
 use crate::check::scheme::{ReducedScheme, Scheme};
 use crate::check::ty::{Constructor, NumberConstructor};
+use crate::check::vars::{VarId, Vars};
 use crate::rt::{NumberValue, Value};
-use crate::syntax::{ast, ImSymbolMap, Symbol, SymbolMap};
+use crate::syntax::{ast, Symbol, SymbolMap};
 use crate::ErrorData;
 
 pub fn check<T, F>(
@@ -45,7 +47,7 @@ enum Error {
 
 struct Context<F> {
     auto: Automaton<Constructor>,
-    vars: Vec<ImSymbolMap<ReducedScheme>>,
+    vars: Vars,
     capabilities: ty::Capabilities,
     import: F,
 }
@@ -62,7 +64,7 @@ where
     fn new(import: F) -> Self {
         Context {
             auto: Automaton::new(),
-            vars: vec![ImSymbolMap::default()],
+            vars: Vars::default(),
             capabilities: ty::Capabilities::default(),
             import,
         }
@@ -115,7 +117,7 @@ where
         let ret_pair = self.auto.build_var();
         self.push_var(func.arg.val, Scheme::from_var(func.arg.val, arg_pair));
         let body = self.check_expr(&func.body, span.0)?;
-        self.pop_var();
+        self.pop_var(func.arg.val);
 
         let (scheme, domain_ty) = body.scheme.without_var(func.arg.val);
         let func_ty = self.build_func(Polarity::Pos, Some(span), arg_pair.neg, ret_pair.pos);
@@ -173,7 +175,7 @@ where
 
         self.push_var(let_expr.name.val, val.scheme.clone());
         let body = self.check_expr(&let_expr.body, span.0)?;
-        self.pop_var();
+        self.pop_var(let_expr.name.val);
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &val.scheme, &body.scheme),
@@ -189,7 +191,7 @@ where
         let func_pair = self.auto.build_var();
         self.push_var(rec.name.val, Scheme::from_var(rec.name.val, func_pair));
         let func = self.check_func(&rec.func.val, (span.0, rec.func.span), Some(rec.name.val))?;
-        self.pop_var();
+        self.pop_var(rec.name.val);
 
         let (scheme, func_ty) = func.scheme.without_var(rec.name.val);
         self.auto
@@ -201,7 +203,7 @@ where
 
         self.push_var(rec.name.val, func.scheme.clone());
         let body = self.check_expr(&rec.body, span.0)?;
-        self.pop_var();
+        self.pop_var(rec.name.val);
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &scheme, &body.scheme),
@@ -357,7 +359,7 @@ where
                 }
                 let case_expr = self.check_expr(&case.val.expr, span.0)?;
                 let (scheme, val_ty) = if let Some(name) = name {
-                    self.pop_var();
+                    self.pop_var(name);
                     case_expr.scheme.without_var(name)
                 } else {
                     (case_expr.scheme.clone(), None)
@@ -484,27 +486,19 @@ where
 
 impl<F> Context<F> {
     fn push_var(&mut self, symbol: Symbol, scheme: Scheme) {
-        let vars = self.vars.last().unwrap().clone();
-        self.vars.push(vars);
-        self.set_var(symbol, scheme)
-    }
-
-    fn set_var(&mut self, symbol: Symbol, scheme: Scheme) {
-        self.vars
-            .last_mut()
-            .unwrap()
-            .insert(symbol, scheme.reduce(&self.auto));
+        let reduced = scheme.reduce(&self.auto);
+        self.vars.push(symbol, reduced);
     }
 
     fn get_var(&mut self, symbol: Symbol) -> Option<Scheme> {
-        match self.vars.last().unwrap().get(&symbol) {
-            Some(scheme) => Some(scheme.add_to(&mut self.auto)),
+        match self.vars.get(symbol) {
+            Some(data) => Some(data.scheme().add_to(&mut self.auto)),
             None => None,
         }
     }
 
-    fn pop_var(&mut self) {
-        self.vars.pop();
+    fn pop_var(&mut self, symbol: Symbol) -> VarId {
+        self.vars.pop(symbol)
     }
 }
 
