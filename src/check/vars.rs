@@ -21,8 +21,12 @@ pub(crate) struct VarData {
 }
 
 impl Vars {
+    pub fn next(&mut self) -> VarId {
+        VarId(self.data.len() as u32)
+    }
+
     pub fn push(&mut self, name: Symbol, span: Option<FileSpan>, scheme: ReducedScheme) -> VarId {
-        let id = VarId(self.data.len() as u32);
+        let id = self.next();
         self.data.push(VarData {
             name,
             scheme,

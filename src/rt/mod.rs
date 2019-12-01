@@ -114,6 +114,7 @@ pub enum Command {
     Capture {
         rec_var: Option<VarId>,
         cmds: Rc<[Command]>,
+        vars: Vec<VarId>,
     },
     Call,
     Test {
@@ -217,8 +218,16 @@ impl Command {
                 ctx.push_stack(value.clone());
                 None
             }
-            Command::Capture { rec_var, ref cmds } => {
-                let env = ctx.vars().clone();
+            Command::Capture {
+                rec_var,
+                ref cmds,
+                ref vars,
+            } => {
+                let env = vars
+                    .iter()
+                    .filter(|&&var| rec_var != Some(var))
+                    .map(|&var| (var, ctx.get_var(var)))
+                    .collect();
                 ctx.push_stack(Value::Func(FuncValue {
                     rec_var,
                     cmds: cmds.clone(),

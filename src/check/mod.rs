@@ -51,6 +51,7 @@ struct Context<F> {
     capabilities: ty::Capabilities,
     import: F,
     warnings: Vec<Diagnostic>,
+    captures: Vec<(VarId, Vec<VarId>)>,
 }
 
 struct CheckOutput<T> {
@@ -68,6 +69,7 @@ where
             vars: Vars::default(),
             capabilities: ty::Capabilities::default(),
             warnings: vec![],
+            captures: vec![],
             import,
         }
     }
@@ -80,7 +82,7 @@ where
         let span = (file, expr.span);
         match &expr.val {
             ast::Expr::Null => self.check_null(span),
-            ast::Expr::Var(symbol) => self.check_var(*symbol, span),
+            ast::Expr::Var(name) => self.check_var(*name, span),
             ast::Expr::Func(func) => self.check_func(func, span, None),
             ast::Expr::Call(call_expr) => self.check_call(call_expr, span),
             ast::Expr::Let(let_expr) => self.check_let(let_expr, span),
@@ -98,14 +100,16 @@ where
         }
     }
 
-    fn check_var(&mut self, var: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
-        if let Some((scheme, id)) = self.get_var(var) {
+    fn check_var(&mut self, name: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+        if let Some((scheme, id)) = self.get_var(name) {
+            self.mark_var_capture(id);
+
             Ok(CheckOutput {
                 scheme,
                 expr: ir::Expr::Var(id),
             })
         } else {
-            Err(Error::UndefinedVar(span, var))
+            Err(Error::UndefinedVar(span, name))
         }
     }
 
@@ -117,6 +121,8 @@ where
     ) -> Result<CheckOutput<T>, Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
+
+        self.begin_capture();
         let arg_var = self.push_var(
             func.arg.val,
             (span.0, func.arg.span),
@@ -124,6 +130,7 @@ where
         );
         let body = self.check_expr(&func.body, span.0)?;
         self.pop_var(func.arg.val);
+        let captured_vars = self.end_capture();
 
         let (scheme, domain_ty) = body.scheme.without_var(func.arg.val);
         let func_ty = self.build_func(Polarity::Pos, Some(span), arg_pair.neg, ret_pair.pos);
@@ -140,6 +147,7 @@ where
                 arg: arg_var,
                 body: body.expr,
                 rec_var,
+                captured_vars,
             })),
         })
     }
@@ -508,7 +516,32 @@ impl<F> Context<F> {
         scheme: &Scheme,
     ) -> VarId {
         let reduced = scheme.reduce(&self.auto);
-        self.vars.push(symbol, span.into(), reduced)
+        let id = self.vars.push(symbol, span.into(), reduced);
+        log::debug!("Push var {} ({:?})", symbol, id);
+        id
+    }
+
+    fn begin_capture(&mut self) {
+        let start = self.vars.next();
+        log::debug!("Begin capture at {:?}", start);
+        self.captures.push((start, vec![]));
+    }
+
+    fn mark_var_capture(&mut self, id: VarId) {
+        log::debug!("Capture variable {:?}", id);
+        for &mut (start, ref mut captured) in self.captures.iter_mut().rev() {
+            if id < start {
+                captured.push(id);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn end_capture(&mut self) -> Vec<VarId> {
+        let (start, vars) = self.captures.pop().unwrap();
+        log::debug!("End capture at {:?}. Captured: {:?}", start, vars);
+        vars
     }
 
     fn set_var_scheme(&mut self, id: VarId, scheme: &Scheme) {
@@ -529,6 +562,7 @@ impl<F> Context<F> {
 
     fn pop_var(&mut self, symbol: Symbol) -> VarId {
         let id = self.vars.pop(symbol);
+        log::debug!("Pop var {} ({:?})", symbol, id);
         let data = self.vars.get(id);
         if data.uses == 0 {
             let (file, span) = data.span.unwrap();

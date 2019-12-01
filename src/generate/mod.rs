@@ -69,6 +69,7 @@ impl Context {
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
+            vars: func_expr.captured_vars.clone(),
         };
         self.cmds.push(capture);
     }

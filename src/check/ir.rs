@@ -26,6 +26,7 @@ pub struct Func<T = Rc<[Command]>> {
     pub arg: VarId,
     pub body: Expr<T>,
     pub rec_var: Option<VarId>,
+    pub captured_vars: Vec<VarId>,
 }
 
 #[derive(Debug)]

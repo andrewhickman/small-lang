@@ -49,6 +49,7 @@ fn inline_iife() {
                 arg: VarId::new(3),
                 body: ir::Expr::Var(VarId::new(3)),
                 rec_var: None,
+                captured_vars: vec![VarId::new(4)],
             })),
             arg: ir::Expr::Literal(rt::Value::Null),
         }))),

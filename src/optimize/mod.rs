@@ -71,13 +71,12 @@ impl ir::Expr {
         F: FnMut(ir::Expr) -> ir::Expr,
     {
         let expr = match self {
-            ir::Expr::Literal(_) | ir::Expr::Var(_) => self,
-            // TODO
-            ir::Expr::Import(_) => self,
+            ir::Expr::Literal(_) | ir::Expr::Var(_) | ir::Expr::Import(_) => self,
             ir::Expr::Func(func_expr) => ir::Expr::Func(Box::new(ir::Func {
                 arg: func_expr.arg,
                 rec_var: func_expr.rec_var,
                 body: func_expr.body.map(transform),
+                captured_vars: func_expr.captured_vars,
             })),
             ir::Expr::Call(call_expr) => ir::Expr::Call(Box::new(ir::Call {
                 arg: call_expr.arg.map(transform),
