@@ -41,16 +41,15 @@ impl Vars {
         self.ids.entry(name).or_default().last().copied()
     }
 
-    pub fn get(&self, id: VarId) -> &VarData {
-        &self.data[id.0 as usize]
-    }
-
     pub fn get_mut(&mut self, id: VarId) -> &mut VarData {
         &mut self.data[id.0 as usize]
     }
 
-    pub fn pop(&mut self, name: Symbol) -> VarId {
-        self.ids.get_mut(&name).unwrap().pop().unwrap()
+    pub fn pop(&mut self, name: Symbol) -> (VarId, VarData) {
+        let id = self.ids.get_mut(&name).unwrap().pop().unwrap();
+        let data = self.data.pop().unwrap();
+        debug_assert_eq!(id, self.next());
+        (id, data)
     }
 }
 
