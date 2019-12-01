@@ -1,7 +1,6 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
-
-use im::OrdMap;
 
 use crate::check::vars::VarId;
 use crate::rt::{Error, FuncValue, NumberValue, Runtime, Value};
@@ -43,12 +42,18 @@ impl Value {
     }
 }
 
-pub fn builtins() -> OrdMap<VarId, Value> {
-    im::ordmap! [
-        VarId::BUILTIN_EQ => binary_func("__builtin_eq", eq),
-        VarId::BUILTIN_GET_ADD => Value::builtin("__builtin_get_add", get_add),
-        VarId::BUILTIN_GET_SUB => Value::builtin("__builtin_get_sub", get_sub)
-    ]
+pub fn builtins() -> HashMap<VarId, Value> {
+    let mut builtins = HashMap::new();
+    builtins.insert(VarId::BUILTIN_EQ, binary_func("__builtin_eq", eq));
+    builtins.insert(
+        VarId::BUILTIN_GET_ADD,
+        Value::builtin("__builtin_get_add", get_add),
+    );
+    builtins.insert(
+        VarId::BUILTIN_GET_SUB,
+        Value::builtin("__builtin_get_sub", get_sub),
+    );
+    builtins
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value

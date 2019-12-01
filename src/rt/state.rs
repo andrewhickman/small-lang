@@ -1,4 +1,5 @@
-use im::OrdMap;
+use std::collections::HashMap;
+use std::iter::FromIterator;
 
 use crate::check::vars::VarId;
 use crate::rt::{Command, Error, Opts, Output, Value};
@@ -6,16 +7,18 @@ use crate::rt::{Command, Error, Opts, Output, Value};
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
     stack: Vec<Value>,
-    vars: Vec<OrdMap<VarId, Value>>,
+    builtins: HashMap<VarId, Value>,
+    var_stack: Vec<HashMap<VarId, Value>>,
     opts: Opts,
     op_count: u64,
 }
 
 impl Runtime {
-    pub fn new(vars: OrdMap<VarId, Value>, opts: Opts) -> Self {
+    pub fn new(builtins: HashMap<VarId, Value>, opts: Opts) -> Self {
         Runtime {
             stack: vec![],
-            vars: vec![vars],
+            builtins,
+            var_stack: vec![HashMap::new()],
             opts,
             op_count: 0,
         }
@@ -33,7 +36,7 @@ impl Runtime {
 
     pub fn finish(self) -> Output {
         assert_eq!(self.stack.len(), 1);
-        assert_eq!(self.vars.len(), 1);
+        assert_eq!(self.var_stack.len(), 1);
         Output {
             value: self.stack.into_iter().next().unwrap(),
             op_count: self.op_count,
@@ -62,24 +65,42 @@ impl Runtime {
         self.stack.push(value)
     }
 
-    pub fn push_vars(&mut self, new_vars: OrdMap<VarId, Value>) -> Result<(), Error> {
-        if self.vars.len() as u64 >= self.opts.max_stack {
+    pub fn push_scope<I>(&mut self, vars: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = (VarId, Value)>,
+    {
+        if self.var_stack.len() as u64 >= self.opts.max_stack {
             return Err(Error::StackOverflow);
         }
-        let all_vars = new_vars.union(self.vars().clone());
-        self.vars.push(all_vars);
+        self.var_stack.push(HashMap::from_iter(vars));
+        log::trace!("push scope {:?}", self.vars());
         Ok(())
     }
 
-    pub fn vars(&self) -> &OrdMap<VarId, Value> {
-        self.vars.last().unwrap()
+    pub fn vars(&self) -> &HashMap<VarId, Value> {
+        self.var_stack.last().unwrap()
+    }
+
+    pub fn vars_mut(&mut self) -> &mut HashMap<VarId, Value> {
+        self.var_stack.last_mut().unwrap()
+    }
+
+    pub fn set_var(&mut self, var: VarId, value: Value) {
+        log::trace!("set var {:?}", var);
+        self.vars_mut().insert(var, value);
     }
 
     pub fn get_var(&self, var: VarId) -> Value {
-        self.vars()[&var].clone()
+        log::trace!("get var {:?}", var);
+        if let Some(value) = self.builtins.get(&var) {
+            value.clone()
+        } else {
+            self.vars()[&var].clone()
+        }
     }
 
-    pub fn pop_vars(&mut self) {
-        self.vars.pop().unwrap();
+    pub fn pop_scope(&mut self) {
+        log::trace!("pop scope");
+        self.var_stack.pop();
     }
 }

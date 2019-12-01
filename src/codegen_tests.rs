@@ -30,6 +30,5 @@ test_case!(
         },
         Command::Store { var: VarId::new(3) },
         Command::Load { var: VarId::new(3) },
-        Command::End,
     ]
 );

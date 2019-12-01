@@ -56,7 +56,6 @@ impl Context {
         self.generate_expr(&let_expr.val);
         self.cmds.push(rt::Command::Store { var: let_expr.name });
         self.generate_expr(&let_expr.body);
-        self.cmds.push(rt::Command::End);
     }
 
     fn generate_func(&mut self, func_expr: &ir::Func) {
@@ -64,7 +63,6 @@ impl Context {
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.generate_expr(&func_expr.body);
-        self.cmds.push(rt::Command::End);
 
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
@@ -127,12 +125,10 @@ impl Context {
             let case_pos = self.cmds.len();
             if let Some(name) = case.name {
                 self.cmds.push(rt::Command::Store { var: name });
-                self.generate_expr(&case.expr);
-                self.cmds.push(rt::Command::End);
             } else {
                 self.cmds.push(rt::Command::Pop);
-                self.generate_expr(&case.expr);
             }
+            self.generate_expr(&case.expr);
 
             jump_offsets.insert(tag, case_pos - cases_pos);
         }

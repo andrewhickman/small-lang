@@ -2,6 +2,7 @@ mod builtin;
 mod state;
 
 use std::fmt;
+use std::iter::empty;
 use std::rc::Rc;
 
 use im::OrdMap;
@@ -144,7 +145,6 @@ pub enum Command {
     Import {
         cmds: Rc<[Command]>,
     },
-    End,
     Trap,
 }
 
@@ -195,13 +195,11 @@ impl Value {
 impl FuncValue {
     // HACK: to avoid making function types self referential, add them to their own environment
     // lazily.
-    fn env(&self) -> OrdMap<VarId, Value> {
-        let env = self.env.clone();
-        if let Some(var) = self.rec_var {
-            env.update(var, Value::Func(self.clone()))
-        } else {
-            env
-        }
+    fn env<'a>(&'a self) -> impl Iterator<Item = (VarId, Value)> + 'a {
+        self.env
+            .iter()
+            .cloned()
+            .chain(self.rec_var.map(|var| (var, Value::Func(self.clone()))))
     }
 }
 
@@ -237,9 +235,9 @@ impl Command {
             }
             Command::Call => match ctx.pop_stack() {
                 Value::Func(func) => {
-                    ctx.push_vars(func.env())?;
+                    ctx.push_scope(func.env())?;
                     ctx.exec_all(&func.cmds)?;
-                    ctx.pop_vars();
+                    ctx.pop_scope();
                     None
                 }
                 Value::Builtin { builtin, .. } => {
@@ -281,7 +279,7 @@ impl Command {
             }
             Command::Store { var } => {
                 let val = ctx.pop_stack();
-                ctx.push_vars(im::ordmap![var => val])?;
+                ctx.set_var(var, val);
                 None
             }
             Command::WrapEnum { tag } => {
@@ -294,11 +292,9 @@ impl Command {
                 None
             }
             Command::Import { ref cmds } => {
+                ctx.push_scope(empty())?;
                 ctx.exec_all(&cmds)?;
-                None
-            }
-            Command::End => {
-                ctx.pop_vars();
+                ctx.pop_scope();
                 None
             }
             Command::Trap => panic!("invalid instruction"),

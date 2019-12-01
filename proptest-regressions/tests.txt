@@ -16,3 +16,4 @@ cc a7ef4aa3c1909213ccc1f5d51fec7cadbecb85bb172a8b5ecf3ae7e839f8e8cb # shrinks to
 cc 9614abaad61aa999e49645ccd8ac9022099c2cb97a0d56ab6cde0d59f43023ee # shrinks to expr = if let rec __builtin_eq = func a => if a   then null   else null in null   then if let a = null in   21813262     then true     else b   else [r: if true     then a     else 9000307193044288197]
 cc 00a60934c1da0c27e2e0f3f39d00fdca63e189913bb27684a5f42e9b3383ac25 # shrinks to expr = let rec a = func a => null in __builtin_get_add
 cc c409972c76adaf45b17a350bf3e1b6b04f6e0da83d75f25f381e7e3edd93c03e # shrinks to expr = (let a = let a = "" in null in null).p
+cc d064366b80258eea2711a86942cd9d7e2f1daf332d9aefb0e9f589e2d9b5365f # shrinks to expr = let a = let rec a = func a => null in null in null
