@@ -28,6 +28,8 @@ impl<F> Context<F> {
             self.push_var(Symbol::new("__builtin_get_sub"), None, &sub),
             VarId::BUILTIN_GET_SUB
         );
+
+        assert_eq!(self.vars.len(), VarId::NUM_BUILTINS);
     }
 
     fn build_eq(&mut self) -> Scheme {

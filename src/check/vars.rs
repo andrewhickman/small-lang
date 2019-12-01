@@ -51,6 +51,10 @@ impl Vars {
         debug_assert_eq!(id, self.next());
         (id, data)
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 }
 
 impl VarId {
@@ -62,4 +66,9 @@ impl VarId {
     pub const BUILTIN_EQ: Self = VarId(0);
     pub const BUILTIN_GET_ADD: Self = VarId(1);
     pub const BUILTIN_GET_SUB: Self = VarId(2);
+    pub const NUM_BUILTINS: usize = 3;
+
+    pub fn is_builtin(&self) -> bool {
+        (self.0 as usize) < Self::NUM_BUILTINS
+    }
 }
