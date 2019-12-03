@@ -16,14 +16,25 @@ pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
 
 struct GenerateVisitor {
     cmds: Vec<rt::Command>,
-    captures: Vec<(VarId, SmallOrdSet<[VarId; 8]>)>,
+    scopes: Vec<Scope>,
+}
+
+type CapturedVars = SmallOrdSet<[VarId; 8]>;
+
+struct Scope {
+    depth: u32,
+}
+
+struct CaptureVisitor {
+    max_var: VarId,
+    captured_vars: CapturedVars,
 }
 
 impl GenerateVisitor {
     fn new() -> Self {
         GenerateVisitor {
             cmds: Vec::with_capacity(16),
-            captures: Vec::new(),
+            scopes: Vec::new(),
         }
     }
 }
@@ -36,14 +47,6 @@ impl ir::Visitor for GenerateVisitor {
     }
 
     fn visit_var(&mut self, var: VarId) {
-        self.captures
-            .iter_mut()
-            .rev()
-            .take_while(|&&mut (start, _)| var < start)
-            .for_each(|(_, captures)| {
-                captures.insert(var);
-            });
-
         self.cmds.push(rt::Command::Load { var })
     }
 
@@ -61,18 +64,19 @@ impl ir::Visitor for GenerateVisitor {
 
     fn visit_func(&mut self, func_expr: &ir::Func) {
         let start = self.cmds.len();
-        // NOTE: this relies on the id `func_expr.arg` being greater than all
-        // variables in enclosing scopes.
-        self.captures.push((func_expr.arg, SmallOrdSet::new()));
+
+        let captured_vars = CaptureVisitor::get_captures(func_expr);
+        self.push_scope(captured_vars.len() as u32);
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.visit_expr(&func_expr.body);
 
-        let (_, vars) = self.captures.pop().unwrap();
+        assert_eq!(self.pop_scope(), captured_vars.len() as u32);
+
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
-            vars: Vec::from_iter(vars),
+            vars: Vec::from_iter(captured_vars),
         };
         self.cmds.push(capture);
     }
@@ -150,5 +154,39 @@ impl ir::Visitor for GenerateVisitor {
 
     fn visit_import(&mut self, cmds: &Rc<[rt::Command]>) {
         self.cmds.push(rt::Command::Import { cmds: cmds.clone() });
+    }
+}
+
+impl GenerateVisitor {
+    fn push_scope(&mut self, depth: u32) {
+        self.scopes.push(Scope { depth });
+    }
+
+    fn scope(&mut self) -> &mut Scope {
+        self.scopes.last_mut().unwrap()
+    }
+
+    fn pop_scope(&mut self) -> u32 {
+        let scope = self.scopes.pop().unwrap();
+        scope.depth
+    }
+}
+
+impl ir::Visitor for CaptureVisitor {
+    fn visit_var(&mut self, var: VarId) {
+        if var < self.max_var {
+            self.captured_vars.insert(var);
+        }
+    }
+}
+
+impl CaptureVisitor {
+    fn get_captures(func_expr: &ir::Func) -> CapturedVars {
+        let mut visitor = CaptureVisitor {
+            max_var: func_expr.arg,
+            captured_vars: SmallOrdSet::new(),
+        };
+        func_expr.body.visit(&mut visitor);
+        visitor.captured_vars
     }
 }
