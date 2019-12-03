@@ -13,12 +13,14 @@ pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
 
 struct Context {
     cmds: Vec<rt::Command>,
+    captures: Vec<(VarId, Vec<VarId>)>,
 }
 
 impl Context {
     fn new() -> Self {
         Context {
             cmds: Vec::with_capacity(16),
+            captures: vec![],
         }
     }
 
@@ -43,6 +45,12 @@ impl Context {
     }
 
     fn generate_var(&mut self, var: VarId) {
+        self.captures
+            .iter_mut()
+            .rev()
+            .take_while(|&&mut (start, _)| var < start)
+            .for_each(|(_, captures)| captures.push(var));
+
         self.cmds.push(rt::Command::Load { var })
     }
 
@@ -60,14 +68,18 @@ impl Context {
 
     fn generate_func(&mut self, func_expr: &ir::Func) {
         let start = self.cmds.len();
+        // NOTE: this relies on the id `func_expr.arg` being greater than all
+        // variables in enclosing scopes.
+        self.captures.push((func_expr.arg, vec![]));
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.generate_expr(&func_expr.body);
 
+        let (_, vars) = self.captures.pop().unwrap();
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
-            vars: func_expr.captured_vars.clone(),
+            vars,
         };
         self.cmds.push(capture);
     }

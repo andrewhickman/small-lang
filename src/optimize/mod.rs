@@ -76,7 +76,6 @@ impl ir::Expr {
                 arg: func_expr.arg,
                 rec_var: func_expr.rec_var,
                 body: func_expr.body.map(transform),
-                captured_vars: func_expr.captured_vars,
             })),
             ir::Expr::Call(call_expr) => ir::Expr::Call(Box::new(ir::Call {
                 arg: call_expr.arg.map(transform),

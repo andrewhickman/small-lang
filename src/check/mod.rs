@@ -51,7 +51,6 @@ struct Context<F> {
     capabilities: ty::Capabilities,
     import: F,
     warnings: Vec<Diagnostic>,
-    captures: Vec<(VarId, Vec<VarId>)>,
 }
 
 struct CheckOutput<T> {
@@ -69,7 +68,6 @@ where
             vars: Vars::default(),
             capabilities: ty::Capabilities::default(),
             warnings: vec![],
-            captures: vec![],
             import,
         }
     }
@@ -102,8 +100,6 @@ where
 
     fn check_var(&mut self, name: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
         if let Some((scheme, id)) = self.get_var(name) {
-            self.mark_var_capture(id);
-
             Ok(CheckOutput {
                 scheme,
                 expr: ir::Expr::Var(id),
@@ -122,7 +118,6 @@ where
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
 
-        self.begin_capture();
         let arg_var = self.push_var(
             func.arg.val,
             (span.0, func.arg.span),
@@ -130,7 +125,6 @@ where
         );
         let body = self.check_expr(&func.body, span.0)?;
         self.pop_var(func.arg.val);
-        let captured_vars = self.end_capture();
 
         let (scheme, domain_ty) = body.scheme.without_var(func.arg.val);
         let func_ty = self.build_func(Polarity::Pos, Some(span), arg_pair.neg, ret_pair.pos);
@@ -147,7 +141,6 @@ where
                 arg: arg_var,
                 body: body.expr,
                 rec_var,
-                captured_vars,
             })),
         })
     }
@@ -519,29 +512,6 @@ impl<F> Context<F> {
         let id = self.vars.push(symbol, span.into(), reduced);
         log::debug!("Push var {} ({:?})", symbol, id);
         id
-    }
-
-    fn begin_capture(&mut self) {
-        let start = self.vars.next();
-        log::debug!("Begin capture at {:?}", start);
-        self.captures.push((start, vec![]));
-    }
-
-    fn mark_var_capture(&mut self, id: VarId) {
-        log::debug!("Capture variable {:?}", id);
-        for &mut (start, ref mut captured) in self.captures.iter_mut().rev() {
-            if id < start {
-                captured.push(id);
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn end_capture(&mut self) -> Vec<VarId> {
-        let (start, vars) = self.captures.pop().unwrap();
-        log::debug!("End capture at {:?}. Captured: {:?}", start, vars);
-        vars
     }
 
     fn set_var_scheme(&mut self, id: VarId, scheme: &Scheme) {
