@@ -9,45 +9,33 @@ use crate::rt;
 use crate::syntax::{ImSymbolMap, SymbolMap};
 
 pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
-    let mut ctx = Context::new();
-    ctx.generate_expr(expr);
-    ctx.cmds
+    let mut visitor = GenerateVisitor::new();
+    expr.visit(&mut visitor);
+    visitor.cmds
 }
 
-struct Context {
+struct GenerateVisitor {
     cmds: Vec<rt::Command>,
     captures: Vec<(VarId, SmallOrdSet<[VarId; 8]>)>,
 }
 
-impl Context {
+impl GenerateVisitor {
     fn new() -> Self {
-        Context {
+        GenerateVisitor {
             cmds: Vec::with_capacity(16),
             captures: Vec::new(),
         }
     }
+}
 
-    fn generate_expr(&mut self, expr: &ir::Expr) {
-        match expr {
-            ir::Expr::Literal(value) => self.generate_literal(value.clone()),
-            ir::Expr::Var(var) => self.generate_var(*var),
-            ir::Expr::Call(call_expr) => self.generate_call(&*call_expr),
-            ir::Expr::Let(let_expr) => self.generate_let(&*let_expr),
-            ir::Expr::Func(func_expr) => self.generate_func(&*func_expr),
-            ir::Expr::If(if_expr) => self.generate_if(&*if_expr),
-            ir::Expr::Proj(proj_expr) => self.generate_proj(&*proj_expr),
-            ir::Expr::Enum(enum_expr) => self.generate_enum(&*enum_expr),
-            ir::Expr::Record(record_expr) => self.generate_record(record_expr),
-            ir::Expr::Match(match_expr) => self.generate_match(&*match_expr),
-            ir::Expr::Import(import_expr) => self.generate_import(import_expr.clone()),
-        }
+impl ir::Visitor for GenerateVisitor {
+    fn visit_literal(&mut self, value: &rt::Value) {
+        self.cmds.push(rt::Command::Push {
+            value: value.clone(),
+        })
     }
 
-    fn generate_literal(&mut self, value: rt::Value) {
-        self.cmds.push(rt::Command::Push { value })
-    }
-
-    fn generate_var(&mut self, var: VarId) {
+    fn visit_var(&mut self, var: VarId) {
         self.captures
             .iter_mut()
             .rev()
@@ -59,26 +47,26 @@ impl Context {
         self.cmds.push(rt::Command::Load { var })
     }
 
-    fn generate_call(&mut self, call_expr: &ir::Call) {
-        self.generate_expr(&call_expr.arg);
-        self.generate_expr(&call_expr.func);
+    fn visit_call(&mut self, call_expr: &ir::Call) {
+        self.visit_expr(&call_expr.arg);
+        self.visit_expr(&call_expr.func);
         self.cmds.push(rt::Command::Call);
     }
 
-    fn generate_let(&mut self, let_expr: &ir::Let) {
-        self.generate_expr(&let_expr.val);
+    fn visit_let(&mut self, let_expr: &ir::Let) {
+        self.visit_expr(&let_expr.val);
         self.cmds.push(rt::Command::Store { var: let_expr.name });
-        self.generate_expr(&let_expr.body);
+        self.visit_expr(&let_expr.body);
     }
 
-    fn generate_func(&mut self, func_expr: &ir::Func) {
+    fn visit_func(&mut self, func_expr: &ir::Func) {
         let start = self.cmds.len();
         // NOTE: this relies on the id `func_expr.arg` being greater than all
         // variables in enclosing scopes.
         self.captures.push((func_expr.arg, SmallOrdSet::new()));
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
-        self.generate_expr(&func_expr.body);
+        self.visit_expr(&func_expr.body);
 
         let (_, vars) = self.captures.pop().unwrap();
         let capture = rt::Command::Capture {
@@ -89,16 +77,16 @@ impl Context {
         self.cmds.push(capture);
     }
 
-    fn generate_if(&mut self, if_expr: &ir::If) {
-        self.generate_expr(&if_expr.cond);
+    fn visit_if(&mut self, if_expr: &ir::If) {
+        self.visit_expr(&if_expr.cond);
 
         self.cmds.push(rt::Command::Trap);
         let alt_pos = self.cmds.len();
-        self.generate_expr(&if_expr.alt);
+        self.visit_expr(&if_expr.alt);
 
         self.cmds.push(rt::Command::Trap);
         let cons_pos = self.cmds.len();
-        self.generate_expr(&if_expr.cons);
+        self.visit_expr(&if_expr.cons);
 
         self.cmds[alt_pos - 1] = rt::Command::Test {
             jump_offset: cons_pos - alt_pos,
@@ -108,30 +96,30 @@ impl Context {
         };
     }
 
-    fn generate_proj(&mut self, proj_expr: &ir::Proj) {
-        self.generate_expr(&proj_expr.expr);
+    fn visit_proj(&mut self, proj_expr: &ir::Proj) {
+        self.visit_expr(&proj_expr.expr);
         self.cmds.push(rt::Command::Get {
             field: proj_expr.field,
         });
     }
 
-    fn generate_enum(&mut self, enum_expr: &ir::Enum) {
-        self.generate_expr(&enum_expr.expr);
+    fn visit_enum(&mut self, enum_expr: &ir::Enum) {
+        self.visit_expr(&enum_expr.expr);
         self.cmds.push(rt::Command::WrapEnum { tag: enum_expr.tag });
     }
 
-    fn generate_record(&mut self, record_expr: &SymbolMap<ir::Expr>) {
+    fn visit_record(&mut self, record_expr: &SymbolMap<ir::Expr>) {
         self.cmds.push(rt::Command::Push {
             value: rt::Value::Record(Default::default()),
         });
         for (&field, val) in record_expr {
-            self.generate_expr(&val);
+            self.visit_expr(&val);
             self.cmds.push(rt::Command::Set { field });
         }
     }
 
-    fn generate_match(&mut self, match_expr: &ir::Match) {
-        self.generate_expr(&match_expr.expr);
+    fn visit_match(&mut self, match_expr: &ir::Match) {
+        self.visit_expr(&match_expr.expr);
 
         let mut jump_offsets = ImSymbolMap::default();
 
@@ -145,7 +133,7 @@ impl Context {
             } else {
                 self.cmds.push(rt::Command::Pop);
             }
-            self.generate_expr(&case.expr);
+            self.visit_expr(&case.expr);
 
             jump_offsets.insert(tag, case_pos - cases_pos);
         }
@@ -160,7 +148,7 @@ impl Context {
         self.cmds[cases_pos - 1] = rt::Command::Match { jump_offsets };
     }
 
-    fn generate_import(&mut self, cmds: Rc<[rt::Command]>) {
-        self.cmds.push(rt::Command::Import { cmds });
+    fn visit_import(&mut self, cmds: &Rc<[rt::Command]>) {
+        self.cmds.push(rt::Command::Import { cmds: cmds.clone() });
     }
 }
