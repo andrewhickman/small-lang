@@ -1,4 +1,7 @@
+use std::iter::FromIterator;
 use std::rc::Rc;
+
+use small_ord_set::SmallOrdSet;
 
 use crate::check::ir;
 use crate::check::vars::VarId;
@@ -13,14 +16,14 @@ pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
 
 struct Context {
     cmds: Vec<rt::Command>,
-    captures: Vec<(VarId, Vec<VarId>)>,
+    captures: Vec<(VarId, SmallOrdSet<[VarId; 8]>)>,
 }
 
 impl Context {
     fn new() -> Self {
         Context {
             cmds: Vec::with_capacity(16),
-            captures: vec![],
+            captures: Vec::new(),
         }
     }
 
@@ -49,7 +52,9 @@ impl Context {
             .iter_mut()
             .rev()
             .take_while(|&&mut (start, _)| var < start)
-            .for_each(|(_, captures)| captures.push(var));
+            .for_each(|(_, captures)| {
+                captures.insert(var);
+            });
 
         self.cmds.push(rt::Command::Load { var })
     }
@@ -70,7 +75,7 @@ impl Context {
         let start = self.cmds.len();
         // NOTE: this relies on the id `func_expr.arg` being greater than all
         // variables in enclosing scopes.
-        self.captures.push((func_expr.arg, vec![]));
+        self.captures.push((func_expr.arg, SmallOrdSet::new()));
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.generate_expr(&func_expr.body);
@@ -79,7 +84,7 @@ impl Context {
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
-            vars,
+            vars: Vec::from_iter(vars),
         };
         self.cmds.push(capture);
     }
