@@ -1,3 +1,5 @@
+pub mod graph;
+
 use std::iter::once;
 use std::rc::Rc;
 
@@ -5,13 +7,13 @@ use mlsub::auto::{flow, Automaton, StateId};
 use mlsub::Polarity;
 
 use crate::check::ty::Constructor;
-use crate::syntax::{ImSymbolMap, Symbol};
+use crate::syntax::Symbol;
 
 /// Represents a typing scheme, with variable substitutions produced by biunification.
 #[derive(Debug, Clone)]
 pub struct Scheme {
     ty: StateId,
-    env: ImSymbolMap<StateId>,
+    env: im::OrdMap<Symbol, StateId>,
 }
 
 /// A typing scheme in reduced form.
@@ -25,14 +27,14 @@ impl Scheme {
     pub fn empty(ty: StateId) -> Self {
         Scheme {
             ty,
-            env: ImSymbolMap::default(),
+            env: im::OrdMap::default(),
         }
     }
 
     pub fn from_var(var: Symbol, pair: flow::Pair) -> Self {
         Scheme {
             ty: pair.pos,
-            env: once((var, pair.neg)).collect(),
+            env: im::ordmap![var => pair.neg],
         }
     }
 
@@ -41,7 +43,7 @@ impl Scheme {
     }
 
     pub fn join(auto: &mut Automaton<Constructor>, ty: StateId, lhs: &Self, rhs: &Self) -> Self {
-        let env = ImSymbolMap::union_with(lhs.env.clone(), rhs.env.clone(), |l, r| {
+        let env = im::OrdMap::union_with(lhs.env.clone(), rhs.env.clone(), |l, r| {
             auto.build_add(Polarity::Neg, [l, r].iter().cloned())
         });
         Scheme { ty, env }
@@ -67,21 +69,20 @@ impl Scheme {
         }
     }
 
-    pub(in crate::check) fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
-        let env: Vec<(Symbol, StateId)> = self.env.iter().copied().collect();
+    fn states<'a>(&'a self) -> impl Iterator<Item = (StateId, Polarity)> + 'a {
+        once((self.ty, Polarity::Pos)).chain(self.env.iter().map(|&(_, id)| (id, Polarity::Neg)))
+    }
 
+    pub(in crate::check) fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
         let mut reduced_auto = Automaton::new();
-        let mut range = reduced_auto.reduce(
-            auto,
-            once((self.ty, Polarity::Pos)).chain(env.iter().map(|&(_, id)| (id, Polarity::Neg))),
-        );
+        let mut range = reduced_auto.reduce(auto, self.states());
 
         ReducedScheme {
             auto: Rc::new(reduced_auto),
             scheme: Scheme {
                 ty: range.next().unwrap(),
-                env: itertools::zip_eq(env, range)
-                    .map(|((var, _), id)| (var, id))
+                env: itertools::zip_eq(&self.env, range)
+                    .map(|(&(var, _), id)| (var, id))
                     .collect(),
             },
         }

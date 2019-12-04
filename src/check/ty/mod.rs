@@ -189,8 +189,12 @@ impl mlsub::Constructor for Constructor {
         debug_assert_eq!(self.component(), other.component());
 
         match (&self.kind, &other.kind) {
-            (ConstructorKind::Func(l), ConstructorKind::Func(r)) => l.visit_params(r, visit),
-            (ConstructorKind::Object(l), ConstructorKind::Object(r)) => l.visit_params(r, visit),
+            (ConstructorKind::Func(l), ConstructorKind::Func(r)) => {
+                l.visit_params_intersection(r, visit)
+            }
+            (ConstructorKind::Object(l), ConstructorKind::Object(r)) => {
+                l.visit_params_intersection(r, visit)
+            }
             (ConstructorKind::Record(l), ConstructorKind::Record(r)) => {
                 visit_ordmap_intersection(l, r, visit, Label::Field)
             }
@@ -296,6 +300,29 @@ impl PartialOrd for Constructor {
     }
 }
 
+impl Constructor {
+    pub fn visit_params<F>(&self, visit: F)
+    where
+        F: FnMut(Label, &StateSet),
+    {
+        match &self.kind {
+            ConstructorKind::Null
+            | ConstructorKind::Bool
+            | ConstructorKind::String
+            | ConstructorKind::Number(_) => (),
+            ConstructorKind::Func(func) => func.visit_params(visit),
+            ConstructorKind::Object(object) => object.visit_params(visit),
+            ConstructorKind::Record(fields) => visit_ordmap(fields, visit, Label::Field),
+            ConstructorKind::Enum(tags) => visit_ordmap(tags, visit, Label::Tag),
+            ConstructorKind::Capabilities(caps) => visit_ordmap(
+                caps.borrow().as_ref().expect("capabilities not set"),
+                visit,
+                Label::Capability,
+            ),
+        }
+    }
+}
+
 impl PartialEq for Constructor {
     fn eq(&self, other: &Self) -> bool {
         self.partial_cmp(other) == Some(Ordering::Equal)
@@ -308,13 +335,21 @@ impl FuncConstructor {
         self.range.union(&other.range);
     }
 
-    fn visit_params<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
+    fn visit_params_intersection<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
     where
         F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
     {
         visit(Label::Domain, &self.domain, &other.domain)?;
         visit(Label::Range, &self.range, &other.range)?;
         Ok(())
+    }
+
+    fn visit_params<F>(&self, mut visit: F)
+    where
+        F: FnMut(Label, &StateSet),
+    {
+        visit(Label::Domain, &self.domain);
+        visit(Label::Range, &self.range);
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -334,7 +369,7 @@ impl ObjectConstructor {
         self.capabilities.union(&other.capabilities);
     }
 
-    fn visit_params<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
+    fn visit_params_intersection<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
     where
         F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
     {
@@ -345,6 +380,14 @@ impl ObjectConstructor {
             &other.capabilities,
         )?;
         Ok(())
+    }
+
+    fn visit_params<F>(&self, mut visit: F)
+    where
+        F: FnMut(Label, &StateSet),
+    {
+        visit(Label::ObjectData, &self.data);
+        visit(Label::ObjectCapabilities, &self.capabilities);
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -605,6 +648,15 @@ where
         itertools::EitherOrBoth::Both(l, r) => visit(label(l.0), &l.1, &r.1),
         _ => Ok(()),
     })
+}
+
+fn visit_ordmap<F, L>(map: &OrdMap<Symbol, StateSet>, mut visit: F, mut label: L)
+where
+    F: FnMut(Label, &StateSet),
+    L: FnMut(Symbol) -> Label,
+{
+    map.iter()
+        .for_each(|(symbol, id)| visit(label(*symbol), id))
 }
 
 #[cfg(test)]

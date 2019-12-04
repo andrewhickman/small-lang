@@ -42,7 +42,12 @@ fn run(args: &Args, stderr: &mut impl WriteColor) -> Result<(), small_lang::Erro
         Command::Check { ref file } => {
             let result = small_lang::check(Source::File(file));
             result.emit_warnings(stderr)?;
-            result.into_result().map(drop)
+            let scheme_graph = result.into_result()?.to_graph();
+
+            serde_json::to_writer_pretty(io::stdout().lock(), &scheme_graph)
+                .map_err(small_lang::Error::basic)?;
+            println!();
+            Ok(())
         }
         Command::Run {
             ref file,
