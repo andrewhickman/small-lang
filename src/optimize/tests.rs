@@ -7,7 +7,7 @@ use crate::rt;
 use crate::syntax::tests::{arb_expr, dummy_file_id};
 
 const RUNTIME_OPTIONS: rt::Opts = rt::Opts {
-    max_stack: 1024,
+    max_stack: 32,
     max_ops: Some(1_048_576),
 };
 

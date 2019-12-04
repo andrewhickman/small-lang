@@ -17,7 +17,7 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
         Source::File(file.as_ref()),
         optimize::Opts::default(),
         rt::Opts {
-            max_stack: 512,
+            max_stack: 32,
             max_ops: Some(100_000),
         },
     )
@@ -173,7 +173,7 @@ proptest! {
         if let Ok((_, expr, _)) = check(dummy_file_id(), &expr, |_| unreachable!()) {
             let cmds = generate(&expr);
             rt::run(&cmds, rt::Opts {
-                max_stack: 1024,
+                max_stack: 32,
                 max_ops: Some(1_048_576),
             }).ok();
         }

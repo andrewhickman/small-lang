@@ -23,7 +23,7 @@ pub fn run(cmds: &[Command], opts: Opts) -> Result<Output, Error> {
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "structopt", derive(structopt::StructOpt))]
 pub struct Opts {
-    #[cfg_attr(feature = "structopt", structopt(long, default_value = "512"))]
+    #[cfg_attr(feature = "structopt", structopt(long, default_value = "32"))]
     pub max_stack: u64,
     #[cfg_attr(feature = "structopt", structopt(long))]
     pub max_ops: Option<u64>,
@@ -38,7 +38,7 @@ pub struct Output {
 impl Default for Opts {
     fn default() -> Self {
         Opts {
-            max_stack: 512,
+            max_stack: 32,
             max_ops: None,
         }
     }
