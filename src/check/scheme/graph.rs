@@ -134,7 +134,7 @@ struct SerializeNode {
 struct SerializeNodeValue {
     label: &'static str,
     polarity: &'static str,
-    components: SmallVec<[String; 1]>,
+    components: SmallVec<[&'static str; 1]>,
 }
 
 struct SerializeEdges<'a> {
@@ -183,7 +183,7 @@ impl<'a> Serialize for SerializeNodes<'a> {
                     components: SmallVec::from_iter(
                         node.constructors
                             .iter()
-                            .map(|constructor| constructor.to_string()),
+                            .map(|constructor| constructor.short_name()),
                     ),
                 },
             })?;

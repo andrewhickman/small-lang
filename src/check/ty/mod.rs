@@ -321,6 +321,20 @@ impl Constructor {
             ),
         }
     }
+
+    pub fn short_name(&self) -> &'static str {
+        match &self.kind {
+            ConstructorKind::Null => "null",
+            ConstructorKind::Bool => "bool",
+            ConstructorKind::String => "string",
+            ConstructorKind::Number(num) => num.short_name(),
+            ConstructorKind::Func(_) => "func",
+            ConstructorKind::Object(_) => "object",
+            ConstructorKind::Record(_) => "record",
+            ConstructorKind::Enum(_) => "enum",
+            ConstructorKind::Capabilities(_) => "capabilities",
+        }
+    }
 }
 
 impl PartialEq for Constructor {
@@ -575,30 +589,33 @@ impl<F> Context<F> {
 
 impl fmt::Display for Constructor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let short_name = self.short_name();
         match &self.kind {
-            ConstructorKind::Null => "null".fmt(f),
-            ConstructorKind::Bool => "bool".fmt(f),
-            ConstructorKind::Number(num) => num.fmt(f),
-            ConstructorKind::String => "string".fmt(f),
-            ConstructorKind::Func(_) => "func".fmt(f),
-            ConstructorKind::Object(_) => "object".fmt(f),
-            ConstructorKind::Record(labels) => write!(f, "record {{{}}}", Labels(labels)),
-            ConstructorKind::Enum(labels) => write!(f, "enum [{}]", Labels(labels)),
+            ConstructorKind::Record(labels) => write!(f, "{} {{{}}}", short_name, Labels(labels)),
+            ConstructorKind::Enum(labels) => write!(f, "{} [{}]", short_name, Labels(labels)),
             ConstructorKind::Capabilities(labels) => write!(
                 f,
-                "capabilities {{{}}}",
+                "{} {{{}}}",
+                short_name,
                 Labels(labels.borrow().as_ref().expect("capabilities not set"))
             ),
+            _ => short_name.fmt(f),
+        }
+    }
+}
+
+impl NumberConstructor {
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            NumberConstructor::Int => "int",
+            NumberConstructor::Float => "number",
         }
     }
 }
 
 impl fmt::Display for NumberConstructor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            NumberConstructor::Int => "int".fmt(f),
-            NumberConstructor::Float => "number".fmt(f),
-        }
+        self.short_name().fmt(f)
     }
 }
 
