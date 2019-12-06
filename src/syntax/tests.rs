@@ -15,7 +15,7 @@ pub fn arb_expr() -> impl Strategy<Value = ast::Spanned<ast::Expr>> {
         3 => arb_var_symbol().prop_map(ast::Expr::Var),
     ]
     .prop_map(spanned)
-    .prop_recursive(8, 128, 4, |expr| {
+    .prop_recursive(32, 4096, 4, |expr| {
         prop_oneof![
             arb_symbol_map(expr.clone()).prop_map(ast::Expr::Record),
             arb_func(expr.clone()).prop_map(|func| ast::Expr::Func(Box::new(func))),
