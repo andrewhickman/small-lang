@@ -9,7 +9,6 @@ use crate::syntax::Symbol;
 
 impl<F> Context<F> {
     pub(in crate::check) fn set_builtins(&mut self) {
-        self.set_empty_capabilities();
         self.set_number_capabilities();
         self.set_string_capabilities();
 
@@ -58,24 +57,16 @@ impl<F> Context<F> {
         Scheme::empty(self.build_func(Polarity::Pos, None, capability, capability_pair.pos))
     }
 
-    fn set_empty_capabilities(&mut self) {
-        self.capabilities
-            .set_empty(OrdMap::default(), OrdMap::default())
-    }
-
     fn set_number_capabilities(&mut self) {
         let pos = self.build_number_capabilities(Polarity::Pos, NumberConstructor::Int);
-        let neg = self.build_number_capabilities(Polarity::Neg, NumberConstructor::Int);
-        self.capabilities.set_int(pos, neg);
+        self.capabilities.set_int(pos);
         let pos = self.build_number_capabilities(Polarity::Pos, NumberConstructor::Float);
-        let neg = self.build_number_capabilities(Polarity::Neg, NumberConstructor::Float);
-        self.capabilities.set_float(pos, neg);
+        self.capabilities.set_float(pos);
     }
 
     fn set_string_capabilities(&mut self) {
         let pos = self.build_string_capabilities(Polarity::Pos);
-        let neg = self.build_string_capabilities(Polarity::Neg);
-        self.capabilities.set_string(pos, neg);
+        self.capabilities.set_string(pos);
     }
 
     fn build_number_capabilities(

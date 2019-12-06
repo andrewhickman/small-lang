@@ -431,21 +431,11 @@ impl mlsub::Label for Label {
 
 impl<F> Context<F> {
     pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Null,
-            self.capabilities.empty(pol),
-        )
+        self.build_object(pol, span, ConstructorKind::Null, self.capabilities.empty())
     }
 
     pub fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Bool,
-            self.capabilities.empty(pol),
-        )
+        self.build_object(pol, span, ConstructorKind::Bool, self.capabilities.empty())
     }
 
     pub fn build_number(
@@ -458,7 +448,10 @@ impl<F> Context<F> {
             pol,
             span,
             ConstructorKind::Number(num),
-            self.capabilities.number(pol, num),
+            match pol {
+                Polarity::Pos => self.capabilities.number(num),
+                Polarity::Neg => self.capabilities.empty(),
+            },
         )
     }
 
@@ -467,7 +460,10 @@ impl<F> Context<F> {
             pol,
             span,
             ConstructorKind::String,
-            self.capabilities.string(pol),
+            match pol {
+                Polarity::Pos => self.capabilities.string(),
+                Polarity::Neg => self.capabilities.empty(),
+            },
         )
     }
 
@@ -485,7 +481,7 @@ impl<F> Context<F> {
                 domain: StateSet::new(domain),
                 range: StateSet::new(range),
             }),
-            self.capabilities.empty(pol),
+            self.capabilities.empty(),
         )
     }
 
@@ -501,7 +497,7 @@ impl<F> Context<F> {
                     .map(|(sym, id)| (sym, StateSet::new(id)))
                     .collect(),
             ),
-            self.capabilities.empty(pol),
+            self.capabilities.empty(),
         )
     }
 
@@ -517,7 +513,7 @@ impl<F> Context<F> {
                     .map(|(tag, ty)| (tag, StateSet::new(ty)))
                     .collect(),
             ),
-            self.capabilities.empty(pol),
+            self.capabilities.empty(),
         )
     }
 
