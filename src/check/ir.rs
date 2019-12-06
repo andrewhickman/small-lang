@@ -4,7 +4,7 @@ use crate::check::VarId;
 use crate::rt::{Command, Value};
 use crate::syntax::{Symbol, SymbolMap};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum Expr<T = Rc<[Command]>> {
     Literal(Value),
@@ -20,7 +20,7 @@ pub enum Expr<T = Rc<[Command]>> {
     Import(T),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Func<T = Rc<[Command]>> {
     pub arg: VarId,
@@ -28,14 +28,14 @@ pub struct Func<T = Rc<[Command]>> {
     pub rec_var: Option<VarId>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Call<T = Rc<[Command]>> {
     pub arg: Expr<T>,
     pub func: Expr<T>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Let<T = Rc<[Command]>> {
     pub name: VarId,
@@ -43,7 +43,7 @@ pub struct Let<T = Rc<[Command]>> {
     pub body: Expr<T>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct If<T = Rc<[Command]>> {
     pub cond: Expr<T>,
@@ -51,28 +51,28 @@ pub struct If<T = Rc<[Command]>> {
     pub alt: Expr<T>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Proj<T = Rc<[Command]>> {
     pub expr: Expr<T>,
     pub field: Symbol,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Enum<T = Rc<[Command]>> {
     pub tag: Symbol,
     pub expr: Expr<T>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Match<T = Rc<[Command]>> {
     pub expr: Expr<T>,
     pub cases: SymbolMap<MatchCase<T>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct MatchCase<T = Rc<[Command]>> {
     pub expr: Expr<T>,
@@ -81,6 +81,10 @@ pub struct MatchCase<T = Rc<[Command]>> {
 
 pub trait Visitor<T = Rc<[Command]>> {
     fn visit_expr(&mut self, expr: &Expr<T>) {
+        self.visit_expr_match(expr)
+    }
+
+    fn visit_expr_match(&mut self, expr: &Expr<T>) {
         match expr {
             Expr::Literal(value) => self.visit_literal(value),
             Expr::Var(var) => self.visit_var(*var),
@@ -144,10 +148,86 @@ pub trait Visitor<T = Rc<[Command]>> {
     fn visit_import(&mut self, _import: &T) {}
 }
 
+pub trait VisitorMut<T = Rc<[Command]>> {
+    fn visit_expr(&mut self, expr: &mut Expr<T>) {
+        self.visit_expr_match(expr)
+    }
+
+    fn visit_expr_match(&mut self, expr: &mut Expr<T>) {
+        match expr {
+            Expr::Literal(value) => self.visit_literal(value),
+            Expr::Var(var) => self.visit_var(&mut *var),
+            Expr::Call(call_expr) => self.visit_call(&mut *call_expr),
+            Expr::Let(let_expr) => self.visit_let(&mut *let_expr),
+            Expr::Func(func_expr) => self.visit_func(&mut *func_expr),
+            Expr::If(if_expr) => self.visit_if(&mut *if_expr),
+            Expr::Proj(proj_expr) => self.visit_proj(&mut *proj_expr),
+            Expr::Enum(enum_expr) => self.visit_enum(&mut *enum_expr),
+            Expr::Record(record_expr) => self.visit_record(record_expr),
+            Expr::Match(match_expr) => self.visit_match(match_expr),
+            Expr::Import(import_expr) => self.visit_import(import_expr),
+        }
+    }
+
+    fn visit_literal(&mut self, _value: &mut Value) {}
+
+    fn visit_var(&mut self, _var: &mut VarId) {}
+
+    fn visit_call(&mut self, call_expr: &mut Call<T>) {
+        self.visit_expr(&mut call_expr.arg);
+        self.visit_expr(&mut call_expr.func);
+    }
+
+    fn visit_let(&mut self, let_expr: &mut Let<T>) {
+        self.visit_expr(&mut let_expr.val);
+        self.visit_expr(&mut let_expr.body);
+    }
+
+    fn visit_func(&mut self, func_expr: &mut Func<T>) {
+        self.visit_expr(&mut func_expr.body);
+    }
+
+    fn visit_if(&mut self, if_expr: &mut If<T>) {
+        self.visit_expr(&mut if_expr.cond);
+        self.visit_expr(&mut if_expr.cons);
+        self.visit_expr(&mut if_expr.alt);
+    }
+
+    fn visit_proj(&mut self, proj_expr: &mut Proj<T>) {
+        self.visit_expr(&mut proj_expr.expr);
+    }
+
+    fn visit_enum(&mut self, enum_expr: &mut Enum<T>) {
+        self.visit_expr(&mut enum_expr.expr);
+    }
+
+    fn visit_record(&mut self, record_expr: &mut SymbolMap<Expr<T>>) {
+        for expr in record_expr.values_mut() {
+            self.visit_expr(expr);
+        }
+    }
+
+    fn visit_match(&mut self, record_expr: &mut Match<T>) {
+        self.visit_expr(&mut record_expr.expr);
+        for case in record_expr.cases.values_mut() {
+            self.visit_expr(&mut case.expr);
+        }
+    }
+
+    fn visit_import(&mut self, _import: &mut T) {}
+}
+
 impl<T> Expr<T> {
     pub fn visit<V>(&self, visitor: &mut V)
     where
         V: Visitor<T> + ?Sized,
+    {
+        visitor.visit_expr(self)
+    }
+
+    pub fn visit_mut<V>(&mut self, visitor: &mut V)
+    where
+        V: VisitorMut<T> + ?Sized,
     {
         visitor.visit_expr(self)
     }
