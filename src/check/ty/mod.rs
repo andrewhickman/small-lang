@@ -64,7 +64,7 @@ pub struct FuncConstructor {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjectConstructor {
     data: StateSet,
-    capabilities: StateSet,
+    capabilities: Option<StateSet>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -277,7 +277,9 @@ impl PartialOrd for Constructor {
             (ConstructorKind::String, ConstructorKind::String) => Some(Ordering::Equal),
             (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
             (ConstructorKind::Func(_), ConstructorKind::Func(_)) => Some(Ordering::Equal),
-            (ConstructorKind::Object(_), ConstructorKind::Object(_)) => Some(Ordering::Equal),
+            (ConstructorKind::Object(lhs), ConstructorKind::Object(rhs)) => {
+                PartialOrd::partial_cmp(lhs, rhs)
+            }
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
             }
@@ -380,7 +382,11 @@ impl FuncConstructor {
 impl ObjectConstructor {
     fn join(&mut self, other: &Self) {
         self.data.union(&other.data);
-        self.capabilities.union(&other.capabilities);
+        match (&mut self.capabilities, &other.capabilities) {
+            (Some(lhs), Some(rhs)) => lhs.union(rhs),
+            (None, Some(rhs)) => self.capabilities = Some(rhs.clone()),
+            (_, None) => (),
+        };
     }
 
     fn visit_params_intersection<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
@@ -388,11 +394,9 @@ impl ObjectConstructor {
         F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
     {
         visit(Label::ObjectData, &self.data, &other.data)?;
-        visit(
-            Label::ObjectCapabilities,
-            &self.capabilities,
-            &other.capabilities,
-        )?;
+        if let (Some(lhs), Some(rhs)) = (&self.capabilities, &other.capabilities) {
+            visit(Label::ObjectCapabilities, lhs, rhs)?;
+        }
         Ok(())
     }
 
@@ -401,7 +405,9 @@ impl ObjectConstructor {
         F: FnMut(Label, &StateSet),
     {
         visit(Label::ObjectData, &self.data);
-        visit(Label::ObjectCapabilities, &self.capabilities);
+        if let Some(capabilities) = &self.capabilities {
+            visit(Label::ObjectCapabilities, capabilities);
+        }
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -410,7 +416,26 @@ impl ObjectConstructor {
     {
         ObjectConstructor {
             data: mapper(Label::ObjectData, self.data),
-            capabilities: mapper(Label::ObjectCapabilities, self.capabilities),
+            capabilities: self
+                .capabilities
+                .map(|capabilities| mapper(Label::ObjectCapabilities, capabilities)),
+        }
+    }
+}
+
+impl PartialOrd for ObjectConstructor {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Ord::cmp(self, other))
+    }
+}
+
+impl Ord for ObjectConstructor {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.capabilities, &other.capabilities) {
+            (Some(_), Some(_)) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
+            (None, None) => Ordering::Equal,
         }
     }
 }
@@ -448,10 +473,7 @@ impl<F> Context<F> {
             pol,
             span,
             ConstructorKind::Number(num),
-            match pol {
-                Polarity::Pos => self.capabilities.number(num),
-                Polarity::Neg => self.capabilities.empty(),
-            },
+            self.capabilities.number(num),
         )
     }
 
@@ -460,10 +482,7 @@ impl<F> Context<F> {
             pol,
             span,
             ConstructorKind::String,
-            match pol {
-                Polarity::Pos => self.capabilities.string(),
-                Polarity::Neg => self.capabilities.empty(),
-            },
+            self.capabilities.string(),
         )
     }
 
@@ -549,7 +568,7 @@ impl<F> Context<F> {
             Constructor::new(
                 ConstructorKind::Object(ObjectConstructor {
                     data: StateSet::new(data),
-                    capabilities: StateSet::new(capabilities),
+                    capabilities: Some(StateSet::new(capabilities)),
                 }),
                 span,
             ),
@@ -566,16 +585,19 @@ impl<F> Context<F> {
         let data = self
             .auto
             .build_constructed(pol, Constructor::new(data, span));
-        let capabilities = self.auto.build_constructed(
-            pol,
-            Constructor::new(ConstructorKind::Capabilities(capabilities), span),
-        );
+        let capabilities = match pol {
+            Polarity::Pos => Some(self.auto.build_constructed(
+                pol,
+                Constructor::new(ConstructorKind::Capabilities(capabilities), span),
+            )),
+            Polarity::Neg => None,
+        };
         self.auto.build_constructed(
             pol,
             Constructor::new(
                 ConstructorKind::Object(ObjectConstructor {
                     data: StateSet::new(data),
-                    capabilities: StateSet::new(capabilities),
+                    capabilities: capabilities.map(StateSet::new),
                 }),
                 span,
             ),

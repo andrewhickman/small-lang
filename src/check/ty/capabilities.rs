@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use im::OrdMap;
 use mlsub::auto::StateSet;
-use mlsub::Polarity;
 
 use crate::check::ty::NumberConstructor;
 use crate::syntax::Symbol;
@@ -27,10 +26,6 @@ impl Default for Capabilities {
 }
 
 impl Capabilities {
-    pub fn set_empty(&self, capabilities: OrdMap<Symbol, StateSet>) {
-        *self.empty.borrow_mut() = Some(capabilities);
-    }
-
     pub fn set_int(&self, capabilities: OrdMap<Symbol, StateSet>) {
         *self.int.borrow_mut() = Some(capabilities);
     }
