@@ -9,7 +9,7 @@ pub fn optimize(mut expr: ir::Expr, opts: Opts) -> ir::Expr {
         transforms: vec![inline_iife::INSTANCE],
     };
 
-    let mut budget = match opts.opt_level {
+    let mut budget: u32 = match opts.opt_level {
         0 => 0,
         1 => 100,
         2 => 200,
@@ -17,13 +17,15 @@ pub fn optimize(mut expr: ir::Expr, opts: Opts) -> ir::Expr {
     };
 
     while budget != 0 {
-        expr = pass.transform(expr, &mut budget);
+        let result = pass.transform(expr);
+        expr = result.0;
+        budget = budget.saturating_sub(result.1);
     }
     expr
 }
 
 trait Transform {
-    fn transform(&self, expr: ir::Expr, budget: &mut u32) -> ir::Expr;
+    fn transform(&self, expr: ir::Expr) -> (ir::Expr, u32);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -47,14 +49,15 @@ struct Pass {
 }
 
 impl Transform for Pass {
-    fn transform(&self, mut expr: ir::Expr, budget: &mut u32) -> ir::Expr {
+    fn transform(&self, mut expr: ir::Expr) -> (ir::Expr, u32) {
+        let mut cost = 0;
         for transform in &self.transforms {
-            if *budget == 0 {
-                return expr;
-            }
-            expr = transform.transform(expr, budget);
+            let result = transform.transform(expr);
+            debug_assert_ne!(result.1, 0);
+            expr = result.0;
+            cost += result.1;
         }
-        expr
+        (expr, cost)
     }
 }
 

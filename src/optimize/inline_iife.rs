@@ -6,15 +6,14 @@ pub(in crate::optimize) static INSTANCE: &(dyn Transform + Send + Sync) = &Inlin
 struct InlineIife;
 
 impl Transform for InlineIife {
-    fn transform(&self, expr: ir::Expr, budget: &mut u32) -> ir::Expr {
-        let mut sub_budget = 20u32;
+    fn transform(&self, expr: ir::Expr) -> (ir::Expr, u32) {
+        let mut cost = 20u32;
         let expr = expr.map(&mut |expr| {
-            let (expr, cost) = transform(expr);
-            sub_budget = sub_budget.saturating_sub(cost);
+            let (expr, changes) = transform(expr);
+            cost = 1 + cost.saturating_sub(changes);
             expr
         });
-        *budget = budget.saturating_sub(1 + sub_budget);
-        expr
+        (expr, cost)
     }
 }
 
