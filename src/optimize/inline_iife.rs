@@ -38,26 +38,15 @@ fn transform(expr: ir::Expr) -> (ir::Expr, u32) {
 }
 
 #[test]
-fn inline_iife() {
-    use crate::check::vars::VarId;
-    use crate::rt;
+fn test_transform() {
+    use crate::optimize::tests::generate_ir;
 
     assert_eq!(
-        transform(ir::Expr::Call(Box::new(ir::Call {
-            func: ir::Expr::Func(Box::new(ir::Func {
-                arg: VarId::new(3),
-                body: ir::Expr::Var(VarId::new(3)),
-                rec_var: None,
-            })),
-            arg: ir::Expr::Literal(rt::Value::Null),
-        }))),
-        (
-            ir::Expr::Let(Box::new(ir::Let {
-                name: VarId::new(3),
-                val: ir::Expr::Literal(rt::Value::Null),
-                body: ir::Expr::Var(VarId::new(3)),
-            })),
-            4
-        )
+        transform(generate_ir("(func x => x) null")),
+        (generate_ir("let x = null in x"), 4)
+    );
+    assert_eq!(
+        transform(generate_ir("{ a: 5 }")),
+        (generate_ir("{ a: 5 }"), 0)
     );
 }

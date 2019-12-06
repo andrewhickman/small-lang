@@ -1,10 +1,34 @@
+use std::rc::Rc;
+
+use codespan::FileId;
 use proptest::proptest;
 
 use crate::check::{check, ir};
 use crate::generate::generate;
 use crate::optimize::{optimize, Opts};
+use crate::pipeline::{Pipeline, ProcessOutput, ProcessResult, Source};
 use crate::rt;
 use crate::syntax::tests::{arb_expr, dummy_file_id};
+
+pub fn generate_ir(input: impl Into<String>) -> ir::Expr {
+    Pipeline::new()
+        .process_root_rc(Source::Input(input.into()), generate_ir_impl)
+        .into_result()
+        .unwrap()
+}
+
+fn generate_ir_impl(
+    _pipeline: &mut Pipeline<Rc<ir::Expr>>,
+    file: FileId,
+    input: String,
+) -> ProcessResult<ir::Expr> {
+    let ast = crate::syntax::parse(file, &input)?;
+    let (_, expr, warnings) = check(file, &ast, |_| unreachable!())?;
+    Ok(ProcessOutput {
+        value: expr,
+        warnings,
+    })
+}
 
 const RUNTIME_OPTIONS: rt::Opts = rt::Opts {
     max_stack: 32,

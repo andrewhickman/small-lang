@@ -45,7 +45,7 @@ pub fn generate(root: Source, optimize_opts: optimize::Opts) -> PipelineResult<R
     let mut pipeline = Pipeline::new();
     let result = pipeline
         .process_root(root, |pipeline, file, input| {
-            run_impl(pipeline, file, input, optimize_opts)
+            generate_impl(pipeline, file, input, optimize_opts)
         })
         .map(|(_, cmds)| cmds);
     pipeline.finish(result)
@@ -75,7 +75,7 @@ fn check_impl(
     })
 }
 
-fn run_impl(
+fn generate_impl(
     pipeline: &mut Pipeline<(ReducedScheme, Rc<[rt::Command]>)>,
     file: FileId,
     input: String,
@@ -84,7 +84,7 @@ fn run_impl(
     let ast = syntax::parse(file, &input)?;
     let (scheme, expr, warnings) = check::check(file, &ast, |path| {
         pipeline.process_import(path, |pipeline, file, input| {
-            run_impl(pipeline, file, input, optimize_opts)
+            generate_impl(pipeline, file, input, optimize_opts)
         })
     })?;
     let expr = optimize::optimize(expr, optimize_opts);

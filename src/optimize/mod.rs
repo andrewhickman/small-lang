@@ -1,6 +1,7 @@
-mod inline_iife;
 #[cfg(test)]
-mod tests;
+pub mod tests;
+
+mod inline_iife;
 
 use crate::check::ir;
 
