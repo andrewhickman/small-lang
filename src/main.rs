@@ -27,6 +27,12 @@ enum Command {
         #[structopt(value_name = "FILE", parse(from_os_str))]
         file: PathBuf,
     },
+    Generate {
+        #[structopt(value_name = "FILE", parse(from_os_str))]
+        file: PathBuf,
+        #[structopt(flatten)]
+        optimize_opts: small_lang::optimize::Opts,
+    },
     Run {
         #[structopt(value_name = "FILE", parse(from_os_str))]
         file: PathBuf,
@@ -45,6 +51,19 @@ fn run(args: &Args, stderr: &mut impl WriteColor) -> Result<(), small_lang::Erro
             let scheme_graph = result.into_result()?.to_graph();
 
             serde_json::to_writer_pretty(io::stdout().lock(), &scheme_graph)
+                .map_err(small_lang::Error::basic)?;
+            println!();
+            Ok(())
+        }
+        Command::Generate {
+            ref file,
+            optimize_opts,
+        } => {
+            let result = small_lang::generate(Source::File(file), optimize_opts);
+            result.emit_warnings(stderr)?;
+            let commands = result.into_result()?;
+
+            serde_json::to_writer_pretty(io::stdout().lock(), &commands)
                 .map_err(small_lang::Error::basic)?;
             println!();
             Ok(())
