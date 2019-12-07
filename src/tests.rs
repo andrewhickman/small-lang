@@ -15,7 +15,7 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
     crate::run(
         Source::File(file.as_ref()),
-        optimize::Opts::default(),
+        optimize::Opts { opt_level: 3 },
         rt::Opts {
             max_stack: 32,
             max_ops: Some(100_000),
