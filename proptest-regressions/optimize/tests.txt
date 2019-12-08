@@ -7,3 +7,4 @@
 cc 107ce68213e4d48a9d0dea7aaf1bf4bfa099e0895c68579816ab2f031718fce0 # shrinks to expr = [p: let a = null in func a => null]
 cc 7f41d47ea5918f295a062852fc7ef8e3d3d80ef87e69bcef1fd71cd33d97c5ab # shrinks to expr = func c => (func a => null) null
 cc 61ed89be090c33b841d2ff78377515b7733634a38ca3878e3f4cbd14ef7d7450 # shrinks to expr = {   p: __builtin_eq, }
+cc 0a2a78932371b9e354d547be72a4fb81537053acd43b2fc5b719cd546b6c63a4 # shrinks to expr = func a => let rec c = func a => func a => let rec __builtin_eq = func a => null in c in let a = null in null

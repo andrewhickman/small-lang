@@ -166,6 +166,7 @@ test_file!(invalid_token, Err);
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
 test_file!(pr3, Err);
+test_file!(pr4, Ok);
 
 proptest! {
     #[test]
