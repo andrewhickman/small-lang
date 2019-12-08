@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use small_ord_set::SmallOrdSet;
 
-use crate::check::ir;
+use crate::check::ir::{self, Visitor as _};
 use crate::check::vars::VarId;
 use crate::rt;
 use crate::syntax::{ImSymbolMap, SymbolMap};
@@ -26,7 +26,7 @@ struct Scope {
 }
 
 struct CaptureVisitor {
-    max_var: VarId,
+    local_vars: SmallOrdSet<[VarId; 16]>,
     captured_vars: CapturedVars,
 }
 
@@ -174,8 +174,37 @@ impl GenerateVisitor {
 
 impl ir::Visitor for CaptureVisitor {
     fn visit_var(&mut self, var: VarId) {
-        if var < self.max_var {
+        if !self.local_vars.contains(&var) {
             self.captured_vars.insert(var);
+        }
+    }
+
+    fn visit_let(&mut self, let_expr: &ir::Let) {
+        self.visit_expr(&let_expr.val);
+        self.local_vars.insert(let_expr.name);
+        self.visit_expr(&let_expr.body);
+        self.local_vars.remove(&let_expr.name);
+    }
+
+    fn visit_func(&mut self, func_expr: &ir::Func) {
+        if let Some(var) = func_expr.rec_var {
+            self.local_vars.insert(var);
+        }
+        self.local_vars.insert(func_expr.arg);
+        self.visit_expr(&func_expr.body);
+        self.local_vars.remove(&func_expr.arg);
+        if let Some(var) = func_expr.rec_var {
+            self.local_vars.remove(&var);
+        }
+    }
+
+    fn visit_match_case(&mut self, case: &ir::MatchCase) {
+        if let Some(var) = case.name {
+            self.local_vars.insert(var);
+        }
+        self.visit_expr(&case.expr);
+        if let Some(var) = case.name {
+            self.local_vars.remove(&var);
         }
     }
 }
@@ -183,10 +212,10 @@ impl ir::Visitor for CaptureVisitor {
 impl CaptureVisitor {
     fn get_captures(func_expr: &ir::Func) -> CapturedVars {
         let mut visitor = CaptureVisitor {
-            max_var: func_expr.arg,
+            local_vars: SmallOrdSet::new(),
             captured_vars: SmallOrdSet::new(),
         };
-        func_expr.body.visit(&mut visitor);
+        visitor.visit_func(&func_expr);
         visitor.captured_vars
     }
 }

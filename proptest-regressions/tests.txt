@@ -17,3 +17,5 @@ cc 9614abaad61aa999e49645ccd8ac9022099c2cb97a0d56ab6cde0d59f43023ee # shrinks to
 cc 00a60934c1da0c27e2e0f3f39d00fdca63e189913bb27684a5f42e9b3383ac25 # shrinks to expr = let rec a = func a => null in __builtin_get_add
 cc c409972c76adaf45b17a350bf3e1b6b04f6e0da83d75f25f381e7e3edd93c03e # shrinks to expr = (let a = let a = "" in null in null).p
 cc d064366b80258eea2711a86942cd9d7e2f1daf332d9aefb0e9f589e2d9b5365f # shrinks to expr = let a = let rec a = func a => null in null in null
+cc 4d34dfc63575ed0c825d1ce9105e5a8e376efd9e5980274184e446ce147a325f # shrinks to expr = let rec a = func a => let a = a in null in null
+cc fce539528bca37192e4d22f9bb3c60e767ad4402e86cc19678ba59d0c0127330 # shrinks to expr = let rec a = func b => [p: let rec a = func b => a in null] in let a = null in null

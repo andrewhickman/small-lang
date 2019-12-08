@@ -141,8 +141,12 @@ pub trait Visitor<T = Rc<[Command]>> {
     fn visit_match(&mut self, record_expr: &Match<T>) {
         self.visit_expr(&record_expr.expr);
         for case in record_expr.cases.values() {
-            self.visit_expr(&case.expr);
+            self.visit_match_case(case);
         }
+    }
+
+    fn visit_match_case(&mut self, case: &MatchCase<T>) {
+        self.visit_expr(&case.expr);
     }
 
     fn visit_import(&mut self, _import: &T) {}
@@ -210,8 +214,12 @@ pub trait VisitorMut<T = Rc<[Command]>> {
     fn visit_match(&mut self, record_expr: &mut Match<T>) {
         self.visit_expr(&mut record_expr.expr);
         for case in record_expr.cases.values_mut() {
-            self.visit_expr(&mut case.expr);
+            self.visit_match_case(case);
         }
+    }
+
+    fn visit_match_case(&mut self, case: &mut MatchCase<T>) {
+        self.visit_expr(&mut case.expr);
     }
 
     fn visit_import(&mut self, _import: &mut T) {}
@@ -230,5 +238,14 @@ impl<T> Expr<T> {
         V: VisitorMut<T> + ?Sized,
     {
         visitor.visit_expr(self)
+    }
+}
+
+impl<T> Let<T> {
+    pub fn is_rec(&self) -> bool {
+        match &self.val {
+            Expr::Func(func) => func.rec_var.is_some(),
+            _ => false,
+        }
     }
 }
