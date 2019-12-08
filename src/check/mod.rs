@@ -25,6 +25,7 @@ pub fn check<T, F>(
     import: F,
 ) -> Result<(ReducedScheme, ir::Expr<T>, Vec<Diagnostic>), ErrorData>
 where
+    T: Clone,
     F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
 {
     let mut ctx = Context::new(import);
@@ -33,7 +34,14 @@ where
         .check_expr(expr, file)
         .map_err(Error::into_diagnostics)
         .map_err(ErrorData::Diagnostics)?;
-    Ok((output.scheme.reduce(&ctx.auto), output.expr, ctx.warnings))
+    Ok((
+        output.scheme.reduce(&ctx.auto),
+        ir::Expr {
+            nodes: ctx.ir,
+            id: output.expr,
+        },
+        ctx.warnings,
+    ))
 }
 
 type FileSpan = (FileId, Span);
@@ -45,21 +53,23 @@ enum Error {
     TypeCheck(FileSpan, Box<BiunifyError<Constructor>>),
 }
 
-struct Context<F> {
+struct Context<T, F> {
     auto: Automaton<Constructor>,
     vars: Vars,
     capabilities: ty::Capabilities,
     import: F,
     warnings: Vec<Diagnostic>,
+    ir: ir::Nodes<T>,
 }
 
-struct CheckOutput<T> {
+struct CheckOutput {
     scheme: Scheme,
-    expr: ir::Expr<T>,
+    expr: ir::NodeId,
 }
 
-impl<T, F> Context<F>
+impl<T, F> Context<T, F>
 where
+    T: Clone,
     F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
 {
     fn new(import: F) -> Self {
@@ -68,6 +78,7 @@ where
             vars: Vars::default(),
             capabilities: ty::Capabilities::default(),
             warnings: vec![],
+            ir: ir::Nodes::new(),
             import,
         }
     }
@@ -76,7 +87,7 @@ where
         &mut self,
         expr: &ast::Spanned<ast::Expr>,
         file: FileId,
-    ) -> Result<CheckOutput<T>, Error> {
+    ) -> Result<CheckOutput, Error> {
         let span = (file, expr.span);
         match &expr.val {
             ast::Expr::Null => self.check_null(span),
@@ -98,11 +109,11 @@ where
         }
     }
 
-    fn check_var(&mut self, name: Symbol, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_var(&mut self, name: Symbol, span: FileSpan) -> Result<CheckOutput, Error> {
         if let Some((scheme, id)) = self.get_var(name) {
             Ok(CheckOutput {
                 scheme,
-                expr: ir::Expr::Var(id),
+                expr: self.ir.add(ir::Node::Var(id)),
             })
         } else {
             Err(Error::UndefinedVar(span, name))
@@ -114,7 +125,7 @@ where
         func: &ast::FuncExpr,
         span: FileSpan,
         rec_var: Option<VarId>,
-    ) -> Result<CheckOutput<T>, Error> {
+    ) -> Result<CheckOutput, Error> {
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
 
@@ -137,7 +148,7 @@ where
 
         Ok(CheckOutput {
             scheme: scheme.with_ty(func_ty),
-            expr: ir::Expr::Func(Box::new(ir::Func {
+            expr: self.ir.add(ir::Node::Func(ir::Func {
                 arg: arg_var,
                 body: body.expr,
                 rec_var,
@@ -145,11 +156,7 @@ where
         })
     }
 
-    fn check_call(
-        &mut self,
-        call: &ast::CallExpr,
-        span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
+    fn check_call(&mut self, call: &ast::CallExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let func = self.check_expr(&call.func, span.0)?;
         let arg = self.check_expr(&call.arg, span.0)?;
 
@@ -166,18 +173,14 @@ where
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, ret_pair.pos, &func.scheme, &arg.scheme),
-            expr: ir::Expr::Call(Box::new(ir::Call {
+            expr: self.ir.add(ir::Node::Call(ir::Call {
                 arg: arg.expr,
                 func: func.expr,
             })),
         })
     }
 
-    fn check_let(
-        &mut self,
-        let_expr: &ast::LetExpr,
-        span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
+    fn check_let(&mut self, let_expr: &ast::LetExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let val = self.check_expr(&let_expr.val, span.0)?;
 
         let name_var = self.push_var(let_expr.name.val, (span.0, let_expr.name.span), &val.scheme);
@@ -186,7 +189,7 @@ where
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &val.scheme, &body.scheme),
-            expr: ir::Expr::Let(Box::new(ir::Let {
+            expr: self.ir.add(ir::Node::Let(ir::Let {
                 name: name_var,
                 val: val.expr,
                 body: body.expr,
@@ -194,7 +197,7 @@ where
         })
     }
 
-    fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let func_pair = self.auto.build_var();
         let rec_var = self.push_var(
             rec.name.val,
@@ -217,7 +220,7 @@ where
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &scheme, &body.scheme),
-            expr: ir::Expr::Let(Box::new(ir::Let {
+            expr: self.ir.add(ir::Node::Let(ir::Let {
                 name: rec_var,
                 val: func.expr,
                 body: body.expr,
@@ -225,7 +228,7 @@ where
         })
     }
 
-    fn check_if(&mut self, if_expr: &ast::IfExpr, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_if(&mut self, if_expr: &ast::IfExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let cond = self.check_expr(&if_expr.cond, span.0)?;
         let cons = self.check_expr(&if_expr.cons, span.0)?;
         let alt = self.check_expr(&if_expr.alt, span.0)?;
@@ -253,7 +256,7 @@ where
                     .chain(once(&cons.scheme))
                     .chain(once(&alt.scheme)),
             ),
-            expr: ir::Expr::If(Box::new(ir::If {
+            expr: self.ir.add(ir::Node::If(ir::If {
                 cond: cond.expr,
                 cons: cons.expr,
                 alt: alt.expr,
@@ -265,10 +268,10 @@ where
         &mut self,
         rec: &SymbolMap<ast::Spanned<ast::Expr>>,
         span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
-        struct CheckRecordEntryOutput<T> {
+    ) -> Result<CheckOutput, Error> {
+        struct CheckRecordEntryOutput {
             field: Symbol,
-            expr: ir::Expr<T>,
+            expr: ir::NodeId,
             scheme: Scheme,
             pair: flow::Pair,
         }
@@ -305,12 +308,12 @@ where
                 record_ty,
                 fields.iter().map(|entry| &entry.scheme),
             ),
-            expr: ir::Expr::Record(
+            expr: self.ir.add(ir::Node::Record(
                 fields
                     .into_iter()
-                    .map(|entry| (entry.field, entry.expr))
+                    .map(|entry| (entry.field, entry.expr.into()))
                     .collect(),
-            ),
+            )),
         })
     }
 
@@ -318,7 +321,7 @@ where
         &mut self,
         enum_expr: &ast::EnumExpr,
         span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
+    ) -> Result<CheckOutput, Error> {
         let expr = match &enum_expr.expr {
             Some(expr) => self.check_expr(expr, span.0)?,
             None => self.check_null(span)?,
@@ -333,7 +336,7 @@ where
 
         Ok(CheckOutput {
             scheme: expr.scheme.clone().with_ty(enum_ty),
-            expr: ir::Expr::Enum(Box::new(ir::Enum {
+            expr: self.ir.add(ir::Node::Enum(ir::Enum {
                 tag: enum_expr.tag.val,
                 expr: expr.expr,
             })),
@@ -344,10 +347,10 @@ where
         &mut self,
         match_expr: &ast::MatchExpr,
         span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
-        struct CheckMatchCaseOutput<T> {
+    ) -> Result<CheckOutput, Error> {
+        struct CheckMatchCaseOutput {
             tag: Symbol,
-            ir: ir::MatchCase<T>,
+            ir: ir::MatchCase,
             val_pair: flow::Pair,
             val_ty: Option<StateId>,
             scheme: Scheme,
@@ -385,7 +388,7 @@ where
                 Ok(CheckMatchCaseOutput {
                     tag,
                     ir: ir::MatchCase {
-                        expr: case_expr.expr,
+                        expr: case_expr.expr.into(),
                         name: name_var,
                     },
                     scheme,
@@ -417,18 +420,14 @@ where
                 result_pair.pos,
                 once(&expr.scheme).chain(cases.iter().map(|case| &case.scheme)),
             ),
-            expr: ir::Expr::Match(Box::new(ir::Match {
+            expr: self.ir.add(ir::Node::Match(ir::Match {
                 cases: cases.into_iter().map(|case| (case.tag, case.ir)).collect(),
                 expr: expr.expr,
             })),
         })
     }
 
-    fn check_proj(
-        &mut self,
-        proj: &ast::ProjExpr,
-        span: FileSpan,
-    ) -> Result<CheckOutput<T>, Error> {
+    fn check_proj(&mut self, proj: &ast::ProjExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let expr = self.check_expr(&proj.expr, span.0)?;
 
         let field_pair = self.auto.build_var();
@@ -443,65 +442,69 @@ where
 
         Ok(CheckOutput {
             scheme: expr.scheme.clone().with_ty(field_pair.pos),
-            expr: ir::Expr::Proj(Box::new(ir::Proj {
+            expr: self.ir.add(ir::Node::Proj(ir::Proj {
                 expr: expr.expr,
                 field: proj.field.val,
             })),
         })
     }
 
-    fn check_import(&mut self, path: &str, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_import(&mut self, path: &str, span: FileSpan) -> Result<CheckOutput, Error> {
         let (reduced_scheme, expr) =
             (self.import)(path).map_err(|err| Error::Import(span, path.to_owned(), err))?;
         let scheme = reduced_scheme.add_to(&mut self.auto);
         Ok(CheckOutput {
             scheme,
-            expr: ir::Expr::Import(expr),
+            expr: self.ir.add(ir::Node::Import(expr)),
         })
     }
 
-    fn check_null(&mut self, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_null(&mut self, span: FileSpan) -> Result<CheckOutput, Error> {
         let ty = self.build_null(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
-            expr: ir::Expr::Literal(Value::Null),
+            expr: self.ir.add(ir::Node::Literal(Value::Null)),
         })
     }
 
-    fn check_bool(&mut self, val: bool, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_bool(&mut self, val: bool, span: FileSpan) -> Result<CheckOutput, Error> {
         let ty = self.build_bool(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
-            expr: ir::Expr::Literal(Value::Bool(val)),
+            expr: self.ir.add(ir::Node::Literal(Value::Bool(val))),
         })
     }
 
-    fn check_int(&mut self, val: i64, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_int(&mut self, val: i64, span: FileSpan) -> Result<CheckOutput, Error> {
         let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Int);
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
-            expr: ir::Expr::Literal(Value::Number(NumberValue::Int(val))),
+            expr: self
+                .ir
+                .add(ir::Node::Literal(Value::Number(NumberValue::Int(val)))),
         })
     }
 
-    fn check_float(&mut self, val: f64, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_float(&mut self, val: f64, span: FileSpan) -> Result<CheckOutput, Error> {
         let ty = self.build_number(Polarity::Pos, Some(span), NumberConstructor::Float);
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
-            expr: ir::Expr::Literal(Value::Number(NumberValue::Float(val))),
+            expr: self
+                .ir
+                .add(ir::Node::Literal(Value::Number(NumberValue::Float(val)))),
         })
     }
 
-    fn check_string(&mut self, val: String, span: FileSpan) -> Result<CheckOutput<T>, Error> {
+    fn check_string(&mut self, val: String, span: FileSpan) -> Result<CheckOutput, Error> {
         let ty = self.build_string(Polarity::Pos, Some(span));
         Ok(CheckOutput {
             scheme: Scheme::empty(ty),
-            expr: ir::Expr::Literal(Value::String(val)),
+            expr: self.ir.add(ir::Node::Literal(Value::String(val))),
         })
     }
 }
 
-impl<F> Context<F> {
+impl<T, F> Context<T, F> {
     fn push_var(
         &mut self,
         symbol: Symbol,

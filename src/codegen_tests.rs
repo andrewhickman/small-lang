@@ -1,4 +1,3 @@
-use crate::check::vars::VarId;
 use crate::generate;
 use crate::optimize::Opts;
 use crate::pipeline::Source;
@@ -24,11 +23,7 @@ macro_rules! test_case {
 
 test_case!(
     inline_iife,
-    &[
-        Command::Push {
-            value: Value::Number(NumberValue::Int(5)),
-        },
-        Command::Store { var: VarId::new(3) },
-        Command::Load { var: VarId::new(3) },
-    ]
+    &[Command::Push {
+        value: Value::Number(NumberValue::Int(5)),
+    },]
 );

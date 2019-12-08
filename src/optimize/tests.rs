@@ -43,8 +43,9 @@ fn run(expr: &ir::Expr) -> Option<rt::Value> {
     }
 }
 
-fn run_optimized(expr: ir::Expr) -> Option<rt::Value> {
-    run(&optimize(expr, Opts { opt_level: 3 }))
+fn run_optimized(mut expr: ir::Expr) -> Option<rt::Value> {
+    optimize(&mut expr, Opts { opt_level: 3 });
+    run(&expr)
 }
 
 proptest! {
@@ -82,5 +83,14 @@ fn structural_eq_value(lhs: &rt::Value, rhs: &rt::Value) -> bool {
             itertools::zip_eq(lhs, rhs).all(|(l, r)| l.0 == r.0 && structural_eq_value(&l.1, &r.1))
         }
         _ => PartialEq::eq(lhs, rhs),
+    }
+}
+
+impl ir::Node {
+    pub fn unwrap_let(&self) -> ir::Let {
+        match self {
+            &ir::Node::Let(let_expr) => let_expr,
+            _ => panic!("expected let"),
+        }
     }
 }

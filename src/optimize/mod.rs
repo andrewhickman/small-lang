@@ -2,12 +2,13 @@
 pub mod tests;
 
 mod inline_iife;
+mod inline_let;
 
-use crate::check::ir;
+use crate::check::ir::{self};
 
-pub fn optimize(mut expr: ir::Expr, opts: Opts) -> ir::Expr {
+pub fn optimize(expr: &mut ir::Expr, opts: Opts) {
     let pass = Pass {
-        transforms: vec![inline_iife::INSTANCE],
+        transforms: vec![inline_iife::INSTANCE, inline_let::INSTANCE],
     };
 
     let mut budget: u32 = match opts.opt_level {
@@ -18,15 +19,14 @@ pub fn optimize(mut expr: ir::Expr, opts: Opts) -> ir::Expr {
     };
 
     while budget != 0 {
-        let result = pass.transform(expr);
-        expr = result.0;
-        budget = budget.saturating_sub(result.1);
+        let cost = pass.transform(expr);
+        budget = budget.saturating_sub(cost);
     }
-    expr
 }
 
 trait Transform {
-    fn transform(&self, expr: ir::Expr) -> (ir::Expr, u32);
+    #[must_use]
+    fn transform(&self, nodes: &mut ir::Expr) -> u32;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -50,82 +50,10 @@ struct Pass {
 }
 
 impl Transform for Pass {
-    fn transform(&self, mut expr: ir::Expr) -> (ir::Expr, u32) {
-        let mut cost = 0;
-        for transform in &self.transforms {
-            let result = transform.transform(expr);
-            debug_assert_ne!(result.1, 0);
-            expr = result.0;
-            cost += result.1;
-        }
-        (expr, cost)
-    }
-}
-
-impl ir::Expr {
-    fn is_func(&self) -> bool {
-        match self {
-            ir::Expr::Func(_) => true,
-            _ => false,
-        }
-    }
-
-    fn map<F>(self, transform: &mut F) -> Self
-    where
-        F: FnMut(ir::Expr) -> ir::Expr,
-    {
-        let expr = match self {
-            ir::Expr::Literal(_) | ir::Expr::Var(_) | ir::Expr::Import(_) => self,
-            ir::Expr::Func(func_expr) => ir::Expr::Func(Box::new(ir::Func {
-                arg: func_expr.arg,
-                rec_var: func_expr.rec_var,
-                body: func_expr.body.map(transform),
-            })),
-            ir::Expr::Call(call_expr) => ir::Expr::Call(Box::new(ir::Call {
-                arg: call_expr.arg.map(transform),
-                func: call_expr.func.map(transform),
-            })),
-            ir::Expr::Let(let_expr) => ir::Expr::Let(Box::new(ir::Let {
-                name: let_expr.name,
-                val: let_expr.val.map(transform),
-                body: let_expr.body.map(transform),
-            })),
-            ir::Expr::If(if_expr) => ir::Expr::If(Box::new(ir::If {
-                cond: if_expr.cond.map(transform),
-                cons: if_expr.cons.map(transform),
-                alt: if_expr.alt.map(transform),
-            })),
-            ir::Expr::Proj(proj_expr) => ir::Expr::Proj(Box::new(ir::Proj {
-                expr: proj_expr.expr.map(transform),
-                field: proj_expr.field,
-            })),
-            ir::Expr::Record(record_expr) => ir::Expr::Record(
-                record_expr
-                    .into_iter()
-                    .map(|(field, expr)| (field, expr.map(transform)))
-                    .collect(),
-            ),
-            ir::Expr::Enum(enum_expr) => ir::Expr::Enum(Box::new(ir::Enum {
-                tag: enum_expr.tag,
-                expr: enum_expr.expr.map(transform),
-            })),
-            ir::Expr::Match(match_expr) => ir::Expr::Match(Box::new(ir::Match {
-                expr: match_expr.expr.map(transform),
-                cases: match_expr
-                    .cases
-                    .into_iter()
-                    .map(|(tag, val)| {
-                        (
-                            tag,
-                            ir::MatchCase {
-                                expr: val.expr.map(transform),
-                                name: val.name,
-                            },
-                        )
-                    })
-                    .collect(),
-            })),
-        };
-        transform(expr)
+    fn transform(&self, expr: &mut ir::Expr) -> u32 {
+        self.transforms
+            .iter()
+            .map(|transform| transform.transform(expr))
+            .sum()
     }
 }

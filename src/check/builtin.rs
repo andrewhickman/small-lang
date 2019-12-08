@@ -7,7 +7,7 @@ use crate::check::vars::VarId;
 use crate::check::{Context, Scheme};
 use crate::syntax::Symbol;
 
-impl<F> Context<F> {
+impl<T, F> Context<T, F> {
     pub(in crate::check) fn set_builtins(&mut self) {
         self.set_number_capabilities();
         self.set_string_capabilities();

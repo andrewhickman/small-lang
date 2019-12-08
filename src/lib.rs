@@ -82,12 +82,12 @@ fn generate_impl(
     optimize_opts: optimize::Opts,
 ) -> ProcessResult<(ReducedScheme, Rc<[rt::Command]>)> {
     let ast = syntax::parse(file, &input)?;
-    let (scheme, expr, warnings) = check::check(file, &ast, |path| {
+    let (scheme, mut expr, warnings) = check::check(file, &ast, |path| {
         pipeline.process_import(path, |pipeline, file, input| {
             generate_impl(pipeline, file, input, optimize_opts)
         })
     })?;
-    let expr = optimize::optimize(expr, optimize_opts);
+    optimize::optimize(&mut expr, optimize_opts);
     let cmds = generate::generate(&expr);
     Ok(ProcessOutput {
         value: (scheme, cmds.into()),

@@ -454,7 +454,7 @@ impl mlsub::Label for Label {
     }
 }
 
-impl<F> Context<F> {
+impl<T, F> Context<T, F> {
     pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
         self.build_object(pol, span, ConstructorKind::Null, self.capabilities.empty())
     }
@@ -623,7 +623,7 @@ impl fmt::Display for Constructor {
 }
 
 impl NumberConstructor {
-    pub fn short_name(&self) -> &'static str {
+    pub fn short_name(self) -> &'static str {
         match self {
             NumberConstructor::Int => "int",
             NumberConstructor::Float => "number",

@@ -1,3 +1,5 @@
 /target
+/vendor
 **/*.rs.bk
 /.vscode
+/.cargo

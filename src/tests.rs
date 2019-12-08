@@ -90,6 +90,8 @@ test_file!(rec_chain, Ok(Func));
 test_file!(eq_bool, Ok(Value::Bool(true)));
 test_file!(eq_record, Ok(Value::Bool(true)));
 test_file!(eq_func, Ok(Value::Bool(true)));
+test_file!(eq_func_env, Ok(Value::Bool(false)));
+test_file!(eq_func_inlined, Ok(Value::Bool(true)));
 test_file!(eq_incomparable, Ok(Value::Bool(false)));
 test_file!(curry, Ok(Value::Bool(true)));
 test_file!(int, Ok(Value::Number(NumberValue::Int(-300))));
@@ -140,8 +142,8 @@ test_file!(polymorphism, Ok);
 test_file!(builtin_error, Err);
 test_file!(flow_error, Err);
 test_file!(match_val_error, Err);
-test_file!(eq_func_env, Ok(Value::Bool(false)));
 test_file!(sugar_curry, Ok(Value::Number(NumberValue::Int(10))));
+test_file!(sugar_curry_min, Ok(Func));
 test_file!(
     sugar_curry_order,
     Ok(Value::Record(im::ordmap![
