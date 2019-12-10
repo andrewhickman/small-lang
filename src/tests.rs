@@ -167,6 +167,7 @@ test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));
 test_file!(pr3, Err);
 test_file!(pr4, Ok);
+test_file!(pr5, Ok(Value::Null));
 
 proptest! {
     #[test]
