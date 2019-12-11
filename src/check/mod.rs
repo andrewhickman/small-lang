@@ -531,8 +531,9 @@ impl<F> Context<F> {
     }
 
     fn pop_var(&mut self, symbol: Symbol) -> VarId {
-        let (id, data) = self.vars.pop(symbol);
+        let id = self.vars.pop(symbol);
         log::debug!("Pop var {} ({:?})", symbol, id);
+        let data = self.vars.get(id);
         if data.uses == 0 {
             let (file, span) = data.span.unwrap();
             self.warnings.push(Diagnostic::new_warning(
