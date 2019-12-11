@@ -16,14 +16,9 @@ pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
 
 struct GenerateVisitor {
     cmds: Vec<rt::Command>,
-    scopes: Vec<Scope>,
 }
 
 type CapturedVars = SmallOrdSet<[VarId; 8]>;
-
-struct Scope {
-    depth: u32,
-}
 
 struct CaptureVisitor {
     local_vars: SmallOrdSet<[VarId; 16]>,
@@ -34,7 +29,6 @@ impl GenerateVisitor {
     fn new() -> Self {
         GenerateVisitor {
             cmds: Vec::with_capacity(16),
-            scopes: Vec::new(),
         }
     }
 }
@@ -66,12 +60,9 @@ impl ir::Visitor for GenerateVisitor {
         let start = self.cmds.len();
 
         let captured_vars = CaptureVisitor::get_captures(func_expr);
-        self.push_scope(captured_vars.len() as u32);
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.visit_expr(&func_expr.body);
-
-        assert_eq!(self.pop_scope(), captured_vars.len() as u32);
 
         let capture = rt::Command::Capture {
             rec_var: func_expr.rec_var,
@@ -154,21 +145,6 @@ impl ir::Visitor for GenerateVisitor {
 
     fn visit_import(&mut self, cmds: &Rc<[rt::Command]>) {
         self.cmds.push(rt::Command::Import { cmds: cmds.clone() });
-    }
-}
-
-impl GenerateVisitor {
-    fn push_scope(&mut self, depth: u32) {
-        self.scopes.push(Scope { depth });
-    }
-
-    fn scope(&mut self) -> &mut Scope {
-        self.scopes.last_mut().unwrap()
-    }
-
-    fn pop_scope(&mut self) -> u32 {
-        let scope = self.scopes.pop().unwrap();
-        scope.depth
     }
 }
 
