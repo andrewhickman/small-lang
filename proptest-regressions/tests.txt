@@ -19,3 +19,4 @@ cc c409972c76adaf45b17a350bf3e1b6b04f6e0da83d75f25f381e7e3edd93c03e # shrinks to
 cc d064366b80258eea2711a86942cd9d7e2f1daf332d9aefb0e9f589e2d9b5365f # shrinks to expr = let a = let rec a = func a => null in null in null
 cc 4d34dfc63575ed0c825d1ce9105e5a8e376efd9e5980274184e446ce147a325f # shrinks to expr = let rec a = func a => let a = a in null in null
 cc fce539528bca37192e4d22f9bb3c60e767ad4402e86cc19678ba59d0c0127330 # shrinks to expr = let rec a = func b => [p: let rec a = func b => a in null] in let a = null in null
+cc a47400c8b0622fc617a7d8de33246ce5173327c6725599d5ec1f62aab72249b6 # shrinks to expr = (if let a = [p: ""] in null   then func a => let a = -310 in   true   else let c = if -771062815330356020     then a     else false in   403512211.68696547).p

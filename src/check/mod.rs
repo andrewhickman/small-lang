@@ -56,7 +56,6 @@ enum Error {
 struct Context<T, F> {
     auto: Automaton<Constructor>,
     vars: Vars,
-    capabilities: ty::Capabilities,
     import: F,
     warnings: Vec<Diagnostic>,
     ir: ir::Nodes<T>,
@@ -76,7 +75,6 @@ where
         Context {
             auto: Automaton::new(),
             vars: Vars::default(),
-            capabilities: ty::Capabilities::default(),
             warnings: vec![],
             ir: ir::Nodes::new(),
             import,

@@ -1,19 +1,15 @@
-mod capabilities;
+mod build;
 
-pub(in crate::check) use capabilities::Capabilities;
-
-use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::iter::{once, FromIterator};
-use std::rc::Rc;
+use std::iter::FromIterator;
 use std::{cmp, fmt};
 
 use im::OrdMap;
-use mlsub::auto::{StateId, StateSet};
+use mlsub::auto::StateSet;
 use mlsub::Polarity;
 use small_ord_set::SmallOrdSet;
 
-use crate::check::{Context, FileSpan};
+use crate::check::FileSpan;
 use crate::syntax::Symbol;
 
 #[derive(Clone, Debug)]
@@ -32,7 +28,7 @@ pub enum ConstructorKind {
     Object(ObjectConstructor),
     Record(OrdMap<Symbol, StateSet>),
     Enum(OrdMap<Symbol, StateSet>),
-    Capabilities(Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>),
+    Capabilities(OrdMap<Symbol, StateSet>),
 }
 
 /// std::mem::Discriminant does not implement Ord so we cannot use it here :(
@@ -158,26 +154,20 @@ impl mlsub::Constructor for Constructor {
                     })
                 }
             },
-            (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
-                let a = lhs.borrow().clone().expect("capabilities not set");
-                let b = rhs.borrow().clone().expect("capabilities not set");
-
-                if Rc::ptr_eq(lhs, rhs) {
-                    return;
+            (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => match pol {
+                Polarity::Pos => {
+                    *lhs = lhs.clone().intersection_with(rhs.clone(), |mut l, r| {
+                        l.union(&r);
+                        l
+                    })
                 }
-
-                let joined = match pol {
-                    Polarity::Pos => a.intersection_with(b, |mut l, r| {
+                Polarity::Neg => {
+                    *lhs = lhs.clone().union_with(rhs.clone(), |mut l, r| {
                         l.union(&r);
                         l
-                    }),
-                    Polarity::Neg => a.union_with(b, |mut l, r| {
-                        l.union(&r);
-                        l
-                    }),
-                };
-                *lhs = Rc::new(RefCell::new(Some(joined)));
-            }
+                    })
+                }
+            },
             _ => unreachable!(),
         }
     }
@@ -202,12 +192,7 @@ impl mlsub::Constructor for Constructor {
                 visit_ordmap_intersection(l, r, visit, Label::Tag)
             }
             (ConstructorKind::Capabilities(l), ConstructorKind::Capabilities(r)) => {
-                visit_ordmap_intersection(
-                    l.borrow().as_ref().expect("capabilities not set"),
-                    r.borrow().as_ref().expect("capabilities not set"),
-                    visit,
-                    Label::Capability,
-                )
+                visit_ordmap_intersection(l, r, visit, Label::Capability)
             }
             _ => Ok(()),
         }
@@ -232,17 +217,12 @@ impl mlsub::Constructor for Constructor {
                     .map(|(label, set)| (label, mapper(Label::Tag(label), set)))
                     .collect(),
             ),
-            ConstructorKind::Capabilities(capabilities) => {
-                ConstructorKind::Capabilities(Rc::new(RefCell::new(Some(
-                    capabilities
-                        .borrow()
-                        .clone()
-                        .expect("capabilities not set")
-                        .into_iter()
-                        .map(|(name, set)| (name, mapper(Label::Capability(name), set)))
-                        .collect(),
-                ))))
-            }
+            ConstructorKind::Capabilities(capabilities) => ConstructorKind::Capabilities(
+                capabilities
+                    .into_iter()
+                    .map(|(label, set)| (label, mapper(Label::Capability(label), set)))
+                    .collect(),
+            ),
             scalar => scalar,
         };
         Constructor {
@@ -287,15 +267,7 @@ impl PartialOrd for Constructor {
                 iter_set::cmp(lhs.keys(), rhs.keys())
             }
             (ConstructorKind::Capabilities(lhs), ConstructorKind::Capabilities(rhs)) => {
-                if Rc::ptr_eq(lhs, rhs) {
-                    Some(Ordering::Equal)
-                } else {
-                    iter_set::cmp(
-                        lhs.borrow().as_ref().expect("capabilities not set").keys(),
-                        rhs.borrow().as_ref().expect("capabilities not set").keys(),
-                    )
-                    .map(Ordering::reverse)
-                }
+                iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
             }
             _ => None,
         }
@@ -316,11 +288,7 @@ impl Constructor {
             ConstructorKind::Object(object) => object.visit_params(visit),
             ConstructorKind::Record(fields) => visit_ordmap(fields, visit, Label::Field),
             ConstructorKind::Enum(tags) => visit_ordmap(tags, visit, Label::Tag),
-            ConstructorKind::Capabilities(caps) => visit_ordmap(
-                caps.borrow().as_ref().expect("capabilities not set"),
-                visit,
-                Label::Capability,
-            ),
+            ConstructorKind::Capabilities(caps) => visit_ordmap(caps, visit, Label::Capability),
         }
     }
 
@@ -454,169 +422,15 @@ impl mlsub::Label for Label {
     }
 }
 
-impl<T, F> Context<T, F> {
-    pub fn build_null(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(pol, span, ConstructorKind::Null, self.capabilities.empty())
-    }
-
-    pub fn build_bool(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(pol, span, ConstructorKind::Bool, self.capabilities.empty())
-    }
-
-    pub fn build_number(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        num: NumberConstructor,
-    ) -> StateId {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Number(num),
-            self.capabilities.number(num),
-        )
-    }
-
-    pub fn build_string(&mut self, pol: Polarity, span: Option<FileSpan>) -> StateId {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::String,
-            self.capabilities.string(),
-        )
-    }
-
-    pub fn build_func(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        domain: StateId,
-        range: StateId,
-    ) -> StateId {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Func(FuncConstructor {
-                domain: StateSet::new(domain),
-                range: StateSet::new(range),
-            }),
-            self.capabilities.empty(),
-        )
-    }
-
-    pub fn build_record<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
-    where
-        I: IntoIterator<Item = (Symbol, StateId)>,
-    {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Record(
-                iter.into_iter()
-                    .map(|(sym, id)| (sym, StateSet::new(id)))
-                    .collect(),
-            ),
-            self.capabilities.empty(),
-        )
-    }
-
-    pub fn build_enum<I>(&mut self, pol: Polarity, span: Option<FileSpan>, iter: I) -> StateId
-    where
-        I: IntoIterator<Item = (Symbol, StateId)>,
-    {
-        self.build_object(
-            pol,
-            span,
-            ConstructorKind::Enum(
-                iter.into_iter()
-                    .map(|(tag, ty)| (tag, StateSet::new(ty)))
-                    .collect(),
-            ),
-            self.capabilities.empty(),
-        )
-    }
-
-    pub fn build_enum_variant(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        field: Symbol,
-        expr: StateId,
-    ) -> StateId {
-        self.build_enum(pol, span, once((field, expr)))
-    }
-
-    pub fn build_capability(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        name: Symbol,
-        ty: StateId,
-    ) -> StateId {
-        let data = self.auto.build_empty(pol);
-        let capabilities = self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Capabilities(Rc::new(RefCell::new(Some(
-                    once((name, StateSet::new(ty))).collect(),
-                )))),
-                span,
-            ),
-        );
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Object(ObjectConstructor {
-                    data: StateSet::new(data),
-                    capabilities: Some(StateSet::new(capabilities)),
-                }),
-                span,
-            ),
-        )
-    }
-
-    fn build_object(
-        &mut self,
-        pol: Polarity,
-        span: Option<FileSpan>,
-        data: ConstructorKind,
-        capabilities: Rc<RefCell<Option<OrdMap<Symbol, StateSet>>>>,
-    ) -> StateId {
-        let data = self
-            .auto
-            .build_constructed(pol, Constructor::new(data, span));
-        let capabilities = match pol {
-            Polarity::Pos => Some(self.auto.build_constructed(
-                pol,
-                Constructor::new(ConstructorKind::Capabilities(capabilities), span),
-            )),
-            Polarity::Neg => None,
-        };
-        self.auto.build_constructed(
-            pol,
-            Constructor::new(
-                ConstructorKind::Object(ObjectConstructor {
-                    data: StateSet::new(data),
-                    capabilities: capabilities.map(StateSet::new),
-                }),
-                span,
-            ),
-        )
-    }
-}
-
 impl fmt::Display for Constructor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let short_name = self.short_name();
         match &self.kind {
             ConstructorKind::Record(labels) => write!(f, "{} {{{}}}", short_name, Labels(labels)),
             ConstructorKind::Enum(labels) => write!(f, "{} [{}]", short_name, Labels(labels)),
-            ConstructorKind::Capabilities(labels) => write!(
-                f,
-                "{} {{{}}}",
-                short_name,
-                Labels(labels.borrow().as_ref().expect("capabilities not set"))
-            ),
+            ConstructorKind::Capabilities(labels) => {
+                write!(f, "{} {{{}}}", short_name, Labels(labels))
+            }
             _ => short_name.fmt(f),
         }
     }
