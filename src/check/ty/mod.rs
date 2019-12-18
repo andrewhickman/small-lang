@@ -60,7 +60,7 @@ pub struct FuncConstructor {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjectConstructor {
     data: StateSet,
-    capabilities: Option<StateSet>,
+    capabilities: StateSet,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -257,9 +257,7 @@ impl PartialOrd for Constructor {
             (ConstructorKind::String, ConstructorKind::String) => Some(Ordering::Equal),
             (ConstructorKind::Number(lhs), ConstructorKind::Number(rhs)) => lhs.partial_cmp(rhs),
             (ConstructorKind::Func(_), ConstructorKind::Func(_)) => Some(Ordering::Equal),
-            (ConstructorKind::Object(lhs), ConstructorKind::Object(rhs)) => {
-                PartialOrd::partial_cmp(lhs, rhs)
-            }
+            (ConstructorKind::Object(_), ConstructorKind::Object(_)) => Some(Ordering::Equal),
             (ConstructorKind::Record(lhs), ConstructorKind::Record(rhs)) => {
                 iter_set::cmp(lhs.keys(), rhs.keys()).map(Ordering::reverse)
             }
@@ -350,11 +348,7 @@ impl FuncConstructor {
 impl ObjectConstructor {
     fn join(&mut self, other: &Self) {
         self.data.union(&other.data);
-        match (&mut self.capabilities, &other.capabilities) {
-            (Some(lhs), Some(rhs)) => lhs.union(rhs),
-            (None, Some(rhs)) => self.capabilities = Some(rhs.clone()),
-            (_, None) => (),
-        };
+        self.capabilities.union(&other.capabilities);
     }
 
     fn visit_params_intersection<F, E>(&self, other: &Self, mut visit: F) -> Result<(), E>
@@ -362,9 +356,11 @@ impl ObjectConstructor {
         F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
     {
         visit(Label::ObjectData, &self.data, &other.data)?;
-        if let (Some(lhs), Some(rhs)) = (&self.capabilities, &other.capabilities) {
-            visit(Label::ObjectCapabilities, lhs, rhs)?;
-        }
+        visit(
+            Label::ObjectCapabilities,
+            &self.capabilities,
+            &other.capabilities,
+        )?;
         Ok(())
     }
 
@@ -373,9 +369,7 @@ impl ObjectConstructor {
         F: FnMut(Label, &StateSet),
     {
         visit(Label::ObjectData, &self.data);
-        if let Some(capabilities) = &self.capabilities {
-            visit(Label::ObjectCapabilities, capabilities);
-        }
+        visit(Label::ObjectCapabilities, &self.capabilities);
     }
 
     fn map<F>(self, mut mapper: F) -> Self
@@ -384,26 +378,7 @@ impl ObjectConstructor {
     {
         ObjectConstructor {
             data: mapper(Label::ObjectData, self.data),
-            capabilities: self
-                .capabilities
-                .map(|capabilities| mapper(Label::ObjectCapabilities, capabilities)),
-        }
-    }
-}
-
-impl PartialOrd for ObjectConstructor {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(Ord::cmp(self, other))
-    }
-}
-
-impl Ord for ObjectConstructor {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (&self.capabilities, &other.capabilities) {
-            (Some(_), Some(_)) => Ordering::Equal,
-            (None, Some(_)) => Ordering::Greater,
-            (Some(_), None) => Ordering::Less,
-            (None, None) => Ordering::Equal,
+            capabilities: mapper(Label::ObjectCapabilities, self.capabilities),
         }
     }
 }

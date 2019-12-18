@@ -14,7 +14,7 @@ use crate::syntax::Symbol;
 enum CapabilitiesBuilder {
     Object {
         data: Box<polar::Ty<Self, flow::Pair>>,
-        capabilities: Option<Box<polar::Ty<Self, flow::Pair>>>,
+        capabilities: Box<polar::Ty<Self, flow::Pair>>,
         span: Option<FileSpan>,
     },
     StringData {
@@ -24,6 +24,7 @@ enum CapabilitiesBuilder {
         num: NumberConstructor,
         span: Option<FileSpan>,
     },
+    EmptyCapabilities,
     StringCapabilities {
         add: Box<polar::Ty<Self, flow::Pair>>,
     },
@@ -52,14 +53,13 @@ impl Build<Constructor, flow::Pair> for CapabilitiesBuilder {
             } => Constructor::new(
                 ConstructorKind::Object(ObjectConstructor {
                     data: mapper(Label::ObjectData, data),
-                    capabilities: capabilities
-                        .as_ref()
-                        .map(|capabilities| mapper(Label::ObjectCapabilities, capabilities)),
+                    capabilities: mapper(Label::ObjectCapabilities, capabilities),
                 }),
                 *span,
             ),
             StringData { span } => Constructor::new(ConstructorKind::String, *span),
             NumberData { span, num } => Constructor::new(ConstructorKind::Number(*num), *span),
+            EmptyCapabilities => Constructor::new(ConstructorKind::Capabilities(ordmap! {}), None),
             StringCapabilities { add } => Constructor::new(
                 ConstructorKind::Capabilities(ordmap! {
                     Symbol::new("add") => mapper(Label::Capability(Symbol::new("add")), add)
@@ -108,7 +108,7 @@ impl<T, F> Context<T, F> {
                     num,
                     span,
                 })),
-                capabilities: Some(Box::new(polar::Ty::Constructed(
+                capabilities: Box::new(polar::Ty::Constructed(
                     CapabilitiesBuilder::NumberCapabilities {
                         add: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::Object {
                             data: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::Func {
@@ -120,7 +120,9 @@ impl<T, F> Context<T, F> {
                                                 span: None,
                                             },
                                         )),
-                                        capabilities: None,
+                                        capabilities: Box::new(polar::Ty::Constructed(
+                                            CapabilitiesBuilder::EmptyCapabilities,
+                                        )),
                                         span: None,
                                     })),
                                     Box::new(polar::Ty::UnboundVar(add_flow)),
@@ -130,7 +132,9 @@ impl<T, F> Context<T, F> {
                                     Box::new(polar::Ty::UnboundVar(add_flow)),
                                 )),
                             })),
-                            capabilities: None,
+                            capabilities: Box::new(polar::Ty::Constructed(
+                                CapabilitiesBuilder::EmptyCapabilities,
+                            )),
                             span: None,
                         })),
                         sub: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::Object {
@@ -143,7 +147,9 @@ impl<T, F> Context<T, F> {
                                                 span: None,
                                             },
                                         )),
-                                        capabilities: None,
+                                        capabilities: Box::new(polar::Ty::Constructed(
+                                            CapabilitiesBuilder::EmptyCapabilities,
+                                        )),
                                         span: None,
                                     })),
                                     Box::new(polar::Ty::UnboundVar(sub_flow)),
@@ -153,11 +159,13 @@ impl<T, F> Context<T, F> {
                                     Box::new(polar::Ty::UnboundVar(sub_flow)),
                                 )),
                             })),
-                            capabilities: None,
+                            capabilities: Box::new(polar::Ty::Constructed(
+                                CapabilitiesBuilder::EmptyCapabilities,
+                            )),
                             span: None,
                         })),
                     },
-                ))),
+                )),
                 span,
             },
         )));
@@ -171,7 +179,7 @@ impl<T, F> Context<T, F> {
                 data: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::StringData {
                     span,
                 })),
-                capabilities: Some(Box::new(polar::Ty::Constructed(
+                capabilities: Box::new(polar::Ty::Constructed(
                     CapabilitiesBuilder::StringCapabilities {
                         add: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::Object {
                             data: Box::new(polar::Ty::Constructed(CapabilitiesBuilder::Func {
@@ -180,17 +188,21 @@ impl<T, F> Context<T, F> {
                                         data: Box::new(polar::Ty::Constructed(
                                             CapabilitiesBuilder::StringData { span: None },
                                         )),
-                                        capabilities: None,
+                                        capabilities: Box::new(polar::Ty::Constructed(
+                                            CapabilitiesBuilder::EmptyCapabilities,
+                                        )),
                                         span: None,
                                     },
                                 )),
                                 range: Box::new(polar::Ty::BoundVar(0)),
                             })),
-                            capabilities: None,
+                            capabilities: Box::new(polar::Ty::Constructed(
+                                CapabilitiesBuilder::EmptyCapabilities,
+                            )),
                             span: None,
                         })),
                     },
-                ))),
+                )),
                 span,
             },
         )));
@@ -275,7 +287,7 @@ impl<T, F> Context<T, F> {
             Constructor::new(
                 ConstructorKind::Object(ObjectConstructor {
                     data: StateSet::new(data),
-                    capabilities: Some(StateSet::new(capabilities)),
+                    capabilities: StateSet::new(capabilities),
                 }),
                 span,
             ),
@@ -291,12 +303,16 @@ impl<T, F> Context<T, F> {
         let data = self
             .auto
             .build_constructed(pol, Constructor::new(data, span));
+        let capabilities = self.auto.build_constructed(
+            pol,
+            Constructor::new(ConstructorKind::Capabilities(Default::default()), span),
+        );
         self.auto.build_constructed(
             pol,
             Constructor::new(
                 ConstructorKind::Object(ObjectConstructor {
                     data: StateSet::new(data),
-                    capabilities: None,
+                    capabilities: StateSet::new(capabilities),
                 }),
                 span,
             ),
