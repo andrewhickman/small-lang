@@ -49,10 +49,6 @@ fn should_inline(
 
     let size = size(nodes, let_expr.val);
     let occurrences = occurrences(nodes, let_expr.body, id);
-    // TODO handle variable conflicts for occurences > 1 e.g. in not2
-    if occurrences.len() > 1 {
-        return None;
-    }
     if (size * occurrences.len() as u32) < (size + 40) {
         Some((size, occurrences))
     } else {
@@ -167,10 +163,10 @@ fn test_transform() {
         transformed(generate_ir("let x = null in x")),
         (generate_ir("null"), 0)
     );
-    // assert_eq!(
-    //     transformed(generate_ir("let x = [some: 5] in { x, y: x }")),
-    //     (generate_ir("{ x: [some: 5], y: [some: 5] }"), 1)
-    // );
+    assert_eq!(
+        transformed(generate_ir("let x = [some: 5] in { x, y: x }")),
+        (generate_ir("{ x: [some: 5], y: [some: 5] }"), 1)
+    );
     assert_eq!(
         transformed(generate_ir("match [none] with [none => null]")),
         (generate_ir("match [none] with [none => null]"), 0)
@@ -225,15 +221,15 @@ fn test_transform_full() {
         (ir, cost)
     }
 
-    // assert_eq!(
-    //     transformed(generate_ir(
-    //         "let arg = true in let not = (func x => if x then false else true) in not (not arg)"
-    //     )),
-    //     (
-    //         generate_ir("(func _4 => if _4 then false else true) ((func _4 => if _4 then false else true) true)"),
-    //         49
-    //     )
-    // );
+    assert_eq!(
+        transformed(generate_ir(
+            "let arg = true in let not = (func x => if x then false else true) in not (not arg)"
+        )),
+        (
+            generate_ir("(func _4 => if _4 then false else true) ((func _4 => if _4 then false else true) true)"),
+            49
+        )
+    );
     assert_eq!(
         transformed(generate_ir(
             "let _4 = (let _4 = true in if _4 then false else true) in if _4 then false else true"
