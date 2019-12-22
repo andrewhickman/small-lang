@@ -40,32 +40,32 @@ impl<'a> GenerateVisitor<'a> {
 }
 
 impl<'a> ir::Visitor for GenerateVisitor<'a> {
-    fn visit_literal(&mut self, value: &rt::Value) {
+    fn visit_literal(&mut self, _id: ir::NodeId, value: &rt::Value) {
         self.cmds.push(rt::Command::Push {
             value: value.clone(),
         })
     }
 
-    fn visit_var(&mut self, var: VarId) {
+    fn visit_var(&mut self, _id: ir::NodeId, var: VarId) {
         self.cmds.push(rt::Command::Load { var })
     }
 
-    fn visit_call(&mut self, call_expr: &ir::Call) {
+    fn visit_call(&mut self, _id: ir::NodeId, call_expr: &ir::Call) {
         self.visit_node(call_expr.arg);
         self.visit_node(call_expr.func);
         self.cmds.push(rt::Command::Call);
     }
 
-    fn visit_let(&mut self, let_expr: &ir::Let) {
+    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
         self.cmds.push(rt::Command::Store { var: let_expr.name });
         self.visit_node(let_expr.body);
     }
 
-    fn visit_func(&mut self, func_expr: &ir::Func) {
+    fn visit_func(&mut self, id: ir::NodeId, func_expr: &ir::Func) {
         let start = self.cmds.len();
 
-        let captured_vars = CaptureVisitor::get_captures(self.ir, func_expr);
+        let captured_vars = CaptureVisitor::get_captures(self.ir, id, func_expr);
 
         self.cmds.push(rt::Command::Store { var: func_expr.arg });
         self.visit_node(func_expr.body);
@@ -78,7 +78,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         self.cmds.push(capture);
     }
 
-    fn visit_if(&mut self, if_expr: &ir::If) {
+    fn visit_if(&mut self, _id: ir::NodeId, if_expr: &ir::If) {
         self.visit_node(if_expr.cond);
 
         self.cmds.push(rt::Command::Trap);
@@ -97,19 +97,19 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         };
     }
 
-    fn visit_proj(&mut self, proj_expr: &ir::Proj) {
+    fn visit_proj(&mut self, _id: ir::NodeId, proj_expr: &ir::Proj) {
         self.visit_node(proj_expr.expr);
         self.cmds.push(rt::Command::Get {
             field: proj_expr.field,
         });
     }
 
-    fn visit_enum(&mut self, enum_expr: &ir::Enum) {
+    fn visit_enum(&mut self, _id: ir::NodeId, enum_expr: &ir::Enum) {
         self.visit_node(enum_expr.expr);
         self.cmds.push(rt::Command::WrapEnum { tag: enum_expr.tag });
     }
 
-    fn visit_record(&mut self, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
+    fn visit_record(&mut self, _id: ir::NodeId, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
         self.cmds.push(rt::Command::Push {
             value: rt::Value::Record(Default::default()),
         });
@@ -119,7 +119,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         }
     }
 
-    fn visit_match(&mut self, match_expr: &ir::Match) {
+    fn visit_match(&mut self, _id: ir::NodeId, match_expr: &ir::Match) {
         self.visit_node(match_expr.expr);
 
         let mut jump_offsets = ImSymbolMap::default();
@@ -149,7 +149,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         self.cmds[cases_pos - 1] = rt::Command::Match { jump_offsets };
     }
 
-    fn visit_import(&mut self, cmds: &Rc<[rt::Command]>) {
+    fn visit_import(&mut self, _id: ir::NodeId, cmds: &Rc<[rt::Command]>) {
         self.cmds.push(rt::Command::Import { cmds: cmds.clone() });
     }
 
@@ -158,7 +158,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
             self.cmds.extend(cached.iter().cloned());
         } else {
             let start = self.cmds.len();
-            self.visit_expr(&self.ir[node]);
+            self.visit_expr(node, &self.ir[node]);
             let cmds = Vec::from(&self.cmds[start..]);
             self.cache.insert(node, cmds);
         }
@@ -167,23 +167,23 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
 
 impl<'a> ir::Visitor for CaptureVisitor<'a> {
     fn visit_node(&mut self, node: ir::NodeId) {
-        self.visit_expr(&self.ir[node]);
+        self.visit_expr(node, &self.ir[node]);
     }
 
-    fn visit_var(&mut self, var: VarId) {
+    fn visit_var(&mut self, _id: ir::NodeId, var: VarId) {
         if !self.local_vars.contains(&var) {
             self.captured_vars.insert(var);
         }
     }
 
-    fn visit_let(&mut self, let_expr: &ir::Let) {
+    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
         self.local_vars.insert(let_expr.name);
         self.visit_node(let_expr.body);
         self.local_vars.remove(&let_expr.name);
     }
 
-    fn visit_func(&mut self, func_expr: &ir::Func) {
+    fn visit_func(&mut self, _id: ir::NodeId, func_expr: &ir::Func) {
         if let Some(var) = func_expr.rec_var {
             self.local_vars.insert(var);
         }
@@ -207,13 +207,13 @@ impl<'a> ir::Visitor for CaptureVisitor<'a> {
 }
 
 impl<'a> CaptureVisitor<'a> {
-    fn get_captures(ir: &ir::Nodes, func_expr: &ir::Func) -> CapturedVars {
+    fn get_captures(ir: &ir::Nodes, id: ir::NodeId, func_expr: &ir::Func) -> CapturedVars {
         let mut visitor = CaptureVisitor {
             ir,
             local_vars: SmallOrdSet::new(),
             captured_vars: SmallOrdSet::new(),
         };
-        visitor.visit_func(&func_expr);
+        visitor.visit_func(id, &func_expr);
         visitor.captured_vars
     }
 }

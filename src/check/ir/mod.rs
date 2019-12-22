@@ -124,7 +124,7 @@ impl<T> Nodes<T> {
             F: FnMut(&Nodes<T>, NodeId),
         {
             fn visit_node(&mut self, id: NodeId) {
-                self.visit_expr(&self.nodes[id]);
+                self.visit_expr(id, &self.nodes[id]);
                 (self.f)(self.nodes, id);
             }
         }

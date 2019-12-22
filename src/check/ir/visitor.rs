@@ -9,65 +9,65 @@ use crate::syntax::Symbol;
 pub trait Visitor<T = Rc<[rt::Command]>> {
     fn visit_node(&mut self, id: ir::NodeId);
 
-    fn visit_expr(&mut self, expr: &ir::Node<T>) {
-        self.visit_expr_match(expr)
+    fn visit_expr(&mut self, id: ir::NodeId, expr: &ir::Node<T>) {
+        self.visit_expr_match(id, expr)
     }
 
-    fn visit_expr_match(&mut self, expr: &ir::Node<T>) {
+    fn visit_expr_match(&mut self, id: ir::NodeId, expr: &ir::Node<T>) {
         match expr {
-            ir::Node::Literal(value) => self.visit_literal(value),
-            ir::Node::Var(var) => self.visit_var(*var),
-            ir::Node::Call(call_expr) => self.visit_call(call_expr),
-            ir::Node::Let(let_expr) => self.visit_let(let_expr),
-            ir::Node::Func(func_expr) => self.visit_func(func_expr),
-            ir::Node::If(if_expr) => self.visit_if(if_expr),
-            ir::Node::Proj(proj_expr) => self.visit_proj(proj_expr),
-            ir::Node::Enum(enum_expr) => self.visit_enum(enum_expr),
-            ir::Node::Record(record_expr) => self.visit_record(record_expr),
-            ir::Node::Match(match_expr) => self.visit_match(match_expr),
-            ir::Node::Import(import_expr) => self.visit_import(import_expr),
+            ir::Node::Literal(value) => self.visit_literal(id, value),
+            ir::Node::Var(var) => self.visit_var(id, *var),
+            ir::Node::Call(call_expr) => self.visit_call(id, call_expr),
+            ir::Node::Let(let_expr) => self.visit_let(id, let_expr),
+            ir::Node::Func(func_expr) => self.visit_func(id, func_expr),
+            ir::Node::If(if_expr) => self.visit_if(id, if_expr),
+            ir::Node::Proj(proj_expr) => self.visit_proj(id, proj_expr),
+            ir::Node::Enum(enum_expr) => self.visit_enum(id, enum_expr),
+            ir::Node::Record(record_expr) => self.visit_record(id, record_expr),
+            ir::Node::Match(match_expr) => self.visit_match(id, match_expr),
+            ir::Node::Import(import_expr) => self.visit_import(id, import_expr),
         }
     }
 
-    fn visit_literal(&mut self, _value: &rt::Value) {}
+    fn visit_literal(&mut self, _id: ir::NodeId, _value: &rt::Value) {}
 
-    fn visit_var(&mut self, _var: VarId) {}
+    fn visit_var(&mut self, _id: ir::NodeId, _var: VarId) {}
 
-    fn visit_call(&mut self, call_expr: &ir::Call) {
+    fn visit_call(&mut self, _id: ir::NodeId, call_expr: &ir::Call) {
         self.visit_node(call_expr.arg);
         self.visit_node(call_expr.func);
     }
 
-    fn visit_let(&mut self, let_expr: &ir::Let) {
+    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
         self.visit_node(let_expr.body);
     }
 
-    fn visit_func(&mut self, func_expr: &ir::Func) {
+    fn visit_func(&mut self, _id: ir::NodeId, func_expr: &ir::Func) {
         self.visit_node(func_expr.body);
     }
 
-    fn visit_if(&mut self, if_expr: &ir::If) {
+    fn visit_if(&mut self, _id: ir::NodeId, if_expr: &ir::If) {
         self.visit_node(if_expr.cond);
         self.visit_node(if_expr.cons);
         self.visit_node(if_expr.alt);
     }
 
-    fn visit_proj(&mut self, proj_expr: &ir::Proj) {
+    fn visit_proj(&mut self, _id: ir::NodeId, proj_expr: &ir::Proj) {
         self.visit_node(proj_expr.expr);
     }
 
-    fn visit_enum(&mut self, enum_expr: &ir::Enum) {
+    fn visit_enum(&mut self, _id: ir::NodeId, enum_expr: &ir::Enum) {
         self.visit_node(enum_expr.expr);
     }
 
-    fn visit_record(&mut self, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
+    fn visit_record(&mut self, _id: ir::NodeId, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
         for &expr in record_expr.values() {
             self.visit_node(expr);
         }
     }
 
-    fn visit_match(&mut self, record_expr: &ir::Match) {
+    fn visit_match(&mut self, _id: ir::NodeId, record_expr: &ir::Match) {
         self.visit_node(record_expr.expr);
         for case in record_expr.cases.values() {
             self.visit_match_case(case);
@@ -78,5 +78,5 @@ pub trait Visitor<T = Rc<[rt::Command]>> {
         self.visit_node(case.expr);
     }
 
-    fn visit_import(&mut self, _import: &T) {}
+    fn visit_import(&mut self, _id: ir::NodeId, _import: &T) {}
 }

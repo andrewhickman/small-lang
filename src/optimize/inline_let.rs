@@ -85,51 +85,51 @@ struct OccurrencesVisitor<'a> {
 
 impl<'a> ir::Visitor for SizeVisitor<'a> {
     fn visit_node(&mut self, id: ir::NodeId) {
-        self.visit_expr(&self.nodes[id]);
+        self.visit_expr(id, &self.nodes[id]);
     }
 
-    fn visit_call(&mut self, call_expr: &ir::Call) {
+    fn visit_call(&mut self, _id: ir::NodeId, call_expr: &ir::Call) {
         self.visit_node(call_expr.arg);
         self.visit_node(call_expr.func);
         self.size += 20;
     }
 
-    fn visit_let(&mut self, let_expr: &ir::Let) {
+    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
         self.visit_node(let_expr.body);
         self.size += 20;
     }
 
-    fn visit_func(&mut self, func_expr: &ir::Func) {
+    fn visit_func(&mut self, _id: ir::NodeId, func_expr: &ir::Func) {
         self.visit_node(func_expr.body);
         self.size += 1;
     }
 
-    fn visit_if(&mut self, if_expr: &ir::If) {
+    fn visit_if(&mut self, _id: ir::NodeId, if_expr: &ir::If) {
         self.visit_node(if_expr.cond);
         self.visit_node(if_expr.cons);
         self.visit_node(if_expr.alt);
         self.size += 3;
     }
 
-    fn visit_proj(&mut self, proj_expr: &ir::Proj) {
+    fn visit_proj(&mut self, _id: ir::NodeId, proj_expr: &ir::Proj) {
         self.visit_node(proj_expr.expr);
         self.size += 1;
     }
 
-    fn visit_enum(&mut self, enum_expr: &ir::Enum) {
+    fn visit_enum(&mut self, _id: ir::NodeId, enum_expr: &ir::Enum) {
         self.visit_node(enum_expr.expr);
         self.size += 1;
     }
 
-    fn visit_record(&mut self, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
+    fn visit_record(&mut self, _id: ir::NodeId, record_expr: &BTreeMap<Symbol, ir::NodeId>) {
         for &expr in record_expr.values() {
             self.visit_node(expr);
         }
         self.size += 1;
     }
 
-    fn visit_match(&mut self, record_expr: &ir::Match) {
+    fn visit_match(&mut self, _id: ir::NodeId, record_expr: &ir::Match) {
         self.visit_node(record_expr.expr);
         for case in record_expr.cases.values() {
             self.visit_node(case.expr);
@@ -140,11 +140,12 @@ impl<'a> ir::Visitor for SizeVisitor<'a> {
 
 impl<'a> ir::Visitor for OccurrencesVisitor<'a> {
     fn visit_node(&mut self, id: ir::NodeId) {
-        match &self.nodes[id] {
-            &ir::Node::Var(var) if var == self.var => {
-                self.occurrences.push(id);
-            }
-            expr => self.visit_expr(expr),
+        self.visit_expr(id, &self.nodes[id])
+    }
+
+    fn visit_var(&mut self, id: ir::NodeId, var: VarId) {
+        if var == self.var {
+            self.occurrences.push(id);
         }
     }
 }
