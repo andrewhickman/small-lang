@@ -27,3 +27,27 @@ test_case!(
         value: Value::Number(NumberValue::Int(5)),
     },]
 );
+test_case!(
+    not2,
+    &[
+        Command::Push {
+            value: Value::Bool(true),
+        },
+        Command::Test { jump_offset: 2 },
+        Command::Push {
+            value: Value::Bool(true),
+        },
+        Command::Jump { jump_offset: 1 },
+        Command::Push {
+            value: Value::Bool(false),
+        },
+        Command::Test { jump_offset: 2 },
+        Command::Push {
+            value: Value::Bool(true),
+        },
+        Command::Jump { jump_offset: 1 },
+        Command::Push {
+            value: Value::Bool(false),
+        },
+    ]
+);
