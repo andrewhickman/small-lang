@@ -8,7 +8,7 @@ struct InlineIife;
 impl Transform for InlineIife {
     fn transform(&self, expr: &mut ir::Expr) -> u32 {
         let mut cost = 20u32;
-        expr.nodes.iter(|nodes, id| {
+        expr.nodes.visit_mut(expr.id, |nodes, id| {
             let changes = transform(nodes, id);
             cost = 1 + cost.saturating_sub(changes);
         });

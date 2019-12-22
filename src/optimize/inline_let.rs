@@ -12,7 +12,7 @@ struct InlineLet;
 impl Transform for InlineLet {
     fn transform(&self, expr: &mut ir::Expr) -> u32 {
         let mut cost = 40u32;
-        expr.nodes.iter(|nodes, id| {
+        expr.nodes.visit_mut(expr.id, |nodes, id| {
             let changes = transform(nodes, id);
             cost = 1 + cost.saturating_sub(changes);
         });

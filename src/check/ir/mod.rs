@@ -101,15 +101,6 @@ impl<T> Nodes<T> {
         id
     }
 
-    pub fn iter<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Self, NodeId),
-    {
-        for i in 0..self.data.len() {
-            f(self, NodeId(i as u32));
-        }
-    }
-
     pub fn visit<F>(&self, node: NodeId, f: F)
     where
         F: FnMut(&Self, NodeId),
@@ -130,6 +121,19 @@ impl<T> Nodes<T> {
         }
 
         FnVisitor { f, nodes: self }.visit_node(node)
+    }
+
+    pub fn visit_mut<F>(&mut self, node: NodeId, mut f: F)
+    where
+        F: FnMut(&mut Self, NodeId),
+    {
+        // TODO proper mutable visitors
+        let mut ids = Vec::new();
+        self.visit(node, |_, id| ids.push(id));
+
+        for id in ids {
+            f(self, id);
+        }
     }
 }
 
