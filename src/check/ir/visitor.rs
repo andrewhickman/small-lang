@@ -26,6 +26,7 @@ pub trait Visitor<T = Rc<[rt::Command]>> {
             ir::Node::Record(record_expr) => self.visit_record(id, record_expr),
             ir::Node::Match(match_expr) => self.visit_match(id, match_expr),
             ir::Node::Import(import_expr) => self.visit_import(id, import_expr),
+            ir::Node::Ref(ref_id) => self.visit_ref(id, *ref_id),
         }
     }
 
@@ -69,14 +70,14 @@ pub trait Visitor<T = Rc<[rt::Command]>> {
 
     fn visit_match(&mut self, _id: ir::NodeId, record_expr: &ir::Match) {
         self.visit_node(record_expr.expr);
-        for case in record_expr.cases.values() {
-            self.visit_match_case(case);
+        for &case in record_expr.cases.values() {
+            self.visit_node(case);
         }
     }
 
-    fn visit_match_case(&mut self, case: &ir::MatchCase) {
-        self.visit_node(case.expr);
-    }
-
     fn visit_import(&mut self, _id: ir::NodeId, _import: &T) {}
+
+    fn visit_ref(&mut self, _id: ir::NodeId, ref_id: ir::NodeId) {
+        self.visit_node(ref_id)
+    }
 }

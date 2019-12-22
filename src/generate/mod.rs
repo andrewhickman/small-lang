@@ -56,18 +56,18 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         self.cmds.push(rt::Command::Call);
     }
 
-    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
+    fn visit_let(&mut self, var: VarId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
-        self.cmds.push(rt::Command::Store { var: let_expr.name });
+        self.cmds.push(rt::Command::Store { var });
         self.visit_node(let_expr.body);
     }
 
-    fn visit_func(&mut self, id: ir::NodeId, func_expr: &ir::Func) {
+    fn visit_func(&mut self, var: VarId, func_expr: &ir::Func) {
         let start = self.cmds.len();
 
-        let captured_vars = CaptureVisitor::get_captures(self.ir, id, func_expr);
+        let captured_vars = CaptureVisitor::get_captures(self.ir, var, func_expr);
 
-        self.cmds.push(rt::Command::Store { var: func_expr.arg });
+        self.cmds.push(rt::Command::Store { var });
         self.visit_node(func_expr.body);
 
         let capture = rt::Command::Capture {
@@ -119,22 +119,18 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         }
     }
 
-    fn visit_match(&mut self, _id: ir::NodeId, match_expr: &ir::Match) {
+    fn visit_match(&mut self, var: VarId, match_expr: &ir::Match) {
         self.visit_node(match_expr.expr);
 
         let mut jump_offsets = ImSymbolMap::default();
 
         self.cmds.push(rt::Command::Trap);
         let cases_pos = self.cmds.len();
-        for (&tag, case) in &match_expr.cases {
+        for (&tag, &case) in &match_expr.cases {
             self.cmds.push(rt::Command::Trap);
             let case_pos = self.cmds.len();
-            if let Some(name) = case.name {
-                self.cmds.push(rt::Command::Store { var: name });
-            } else {
-                self.cmds.push(rt::Command::Pop);
-            }
-            self.visit_node(case.expr);
+            self.cmds.push(rt::Command::Store { var });
+            self.visit_node(case);
 
             jump_offsets.insert(tag, case_pos - cases_pos);
         }
@@ -154,6 +150,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
     }
 
     fn visit_node(&mut self, node: ir::NodeId) {
+        let node = self.ir.deref_id(node);
         if let Some(cached) = self.cache.get(&node) {
             self.cmds.extend(cached.iter().cloned());
         } else {
@@ -176,33 +173,32 @@ impl<'a> ir::Visitor for CaptureVisitor<'a> {
         }
     }
 
-    fn visit_let(&mut self, _id: ir::NodeId, let_expr: &ir::Let) {
+    fn visit_let(&mut self, var: VarId, let_expr: &ir::Let) {
         self.visit_node(let_expr.val);
-        self.local_vars.insert(let_expr.name);
+        self.local_vars.insert(var);
         self.visit_node(let_expr.body);
-        self.local_vars.remove(&let_expr.name);
+        self.local_vars.remove(&var);
     }
 
-    fn visit_func(&mut self, _id: ir::NodeId, func_expr: &ir::Func) {
+    fn visit_func(&mut self, var: VarId, func_expr: &ir::Func) {
         if let Some(var) = func_expr.rec_var {
             self.local_vars.insert(var);
         }
-        self.local_vars.insert(func_expr.arg);
+        self.local_vars.insert(var);
         self.visit_node(func_expr.body);
-        self.local_vars.remove(&func_expr.arg);
+        self.local_vars.remove(&var);
         if let Some(var) = func_expr.rec_var {
             self.local_vars.remove(&var);
         }
     }
 
-    fn visit_match_case(&mut self, case: &ir::MatchCase) {
-        if let Some(var) = case.name {
-            self.local_vars.insert(var);
+    fn visit_match(&mut self, var: VarId, record_expr: &ir::Match) {
+        self.visit_node(record_expr.expr);
+        self.local_vars.insert(var);
+        for &case in record_expr.cases.values() {
+            self.visit_node(case);
         }
-        self.visit_node(case.expr);
-        if let Some(var) = case.name {
-            self.local_vars.remove(&var);
-        }
+        self.local_vars.remove(&var);
     }
 }
 

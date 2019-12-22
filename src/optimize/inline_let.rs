@@ -23,11 +23,11 @@ impl Transform for InlineLet {
 fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
     match &nodes[id] {
         &ir::Node::Let(let_expr) => {
-            if let Some((changes, occurrences)) = should_inline(nodes, &let_expr) {
+            if let Some((changes, occurrences)) = should_inline(nodes, id, &let_expr) {
                 for occurrence in occurrences {
-                    nodes[occurrence] = nodes[let_expr.val].clone();
+                    nodes[occurrence] = ir::Node::Ref(let_expr.val);
                 }
-                nodes[id] = nodes[let_expr.body].clone();
+                nodes[id] = ir::Node::Ref(let_expr.body);
                 changes
             } else {
                 0
@@ -37,14 +37,18 @@ fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
     }
 }
 
-fn should_inline(nodes: &ir::Nodes, let_expr: &ir::Let) -> Option<(u32, Vec<ir::NodeId>)> {
+fn should_inline(
+    nodes: &ir::Nodes,
+    id: ir::NodeId,
+    let_expr: &ir::Let,
+) -> Option<(u32, Vec<ir::NodeId>)> {
     match nodes[let_expr.val] {
         ir::Node::Func(func) if func.rec_var.is_some() => return None,
         _ => (),
     };
 
     let size = size(nodes, let_expr.val);
-    let occurrences = occurrences(nodes, let_expr.body, let_expr.name);
+    let occurrences = occurrences(nodes, let_expr.body, id);
     // TODO handle variable conflicts for occurences > 1 e.g. in not2
     if occurrences.len() > 1 {
         return None;
@@ -131,8 +135,8 @@ impl<'a> ir::Visitor for SizeVisitor<'a> {
 
     fn visit_match(&mut self, _id: ir::NodeId, record_expr: &ir::Match) {
         self.visit_node(record_expr.expr);
-        for case in record_expr.cases.values() {
-            self.visit_node(case.expr);
+        for &expr in record_expr.cases.values() {
+            self.visit_node(expr);
         }
         self.size += 5;
     }
@@ -246,7 +250,8 @@ fn test_should_inline() {
     use crate::optimize::tests::generate_ir;
 
     fn should_inline_expr(expr: ir::Expr) -> Option<u32> {
-        should_inline(&expr.nodes, &expr.nodes[expr.id].unwrap_let()).map(|(changes, _)| changes)
+        should_inline(&expr.nodes, expr.id, &expr.nodes[expr.id].unwrap_let())
+            .map(|(changes, _)| changes)
     }
 
     assert!(should_inline_expr(generate_ir("let x = null in x")).is_some());

@@ -16,15 +16,15 @@ pub struct Expr<T = Rc<[Command]>> {
     pub id: NodeId,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, serde::Serialize)]
 pub struct NodeId(u32);
 
 #[derive(Debug)]
 pub struct Nodes<T = Rc<[Command]>> {
-    data: Vec<Node<T>>,
+    data: Vec<Option<Node<T>>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Node<T = Rc<[Command]>> {
     Literal(Value),
     Var(VarId),
@@ -37,11 +37,11 @@ pub enum Node<T = Rc<[Command]>> {
     Record(BTreeMap<Symbol, NodeId>),
     Match(Match),
     Import(T),
+    Ref(NodeId),
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Func {
-    pub arg: VarId,
     pub body: NodeId,
     pub rec_var: Option<VarId>,
 }
@@ -54,7 +54,6 @@ pub struct Call {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Let {
-    pub name: VarId,
     pub val: NodeId,
     pub body: NodeId,
 }
@@ -81,13 +80,7 @@ pub struct Enum {
 #[derive(Clone, Debug)]
 pub struct Match {
     pub expr: NodeId,
-    pub cases: BTreeMap<Symbol, MatchCase>,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct MatchCase {
-    pub expr: NodeId,
-    pub name: Option<VarId>,
+    pub cases: BTreeMap<Symbol, NodeId>,
 }
 
 impl<T> Nodes<T> {
@@ -95,9 +88,22 @@ impl<T> Nodes<T> {
         Default::default()
     }
 
-    pub fn add(&mut self, node: Node<T>) -> NodeId {
+    pub fn next(&mut self) -> NodeId {
         let id = NodeId(self.data.len() as u32);
-        self.data.push(node);
+        self.data.push(None);
+        id
+    }
+
+    pub fn add_at(&mut self, id: NodeId, node: Node<T>) -> NodeId {
+        let slot = &mut self.data[id.0 as usize];
+        debug_assert!(slot.is_none());
+        *slot = Some(node);
+        id
+    }
+
+    pub fn add(&mut self, node: Node<T>) -> NodeId {
+        let id = self.next();
+        self.add_at(id, node);
         id
     }
 
@@ -135,6 +141,13 @@ impl<T> Nodes<T> {
             f(self, id);
         }
     }
+
+    pub fn deref_id(&self, mut id: NodeId) -> NodeId {
+        while let Some(Node::Ref(ref_id)) = self.data[id.0 as usize] {
+            id = ref_id
+        }
+        id
+    }
 }
 
 impl<T> Default for Nodes<T> {
@@ -149,13 +162,25 @@ impl<T> Index<NodeId> for Nodes<T> {
     type Output = Node<T>;
 
     fn index(&self, id: NodeId) -> &Self::Output {
-        &self.data[id.0 as usize]
+        // let id = self.deref_id(id);
+        self.data[id.0 as usize].as_ref().unwrap()
     }
 }
 
 impl<T> IndexMut<NodeId> for Nodes<T> {
     fn index_mut(&mut self, id: NodeId) -> &mut Self::Output {
-        &mut self.data[id.0 as usize]
+        // let id = self.deref_id(id);
+        self.data[id.0 as usize].as_mut().unwrap()
+    }
+}
+
+impl NodeId {
+    pub const fn builtin(id: u32) -> Self {
+        NodeId(!id)
+    }
+
+    pub fn get(self) -> u32 {
+        self.0
     }
 }
 
@@ -173,6 +198,7 @@ impl<T: PartialEq> PartialEq for Expr<T> {
             lhs: NodeId,
             rhs: NodeId,
         ) -> bool {
+            vars.insert((lhs, rhs));
             match (&lhs_nodes[lhs], &rhs_nodes[rhs]) {
                 (Node::Literal(l), Node::Literal(r)) => l == r,
                 (Node::Var(l), Node::Var(r)) => vars.contains(&(*l, *r)),
@@ -181,13 +207,11 @@ impl<T: PartialEq> PartialEq for Expr<T> {
                         && eq(vars, lhs_nodes, rhs_nodes, l.func, r.func)
                 }
                 (Node::Let(l), Node::Let(r)) => {
-                    vars.insert((l.name, r.name))
-                        && eq(vars, lhs_nodes, rhs_nodes, l.val, r.val)
+                    eq(vars, lhs_nodes, rhs_nodes, l.val, r.val)
                         && eq(vars, lhs_nodes, rhs_nodes, l.body, r.body)
                 }
                 (Node::Func(l), Node::Func(r)) => {
-                    vars.insert((l.arg, r.arg))
-                        && l.rec_var.is_some() == r.rec_var.is_some()
+                    l.rec_var.is_some() == r.rec_var.is_some()
                         && eq(vars, lhs_nodes, rhs_nodes, l.body, r.body)
                 }
                 (Node::If(l), Node::If(r)) => {
@@ -216,18 +240,14 @@ impl<T: PartialEq> PartialEq for Expr<T> {
                             .zip_longest(r.cases.iter())
                             .all(|eob| match eob {
                                 EitherOrBoth::Both(l, r) => {
-                                    l.0 == r.0
-                                        && match ((l.1).name, (r.1).name) {
-                                            (Some(l), Some(r)) => vars.insert((l, r)),
-                                            (None, None) => true,
-                                            _ => false,
-                                        }
-                                        && eq(vars, lhs_nodes, rhs_nodes, (l.1).expr, (r.1).expr)
+                                    l.0 == r.0 && eq(vars, lhs_nodes, rhs_nodes, *l.1, *r.1)
                                 }
                                 _ => false,
                             })
                 }
                 (Node::Import(l), Node::Import(r)) => l == r,
+                (Node::Ref(lhs), _) => eq(vars, lhs_nodes, rhs_nodes, *lhs, rhs),
+                (_, Node::Ref(rhs)) => eq(vars, lhs_nodes, rhs_nodes, lhs, *rhs),
                 _ => false,
             }
         }

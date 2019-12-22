@@ -8,19 +8,20 @@ use crate::syntax::Symbol;
 impl<T, F> Context<T, F> {
     pub(in crate::check) fn set_builtins(&mut self) {
         let eq = self.build_eq();
-        assert_eq!(
-            self.push_var(Symbol::new("__builtin_eq"), None, &eq),
-            VarId::BUILTIN_EQ
-        );
+        self.push_var(VarId::BUILTIN_EQ, Symbol::new("__builtin_eq"), None, &eq);
         let add = self.build_capability_getter(Symbol::new("add"));
-        assert_eq!(
-            self.push_var(Symbol::new("__builtin_get_add"), None, &add),
-            VarId::BUILTIN_GET_ADD
+        self.push_var(
+            VarId::BUILTIN_GET_ADD,
+            Symbol::new("__builtin_get_add"),
+            None,
+            &add,
         );
         let sub = self.build_capability_getter(Symbol::new("sub"));
-        assert_eq!(
-            self.push_var(Symbol::new("__builtin_get_sub"), None, &sub),
-            VarId::BUILTIN_GET_SUB
+        self.push_var(
+            VarId::BUILTIN_GET_SUB,
+            Symbol::new("__builtin_get_sub"),
+            None,
+            &sub,
         );
 
         assert_eq!(self.vars.len(), VarId::NUM_BUILTINS);

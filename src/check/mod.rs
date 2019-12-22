@@ -127,7 +127,9 @@ where
         let arg_pair = self.auto.build_var();
         let ret_pair = self.auto.build_var();
 
-        let arg_var = self.push_var(
+        let arg_var = self.ir.next();
+        self.push_var(
+            arg_var,
             func.arg.val,
             (span.0, func.arg.span),
             &Scheme::from_var(func.arg.val, arg_pair),
@@ -146,11 +148,13 @@ where
 
         Ok(CheckOutput {
             scheme: scheme.with_ty(func_ty),
-            expr: self.ir.add(ir::Node::Func(ir::Func {
-                arg: arg_var,
-                body: body.expr,
-                rec_var,
-            })),
+            expr: self.ir.add_at(
+                arg_var,
+                ir::Node::Func(ir::Func {
+                    body: body.expr,
+                    rec_var,
+                }),
+            ),
         })
     }
 
@@ -181,23 +185,33 @@ where
     fn check_let(&mut self, let_expr: &ast::LetExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let val = self.check_expr(&let_expr.val, span.0)?;
 
-        let name_var = self.push_var(let_expr.name.val, (span.0, let_expr.name.span), &val.scheme);
+        let name_var = self.ir.next();
+        self.push_var(
+            name_var,
+            let_expr.name.val,
+            (span.0, let_expr.name.span),
+            &val.scheme,
+        );
         let body = self.check_expr(&let_expr.body, span.0)?;
         self.pop_var(let_expr.name.val);
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &val.scheme, &body.scheme),
-            expr: self.ir.add(ir::Node::Let(ir::Let {
-                name: name_var,
-                val: val.expr,
-                body: body.expr,
-            })),
+            expr: self.ir.add_at(
+                name_var,
+                ir::Node::Let(ir::Let {
+                    val: val.expr,
+                    body: body.expr,
+                }),
+            ),
         })
     }
 
     fn check_rec(&mut self, rec: &ast::RecExpr, span: FileSpan) -> Result<CheckOutput, Error> {
         let func_pair = self.auto.build_var();
-        let rec_var = self.push_var(
+        let rec_var = self.ir.next();
+        self.push_var(
+            rec_var,
             rec.name.val,
             (span.0, rec.name.span),
             &Scheme::from_var(rec.name.val, func_pair),
@@ -218,11 +232,13 @@ where
 
         Ok(CheckOutput {
             scheme: Scheme::join(&mut self.auto, body.scheme.ty(), &scheme, &body.scheme),
-            expr: self.ir.add(ir::Node::Let(ir::Let {
-                name: rec_var,
-                val: func.expr,
-                body: body.expr,
-            })),
+            expr: self.ir.add_at(
+                rec_var,
+                ir::Node::Let(ir::Let {
+                    val: func.expr,
+                    body: body.expr,
+                }),
+            ),
         })
     }
 
@@ -348,7 +364,7 @@ where
     ) -> Result<CheckOutput, Error> {
         struct CheckMatchCaseOutput {
             tag: Symbol,
-            ir: ir::MatchCase,
+            expr: ir::NodeId,
             val_pair: flow::Pair,
             val_ty: Option<StateId>,
             scheme: Scheme,
@@ -358,21 +374,21 @@ where
 
         let result_pair = self.auto.build_var();
 
+        let name_var = self.ir.next();
         let cases = match_expr
             .cases
             .iter()
             .map(|(&tag, case)| {
                 let case_pair = self.auto.build_var();
 
-                let name_var = if let Some(name) = case.val.name {
-                    Some(self.push_var(
+                if let Some(name) = case.val.name {
+                    self.push_var(
+                        name_var,
                         name.val,
                         (span.0, name.span),
                         &Scheme::from_var(name.val, case_pair),
-                    ))
-                } else {
-                    None
-                };
+                    );
+                }
 
                 let case_expr = self.check_expr(&case.val.expr, span.0)?;
 
@@ -385,10 +401,7 @@ where
 
                 Ok(CheckMatchCaseOutput {
                     tag,
-                    ir: ir::MatchCase {
-                        expr: case_expr.expr.into(),
-                        name: name_var,
-                    },
+                    expr: case_expr.expr,
                     scheme,
                     val_pair: case_pair,
                     val_ty,
@@ -418,10 +431,16 @@ where
                 result_pair.pos,
                 once(&expr.scheme).chain(cases.iter().map(|case| &case.scheme)),
             ),
-            expr: self.ir.add(ir::Node::Match(ir::Match {
-                cases: cases.into_iter().map(|case| (case.tag, case.ir)).collect(),
-                expr: expr.expr,
-            })),
+            expr: self.ir.add_at(
+                name_var,
+                ir::Node::Match(ir::Match {
+                    cases: cases
+                        .into_iter()
+                        .map(|case| (case.tag, case.expr))
+                        .collect(),
+                    expr: expr.expr,
+                }),
+            ),
         })
     }
 
@@ -505,14 +524,14 @@ where
 impl<T, F> Context<T, F> {
     fn push_var(
         &mut self,
+        id: VarId,
         symbol: Symbol,
         span: impl Into<Option<FileSpan>>,
         scheme: &Scheme,
-    ) -> VarId {
+    ) {
         let reduced = scheme.reduce(&self.auto);
-        let id = self.vars.push(symbol, span.into(), reduced);
         log::debug!("Push var {} ({:?})", symbol, id);
-        id
+        self.vars.push(id, symbol, span.into(), reduced);
     }
 
     fn set_var_scheme(&mut self, id: VarId, scheme: &Scheme) {

@@ -18,17 +18,20 @@ impl Transform for InlineIife {
 
 fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
     match &nodes[id] {
-        ir::Node::Call(call) => match &nodes[call.func] {
-            &ir::Node::Func(func) => {
-                nodes[id] = ir::Node::Let(ir::Let {
-                    name: func.arg,
-                    val: call.arg,
-                    body: func.body,
-                });
-                4
+        &ir::Node::Call(call) => {
+            let call_func = nodes.deref_id(call.func);
+            match &nodes[call_func] {
+                &ir::Node::Func(func) => {
+                    nodes[call_func] = ir::Node::Let(ir::Let {
+                        val: call.arg,
+                        body: func.body,
+                    });
+                    nodes[id] = ir::Node::Ref(call_func);
+                    4
+                }
+                _ => 0,
             }
-            _ => 0,
-        },
+        }
         _ => 0,
     }
 }
