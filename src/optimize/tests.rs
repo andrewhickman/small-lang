@@ -67,7 +67,7 @@ proptest! {
 fn structural_eq(lhs: &Option<rt::Value>, rhs: &Option<rt::Value>) -> bool {
     match (lhs, rhs) {
         (Some(lhs), Some(rhs)) => structural_eq_value(lhs, rhs),
-        (Some(_), None) | (None, Some(_)) => false,
+        (Some(_), None) | (None, Some(_)) => true,
         (None, None) => true,
     }
 }

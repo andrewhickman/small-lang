@@ -9,3 +9,4 @@ cc 7f41d47ea5918f295a062852fc7ef8e3d3d80ef87e69bcef1fd71cd33d97c5ab # shrinks to
 cc 61ed89be090c33b841d2ff78377515b7733634a38ca3878e3f4cbd14ef7d7450 # shrinks to expr = {   p: __builtin_eq, }
 cc 0a2a78932371b9e354d547be72a4fb81537053acd43b2fc5b719cd546b6c63a4 # shrinks to expr = func a => let rec c = func a => func a => let rec __builtin_eq = func a => null in c in let a = null in null
 cc 753a6f2463f60018583a6ec0c88dd0470e588a2af7b9abe5f48d23f646d1e59e # shrinks to expr = let rec a = func a => (func c => let rec b = func a => if c   then b   else null in null) (let rec a = func a => null in false) in let rec a = func a => null in let a = null in null
+cc f9c08136cd33f5858d6221b02ec718fb5803ea756bff19e7b1814fca5a73c8d8 # shrinks to expr = [p: (func a => null) (let rec b = func a => b null in b null)]
