@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::iter::{once, FromIterator};
+
 use crate::check::ir;
 use crate::optimize::Transform;
 
@@ -22,11 +25,13 @@ fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
             let call_func = nodes.deref_id(call.func);
             match &nodes[call_func] {
                 &ir::Node::Func(func) => {
-                    nodes[call_func] = ir::Node::Let(ir::Let {
+                    let cloned_func_body = nodes
+                        .clone_node_with(func.body, &mut HashMap::from_iter(once((call_func, id))));
+
+                    nodes[id] = ir::Node::Let(ir::Let {
                         val: call.arg,
-                        body: func.body,
+                        body: cloned_func_body,
                     });
-                    nodes[id] = ir::Node::Ref(call_func);
                     4
                 }
                 _ => 0,

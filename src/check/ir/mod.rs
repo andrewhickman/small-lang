@@ -263,3 +263,12 @@ impl<T: PartialEq> PartialEq for Expr<T> {
         )
     }
 }
+
+impl<T> Node<T> {
+    pub fn is_decl(&self) -> bool {
+        match self {
+            Node::Let(_) | Node::Func(_) | Node::Match(_) => true,
+            _ => false,
+        }
+    }
+}
