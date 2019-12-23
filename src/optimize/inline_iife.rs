@@ -15,6 +15,8 @@ impl Transform for InlineIife {
             let changes = transform(nodes, id);
             cost = 1 + cost.saturating_sub(changes);
         });
+
+        log::debug!("Applied inline_iife transform. Cost: {:?}", cost);
         cost
     }
 }

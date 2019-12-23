@@ -24,6 +24,11 @@ pub fn optimize(expr: &mut ir::Expr, opts: Opts) {
     while budget != 0 {
         let cost = pass.transform(expr);
         budget = budget.saturating_sub(cost);
+        log::debug!(
+            "Applied optimisation pass. Total cost: {}. Remaining budget: {}",
+            cost,
+            budget
+        );
     }
 }
 

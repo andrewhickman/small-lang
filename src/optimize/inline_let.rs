@@ -16,6 +16,8 @@ impl Transform for InlineLet {
             let changes = transform(nodes, id);
             cost = 1 + cost.saturating_sub(changes);
         });
+
+        log::debug!("Applied inline_let transform. Cost: {:?}", cost);
         cost
     }
 }
