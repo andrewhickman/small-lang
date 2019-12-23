@@ -71,6 +71,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         self.visit_node(func_expr.body);
 
         let capture = rt::Command::Capture {
+            span: func_expr.span,
             rec_var: func_expr.rec_var,
             cmds: self.cmds.drain(start..).collect(),
             vars: Vec::from_iter(captured_vars),

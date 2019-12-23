@@ -12,6 +12,7 @@ use crate::check::vars::VarId;
 use crate::rt::builtin::Builtin;
 use crate::rt::state::Runtime;
 use crate::syntax::symbol::{ImSymbolMap, Symbol};
+use crate::FileSpan;
 
 pub fn run(cmds: &[Command], opts: Opts) -> Result<Output, Error> {
     assert!(!cmds.is_empty());
@@ -77,6 +78,8 @@ pub struct FuncValue {
     pub cmds: Rc<[Command]>,
     #[serde(rename = "$env")]
     pub env: OrdMap<VarId, Value>,
+    #[serde(rename = "$span")]
+    pub span: FileSpan,
 }
 
 #[derive(Clone, Serialize, PartialEq)]
@@ -94,16 +97,6 @@ pub enum NumberValue {
     Float(f64),
 }
 
-impl FuncValue {
-    pub fn new(cmds: impl Into<Rc<[Command]>>) -> Self {
-        FuncValue {
-            rec_var: None,
-            cmds: cmds.into(),
-            env: OrdMap::default(),
-        }
-    }
-}
-
 #[derive(Clone, Serialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
 #[derive(PartialEq, Eq)]
@@ -113,6 +106,7 @@ pub enum Command {
         value: Value,
     },
     Capture {
+        span: FileSpan,
         rec_var: Option<VarId>,
         cmds: Rc<[Command]>,
         vars: Vec<VarId>,
@@ -217,6 +211,7 @@ impl Command {
                 None
             }
             Command::Capture {
+                span,
                 rec_var,
                 ref cmds,
                 ref vars,
@@ -227,6 +222,7 @@ impl Command {
                     .map(|&var| (var, ctx.get_var(var)))
                     .collect();
                 ctx.push_stack(Value::Func(FuncValue {
+                    span,
                     rec_var,
                     cmds: cmds.clone(),
                     env,

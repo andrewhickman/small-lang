@@ -156,7 +156,7 @@ impl PartialEq for NumberValue {
 
 impl PartialEq for FuncValue {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.cmds, &other.cmds) && self.env == other.env
+        self.span == other.span && self.env == other.env
     }
 }
 

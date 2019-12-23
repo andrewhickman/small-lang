@@ -9,6 +9,7 @@ use std::rc::Rc;
 use crate::check::VarId;
 use crate::rt::{Command, Value};
 use crate::syntax::Symbol;
+use crate::FileSpan;
 
 #[derive(Debug)]
 pub struct Expr<T = Rc<[Command]>> {
@@ -42,6 +43,7 @@ pub enum Node<T = Rc<[Command]>> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Func {
+    pub span: FileSpan,
     pub body: NodeId,
     pub rec_var: Option<VarId>,
 }

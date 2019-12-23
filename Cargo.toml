@@ -37,7 +37,7 @@ lalrpop-util = "0.17"
 regex = "~1"
 iter-set = "~1"
 small-ord-set = "0.1.0"
-codespan = "0.5.0"
+codespan = { version = "0.5.0", features = ["serialization"] }
 log = "0.4.8"
 serde_json = "1.0.41"
 codespan-reporting = "0.5.0"

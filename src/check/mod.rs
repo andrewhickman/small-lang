@@ -149,6 +149,7 @@ where
             expr: self.ir.add_at(
                 arg_var,
                 ir::Node::Func(ir::Func {
+                    span: span,
                     body: body.expr,
                     rec_var,
                 }),
