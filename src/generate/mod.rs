@@ -169,7 +169,7 @@ impl<'a> ir::Visitor for CaptureVisitor<'a> {
     }
 
     fn visit_var(&mut self, _id: ir::NodeId, var: VarId) {
-        if !self.local_vars.contains(&var) {
+        if !var.is_builtin() && !self.local_vars.contains(&var) {
             self.captured_vars.insert(var);
         }
     }

@@ -95,7 +95,7 @@ test_case!(
                 Command::Call,
                 Command::Call,
             ]),
-            vars: vec![VarId::BUILTIN_GET_ADD]
+            vars: vec![]
         },
         Command::Store { var: VarId::new(0) },
         Command::Load { var: VarId::new(0) },

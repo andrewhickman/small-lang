@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -42,18 +41,12 @@ impl Value {
     }
 }
 
-pub fn builtins() -> HashMap<VarId, Value> {
-    let mut builtins = HashMap::new();
-    builtins.insert(VarId::BUILTIN_EQ, binary_func("__builtin_eq", eq));
-    builtins.insert(
-        VarId::BUILTIN_GET_ADD,
+pub fn builtins() -> [Value; VarId::NUM_BUILTINS] {
+    [
+        binary_func("__builtin_eq", eq),
         Value::builtin("__builtin_get_add", get_add),
-    );
-    builtins.insert(
-        VarId::BUILTIN_GET_SUB,
         Value::builtin("__builtin_get_sub", get_sub),
-    );
-    builtins
+    ]
 }
 
 fn binary_func<F>(name: &'static str, f: F) -> Value

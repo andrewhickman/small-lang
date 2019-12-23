@@ -7,14 +7,14 @@ use crate::rt::{Command, Error, Opts, Output, Value};
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
     stack: Vec<Value>,
-    builtins: HashMap<VarId, Value>,
+    builtins: [Value; VarId::NUM_BUILTINS],
     var_stack: Vec<HashMap<VarId, Value>>,
     opts: Opts,
     op_count: u64,
 }
 
 impl Runtime {
-    pub fn new(builtins: HashMap<VarId, Value>, opts: Opts) -> Self {
+    pub fn new(builtins: [Value; VarId::NUM_BUILTINS], opts: Opts) -> Self {
         Runtime {
             stack: vec![],
             builtins,
@@ -92,8 +92,8 @@ impl Runtime {
 
     pub fn get_var(&self, var: VarId) -> Value {
         log::trace!("get var {:?}", var);
-        if let Some(value) = self.builtins.get(&var) {
-            value.clone()
+        if var.is_builtin() {
+            self.builtins[var.as_builtin()].clone()
         } else {
             self.vars()[&var].clone()
         }

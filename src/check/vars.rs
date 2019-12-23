@@ -62,6 +62,10 @@ impl VarId {
     pub const NUM_BUILTINS: usize = 3;
 
     pub fn is_builtin(self) -> bool {
-        (self.get() as usize) < Self::NUM_BUILTINS
+        self.as_builtin() < VarId::NUM_BUILTINS
+    }
+
+    pub fn as_builtin(self) -> usize {
+        !self.get() as usize
     }
 }
