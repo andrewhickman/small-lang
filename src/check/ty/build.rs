@@ -7,8 +7,9 @@ use mlsub::{polar, Polarity};
 use crate::check::ty::{
     Constructor, ConstructorKind, FuncConstructor, Label, NumberConstructor, ObjectConstructor,
 };
-use crate::check::{Context, FileSpan};
+use crate::check::Context;
 use crate::syntax::Symbol;
+use crate::FileSpan;
 
 #[derive(Debug)]
 enum CapabilitiesBuilder {

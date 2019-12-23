@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::check::ir;
 use crate::check::scheme::ReducedScheme;
-use crate::check::FileSpan;
 use crate::syntax::{Symbol, SymbolMap};
+use crate::FileSpan;
 
 pub type VarId = ir::NodeId;
 

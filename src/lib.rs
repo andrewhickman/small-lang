@@ -20,11 +20,13 @@ pub(crate) use crate::error::ErrorData;
 
 use std::rc::Rc;
 
-use codespan::FileId;
+use codespan::{FileId, Span};
 
 use crate::check::scheme::ReducedScheme;
 use crate::pipeline::{Pipeline, PipelineResult, ProcessOutput, ProcessResult};
 use crate::syntax::ast;
+
+pub type FileSpan = (FileId, Span);
 
 pub fn parse(root: Source) -> PipelineResult<ast::Spanned<ast::Expr>> {
     Pipeline::new().process_root_rc(root, |_, file, input| {

@@ -7,7 +7,7 @@ mod ty;
 
 use std::iter::once;
 
-use codespan::{FileId, Span};
+use codespan::FileId;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use mlsub::auto::{flow, Automaton, StateId};
 use mlsub::{BiunifyError, Polarity};
@@ -17,7 +17,7 @@ use crate::check::ty::{Constructor, NumberConstructor};
 use crate::check::vars::{VarId, Vars};
 use crate::rt::{NumberValue, Value};
 use crate::syntax::{ast, Symbol, SymbolMap};
-use crate::ErrorData;
+use crate::{ErrorData, FileSpan};
 
 pub fn check<T, F>(
     file: FileId,
@@ -43,8 +43,6 @@ where
         ctx.warnings,
     ))
 }
-
-type FileSpan = (FileId, Span);
 
 #[derive(Debug)]
 enum Error {

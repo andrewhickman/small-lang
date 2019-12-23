@@ -9,8 +9,8 @@ use mlsub::auto::StateSet;
 use mlsub::Polarity;
 use small_ord_set::SmallOrdSet;
 
-use crate::check::FileSpan;
 use crate::syntax::Symbol;
+use crate::FileSpan;
 
 #[derive(Clone, Debug)]
 pub struct Constructor {
