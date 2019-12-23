@@ -121,6 +121,7 @@ pub fn make_file_id(val: u32) -> FileId {
 
 proptest! {
     #[test]
+    #[ignore]
     fn parse_roundtrip(expr in arb_expr()) {
         let source = expr.to_string();
         let parsed = parse(dummy_file_id(), &source).unwrap();
