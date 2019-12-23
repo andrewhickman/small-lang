@@ -107,7 +107,16 @@ fn spanned<T>(val: T) -> ast::Spanned<T> {
 }
 
 pub fn dummy_file_id() -> FileId {
-    codespan::Files::new().add("", "")
+    make_file_id(0)
+}
+
+pub fn make_file_id(val: u32) -> FileId {
+    let mut files = codespan::Files::new();
+    let mut file = None;
+    for _ in 0..=val {
+        file = Some(files.add("", ""));
+    }
+    file.unwrap()
 }
 
 proptest! {

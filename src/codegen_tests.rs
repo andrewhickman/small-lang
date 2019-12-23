@@ -1,7 +1,15 @@
+use std::rc::Rc;
+
+use codespan::Span;
+use im::HashMap;
+
+use crate::check::vars::VarId;
 use crate::generate;
 use crate::optimize::Opts;
 use crate::pipeline::Source;
 use crate::rt::{Command, NumberValue, Value};
+use crate::syntax::tests::make_file_id;
+use crate::syntax::Symbol;
 
 macro_rules! test_case {
     ($name:ident, $cmds:expr) => {
@@ -49,5 +57,47 @@ test_case!(
         Command::Push {
             value: Value::Bool(false),
         },
+    ]
+);
+test_case!(
+    tail_recursion,
+    &[
+        Command::Capture {
+            span: (make_file_id(0), Span::new(17, 118)),
+            rec_var: Some(VarId::new(0)),
+            cmds: Rc::new([
+                Command::Store { var: VarId::new(1) },
+                Command::Load { var: VarId::new(1) },
+                Command::Match {
+                    jump_offsets: HashMap::default()
+                        .update(Symbol::new("none"), 1)
+                        .update(Symbol::new("some"), 4),
+                },
+                Command::Jump { jump_offset: 12 },
+                Command::Store { var: VarId::new(3) },
+                Command::Push {
+                    value: Value::Number(NumberValue::Int(0))
+                },
+                Command::Jump { jump_offset: 9 },
+                Command::Store { var: VarId::new(3) },
+                Command::Load { var: VarId::new(3) },
+                Command::Get {
+                    field: Symbol::new("tail"),
+                },
+                Command::Load { var: VarId::new(0) },
+                Command::Call,
+                Command::Push {
+                    value: Value::Number(NumberValue::Int(1))
+                },
+                Command::Load {
+                    var: VarId::BUILTIN_GET_ADD,
+                },
+                Command::Call,
+                Command::Call,
+            ]),
+            vars: vec![VarId::BUILTIN_GET_ADD]
+        },
+        Command::Store { var: VarId::new(0) },
+        Command::Load { var: VarId::new(0) },
     ]
 );

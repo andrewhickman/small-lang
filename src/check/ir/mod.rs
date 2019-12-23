@@ -272,3 +272,10 @@ impl<T> Node<T> {
         }
     }
 }
+
+impl NodeId {
+    #[cfg(test)]
+    pub fn new(id: u32) -> Self {
+        NodeId(id)
+    }
+}
