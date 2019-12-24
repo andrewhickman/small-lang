@@ -1,6 +1,8 @@
-let rec length = func list => match list with [
-  none => 0,
-  some: cons => __builtin_get_add 1 (length cons.tail),
+let rec any = func list => match list with [
+  none => false,
+  some: cons => if cons.value
+    then true
+    else any cons.tail
 ] in
 
-length
+any

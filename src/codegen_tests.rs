@@ -63,7 +63,7 @@ test_case!(
     tail_recursion,
     &[
         Command::Capture {
-            span: (make_file_id(0), Span::new(17, 118)),
+            span: (make_file_id(0), Span::new(14, 130)),
             rec_var: Some(VarId::new(0)),
             cmds: Rc::new([
                 Command::Store { var: VarId::new(1) },
@@ -73,27 +73,28 @@ test_case!(
                         .update(Symbol::new("none"), 1)
                         .update(Symbol::new("some"), 4),
                 },
-                Command::Jump { jump_offset: 12 },
+                Command::Jump { jump_offset: 13 },
                 Command::Store { var: VarId::new(3) },
                 Command::Push {
-                    value: Value::Number(NumberValue::Int(0))
+                    value: Value::Bool(false),
                 },
-                Command::Jump { jump_offset: 9 },
+                Command::Jump { jump_offset: 10 },
                 Command::Store { var: VarId::new(3) },
+                Command::Load { var: VarId::new(3) },
+                Command::Get {
+                    field: Symbol::new("value"),
+                },
+                Command::Test { jump_offset: 5 },
                 Command::Load { var: VarId::new(3) },
                 Command::Get {
                     field: Symbol::new("tail"),
                 },
                 Command::Load { var: VarId::new(0) },
                 Command::Call,
+                Command::Jump { jump_offset: 1 },
                 Command::Push {
-                    value: Value::Number(NumberValue::Int(1))
+                    value: Value::Bool(true),
                 },
-                Command::Load {
-                    var: VarId::BUILTIN_GET_ADD,
-                },
-                Command::Call,
-                Command::Call,
             ]),
             vars: vec![]
         },
