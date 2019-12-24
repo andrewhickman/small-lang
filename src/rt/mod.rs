@@ -112,6 +112,7 @@ pub enum Command {
         vars: Vec<VarId>,
     },
     Call,
+    Become,
     Test {
         jump_offset: usize,
     },
@@ -140,6 +141,12 @@ pub enum Command {
         cmds: Rc<[Command]>,
     },
     Trap,
+}
+
+enum ControlFlow {
+    Continue,
+    Jump(usize),
+    Restart,
 }
 
 impl Value {
@@ -198,17 +205,17 @@ impl FuncValue {
 }
 
 impl Command {
-    fn exec(&self, ctx: &mut Runtime) -> Result<Option<usize>, Error> {
+    fn exec(&self, ctx: &mut Runtime) -> Result<ControlFlow, Error> {
         log::trace!("exec {:?}", self);
 
         Ok(match *self {
             Command::Pop => {
                 ctx.pop_stack();
-                None
+                ControlFlow::Continue
             }
             Command::Push { ref value } => {
                 ctx.push_stack(value.clone());
-                None
+                ControlFlow::Continue
             }
             Command::Capture {
                 span,
@@ -227,56 +234,57 @@ impl Command {
                     cmds: cmds.clone(),
                     env,
                 }));
-                None
+                ControlFlow::Continue
             }
             Command::Call => match ctx.pop_stack() {
                 Value::Func(func) => {
                     ctx.push_scope(func.env())?;
                     ctx.exec_all(&func.cmds)?;
                     ctx.pop_scope();
-                    None
+                    ControlFlow::Continue
                 }
                 Value::Builtin { builtin, .. } => {
                     builtin.exec(ctx)?;
-                    None
+                    ControlFlow::Continue
                 }
                 _ => panic!("expected func"),
             },
             Command::Test { jump_offset } => {
                 if ctx.pop_stack().unwrap_bool() {
-                    Some(jump_offset)
+                    ControlFlow::Jump(jump_offset)
                 } else {
-                    None
+                    ControlFlow::Continue
                 }
             }
             Command::Match { ref jump_offsets } => {
                 let variant = ctx.pop_stack().unwrap_enum_variant();
                 ctx.push_stack(*variant.value);
-                Some(jump_offsets[&variant.tag])
+                ControlFlow::Jump(jump_offsets[&variant.tag])
             }
-            Command::Jump { jump_offset } => Some(jump_offset),
+            Command::Jump { jump_offset } => ControlFlow::Jump(jump_offset),
+            Command::Become => ControlFlow::Restart,
             Command::Set { field } => {
                 let val = ctx.pop_stack();
                 let mut rec = ctx.pop_stack().unwrap_record();
                 assert!(rec.insert(field, val).is_none());
                 ctx.push_stack(Value::Record(rec));
-                None
+                ControlFlow::Continue
             }
             Command::Get { field } => {
                 let rec = ctx.pop_stack().unwrap_record();
                 let val = rec[&field].clone();
                 ctx.push_stack(val);
-                None
+                ControlFlow::Continue
             }
             Command::Load { var } => {
                 let val = ctx.get_var(var);
                 ctx.push_stack(val);
-                None
+                ControlFlow::Continue
             }
             Command::Store { var } => {
                 let val = ctx.pop_stack();
                 ctx.set_var(var, val);
-                None
+                ControlFlow::Continue
             }
             Command::WrapEnum { tag } => {
                 let val = ctx.pop_stack();
@@ -285,13 +293,13 @@ impl Command {
                     value: Box::new(val),
                 });
                 ctx.push_stack(variant);
-                None
+                ControlFlow::Continue
             }
             Command::Import { ref cmds } => {
                 ctx.push_scope(empty())?;
                 ctx.exec_all(&cmds)?;
                 ctx.pop_scope();
-                None
+                ControlFlow::Continue
             }
             Command::Trap => panic!("invalid instruction"),
         })

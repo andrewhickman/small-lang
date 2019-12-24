@@ -165,7 +165,7 @@ test_file!(var_in_module, Err);
 test_file!(slow, Ok(Value::Number(NumberValue::Int(0))));
 test_file!(invalid_token, Err);
 test_file!(eq_ret_func, Ok(Value::Bool(true)));
-test_file!(tail_recursion, Err("error: stack overflow\n"));
+test_file!(tail_recursion, Ok(Value::Null));
 
 test_file!(pr1, Ok(Func));
 test_file!(pr2, Ok(Value::Bool(true)));

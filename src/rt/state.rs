@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 use crate::check::vars::VarId;
-use crate::rt::{Command, Error, Opts, Output, Value};
+use crate::rt::{Command, ControlFlow, Error, Opts, Output, Value};
 
 #[derive(Debug)]
 pub(in crate::rt) struct Runtime {
@@ -48,8 +48,13 @@ impl Runtime {
         while let Some(cmd) = cmds.get(idx) {
             self.incr_op_count()?;
 
-            idx += cmd.exec(self)?.unwrap_or(0);
+            let flow = cmd.exec(self)?;
             idx += 1;
+            match flow {
+                ControlFlow::Continue => continue,
+                ControlFlow::Jump(offset) => idx += offset,
+                ControlFlow::Restart => idx = 0,
+            }
         }
         Ok(())
     }

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::iter::FromIterator;
+use std::mem::replace;
 use std::rc::Rc;
 
 use small_ord_set::SmallOrdSet;
@@ -19,6 +20,8 @@ struct GenerateVisitor<'a> {
     ir: &'a ir::Nodes,
     cmds: Vec<rt::Command>,
     cache: HashMap<ir::NodeId, Vec<rt::Command>>,
+    rec_vars: Vec<Option<VarId>>,
+    is_tail: bool,
 }
 
 type CapturedVars = SmallOrdSet<[VarId; 8]>;
@@ -34,6 +37,8 @@ impl<'a> GenerateVisitor<'a> {
         GenerateVisitor {
             cmds: Vec::with_capacity(16),
             cache: HashMap::new(),
+            rec_vars: Vec::new(),
+            is_tail: true,
             ir,
         }
     }
@@ -51,13 +56,18 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
     }
 
     fn visit_call(&mut self, _id: ir::NodeId, call_expr: &ir::Call) {
-        self.visit_node(call_expr.arg);
-        self.visit_node(call_expr.func);
-        self.cmds.push(rt::Command::Call);
+        self.visit_init_node(call_expr.arg);
+
+        if self.is_tail_call(call_expr) {
+            self.cmds.push(rt::Command::Become);
+        } else {
+            self.visit_init_node(call_expr.func);
+            self.cmds.push(rt::Command::Call);
+        }
     }
 
     fn visit_let(&mut self, var: VarId, let_expr: &ir::Let) {
-        self.visit_node(let_expr.val);
+        self.visit_init_node(let_expr.val);
         self.cmds.push(rt::Command::Store { var });
         self.visit_node(let_expr.body);
     }
@@ -68,7 +78,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
         let captured_vars = CaptureVisitor::get_captures(self.ir, var, func_expr);
 
         self.cmds.push(rt::Command::Store { var });
-        self.visit_node(func_expr.body);
+        self.visit_func_body(func_expr);
 
         let capture = rt::Command::Capture {
             span: func_expr.span,
@@ -80,7 +90,7 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
     }
 
     fn visit_if(&mut self, _id: ir::NodeId, if_expr: &ir::If) {
-        self.visit_node(if_expr.cond);
+        self.visit_init_node(if_expr.cond);
 
         self.cmds.push(rt::Command::Trap);
         let alt_pos = self.cmds.len();
@@ -99,14 +109,14 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
     }
 
     fn visit_proj(&mut self, _id: ir::NodeId, proj_expr: &ir::Proj) {
-        self.visit_node(proj_expr.expr);
+        self.visit_init_node(proj_expr.expr);
         self.cmds.push(rt::Command::Get {
             field: proj_expr.field,
         });
     }
 
     fn visit_enum(&mut self, _id: ir::NodeId, enum_expr: &ir::Enum) {
-        self.visit_node(enum_expr.expr);
+        self.visit_init_node(enum_expr.expr);
         self.cmds.push(rt::Command::WrapEnum { tag: enum_expr.tag });
     }
 
@@ -115,13 +125,13 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
             value: rt::Value::Record(Default::default()),
         });
         for (&field, &val) in record_expr {
-            self.visit_node(val);
+            self.visit_init_node(val);
             self.cmds.push(rt::Command::Set { field });
         }
     }
 
     fn visit_match(&mut self, var: VarId, match_expr: &ir::Match) {
-        self.visit_node(match_expr.expr);
+        self.visit_init_node(match_expr.expr);
 
         let mut jump_offsets = ImSymbolMap::default();
 
@@ -159,6 +169,36 @@ impl<'a> ir::Visitor for GenerateVisitor<'a> {
             self.visit_expr(node, &self.ir[node]);
             let cmds = Vec::from(&self.cmds[start..]);
             self.cache.insert(node, cmds);
+        }
+    }
+}
+
+impl<'a> GenerateVisitor<'a> {
+    fn visit_init_node(&mut self, node: ir::NodeId) {
+        let was_tail = replace(&mut self.is_tail, false);
+        self.visit_node(node);
+        self.is_tail = was_tail;
+    }
+
+    fn visit_func_body(&mut self, func: &ir::Func) {
+        self.rec_vars.push(func.rec_var);
+
+        let was_tail = replace(&mut self.is_tail, true);
+        self.visit_node(func.body);
+        self.is_tail = was_tail;
+
+        self.rec_vars.pop();
+    }
+
+    fn is_tail_call(&mut self, call: &ir::Call) -> bool {
+        if let Some(&Some(rec_func)) = self.rec_vars.last() {
+            if let ir::Node::Var(func) = self.ir[call.func] {
+                self.is_tail && rec_func == func
+            } else {
+                false
+            }
+        } else {
+            false
         }
     }
 }

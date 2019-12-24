@@ -73,24 +73,23 @@ test_case!(
                         .update(Symbol::new("none"), 1)
                         .update(Symbol::new("some"), 4),
                 },
-                Command::Jump { jump_offset: 13 },
+                Command::Jump { jump_offset: 12 },
                 Command::Store { var: VarId::new(3) },
                 Command::Push {
                     value: Value::Bool(false),
                 },
-                Command::Jump { jump_offset: 10 },
+                Command::Jump { jump_offset: 9 },
                 Command::Store { var: VarId::new(3) },
                 Command::Load { var: VarId::new(3) },
                 Command::Get {
                     field: Symbol::new("value"),
                 },
-                Command::Test { jump_offset: 5 },
+                Command::Test { jump_offset: 4 },
                 Command::Load { var: VarId::new(3) },
                 Command::Get {
                     field: Symbol::new("tail"),
                 },
-                Command::Load { var: VarId::new(0) },
-                Command::Call,
+                Command::Become,
                 Command::Jump { jump_offset: 1 },
                 Command::Push {
                     value: Value::Bool(true),
