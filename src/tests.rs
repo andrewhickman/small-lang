@@ -3,7 +3,7 @@ use std::path::Path;
 use proptest::proptest;
 
 use crate::check::check;
-use crate::generate::generate;
+use crate::generate::rt::generate;
 use crate::optimize;
 use crate::pipeline::Source;
 use crate::rt::{self, EnumValue, NumberValue, Value};

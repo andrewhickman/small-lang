@@ -24,7 +24,7 @@ pub fn check((file, expr): (FileId, ast::Spanned<ast::Expr>)) -> ir::Expr {
 }
 
 pub fn generate(expr: ir::Expr) -> Vec<Command> {
-    small_lang::generate::generate(&expr)
+    small_lang::generate::rt::generate(&expr)
 }
 
 pub fn run(cmds: Vec<Command>) -> Output {

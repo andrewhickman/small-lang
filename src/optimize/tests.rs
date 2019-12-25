@@ -4,7 +4,7 @@ use codespan::FileId;
 use proptest::proptest;
 
 use crate::check::{check, ir};
-use crate::generate::generate;
+use crate::generate::rt::generate;
 use crate::optimize::{optimize, Opts};
 use crate::pipeline::{Pipeline, ProcessOutput, ProcessResult, Source};
 use crate::rt;

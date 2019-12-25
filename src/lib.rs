@@ -90,7 +90,7 @@ fn generate_impl(
         })
     })?;
     optimize::optimize(&mut expr, optimize_opts);
-    let cmds = generate::generate(&expr);
+    let cmds = generate::rt::generate(&expr);
     Ok(ProcessOutput {
         value: (scheme, cmds.into()),
         warnings,
