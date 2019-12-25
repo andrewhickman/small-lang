@@ -11,11 +11,11 @@ use crate::syntax::tests::{arb_expr, dummy_file_id};
 use crate::syntax::Symbol;
 use crate::Error;
 
-fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
+fn run_file(file: impl AsRef<Path>, opt_level: u32) -> Result<Value, Error> {
     let file = Path::new("data").join(file).with_extension("sl");
     crate::run(
         Source::File(file.as_ref()),
-        optimize::Opts { opt_level: 3 },
+        optimize::Opts { opt_level },
         rt::Opts {
             max_stack: 32,
             max_ops: Some(100_000),
@@ -25,40 +25,49 @@ fn run_file(file: impl AsRef<Path>) -> Result<Value, Error> {
     .map(|output| output.value)
 }
 
+macro_rules! check_result {
+    ($actual:expr, Ok) => {
+        match $actual {
+            Ok(_) => (),
+            Err(err) => panic!("expected success but got error: {}", err),
+        }
+    };
+    ($actual:expr, Ok(Func)) => {
+        match $actual {
+            Ok(actual) => {
+                actual.unwrap_func();
+            }
+            Err(err) => panic!("expected success but got error: {}", err),
+        }
+    };
+    ($actual:expr, Ok($expected:expr)) => {
+        match $actual {
+            Ok(actual) => assert_eq!(actual, $expected),
+            Err(err) => panic!("expected success but got error: {}", err),
+        }
+    };
+}
+
 macro_rules! test_file {
-    ($file:ident, Ok) => {
-        #[test]
-        fn $file() {
-            match run_file(stringify!($file)) {
-                Ok(_) => (),
-                Err(err) => panic!("expected success but got error: {}", err),
+    ($file:ident, Ok $($expected:tt)*) => {
+        mod $file {
+            use super::*;
+
+            #[test]
+            fn unoptimized() {
+                check_result!(run_file(stringify!($file), 0), Ok $($expected)*);
             }
-        }
-    };
-    ($file:ident, Ok(Func)) => {
-        #[test]
-        fn $file() {
-            match run_file(stringify!($file)) {
-                Ok(actual) => {
-                    actual.unwrap_func();
-                }
-                Err(err) => panic!("expected success but got error: {}", err),
-            }
-        }
-    };
-    ($file:ident, Ok($expected:expr)) => {
-        #[test]
-        fn $file() {
-            match run_file(stringify!($file)) {
-                Ok(actual) => assert_eq!(actual, $expected),
-                Err(err) => panic!("expected success but got error: {}", err),
+
+            #[test]
+            fn optimized() {
+                check_result!(run_file(stringify!($file), 3), Ok $($expected)*);
             }
         }
     };
     ($file:ident, Err) => {
         #[test]
         fn $file() {
-            match run_file(stringify!($file)) {
+            match run_file(stringify!($file), 0) {
                 Err(_) => (),
                 Ok(_) => panic!("expected error but got success"),
             }
@@ -67,7 +76,7 @@ macro_rules! test_file {
     ($file:ident, Err($expected:expr)) => {
         #[test]
         fn $file() {
-            match run_file(stringify!($file)) {
+            match run_file(stringify!($file), 0) {
                 Err(actual) => assert_eq!(actual.to_string(), $expected),
                 Ok(_) => panic!("expected error but got success"),
             }
