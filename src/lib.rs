@@ -12,6 +12,7 @@ mod error;
 mod tests;
 #[cfg(test)]
 mod ui_tests;
+mod wasm;
 
 pub use crate::error::Error;
 pub use crate::pipeline::Source;
