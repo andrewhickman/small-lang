@@ -42,7 +42,68 @@
       )
     )
   )
+  (func $pair_new (param $first i32) (param $second i32) (result i64)
+    (i64.or
+      (i64.shl
+        (i64.extend_i32_u (local.get $first))
+        (i64.const 32)
+      )
+      (i64.extend_i32_u (local.get $second))
+    )
+  )
+  (func $pair_first (param $val i64) (result i32)
+    (i32.wrap_i64
+      (i64.shr_u
+        (local.get $val)
+        (i64.const 32)
+      )
+    )
+  )
+  (func $pair_second (param $val i64) (result i32)
+    (i32.wrap_i64
+      (local.get $val)
+    )
+  )
+  (func $string_new (param $ptr i32) (param $len i32) (result i64)
+    (call $pair_new (local.get $ptr) (local.get $len))
+  )
+  (func $string_add (param $lhs i64) (param $rhs i64) (result i64)
+    (local $ptr i32)
+    (local $len i32)
+
+    (local.set $ptr
+      (call $memory_alloc
+        (local.tee $len
+          (i32.add
+            (call $pair_second (local.get $lhs))
+            (call $pair_second (local.get $rhs))
+          )
+        )
+      )
+    )
+
+    (call $memory_copy
+      (call $pair_first (local.get $lhs))
+      (local.get $ptr)
+      (call $pair_second (local.get $lhs))
+    )
+    (call $memory_copy
+      (call $pair_first (local.get $rhs))
+      (i32.add
+        (local.get $ptr)
+        (call $pair_second (local.get $lhs))
+      )
+      (call $pair_second (local.get $rhs))
+    )
+
+    (call $string_new (local.get $ptr) (local.get $len))
+  )
   (export "memory" (memory 0))
   (export "memory_alloc" (func $memory_alloc))
   (export "memory_copy" (func $memory_copy))
+  (export "pair_new" (func $pair_new))
+  (export "pair_first" (func $pair_first))
+  (export "pair_second" (func $pair_second))
+  (export "string_new" (func $string_new))
+  (export "string_add" (func $string_add))
 )
