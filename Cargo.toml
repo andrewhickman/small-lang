@@ -83,4 +83,4 @@ wabt = "0.10.0"
 [dev-dependencies]
 proptest = "0.10.1"
 criterion = "0.3.0"
-wasmer-runtime = "0.12.0"
+wasmi = "0.6.2"

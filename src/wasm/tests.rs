@@ -1,30 +1,46 @@
-use wasmer_runtime::error::RuntimeError;
-use wasmer_runtime::{imports, instantiate, Instance, Memory};
+use once_cell::sync::Lazy;
+use wasmi::{
+    Error, ImportsBuilder, MemoryRef, Module, ModuleInstance, ModuleRef, NopExternals, RuntimeValue,
+};
 
 const RT_WASM: &'static [u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rt.wasm"));
+static RT_MODULE: Lazy<Module> = Lazy::new(|| Module::from_buffer(RT_WASM).unwrap());
 
 struct Runtime {
-    instance: Instance,
+    instance: ModuleRef,
 }
 
 impl Runtime {
     fn instantiate() -> Self {
-        Runtime {
-            instance: instantiate(RT_WASM, &imports![]).unwrap(),
-        }
+        let instance = ModuleInstance::new(&RT_MODULE, &ImportsBuilder::default())
+            .unwrap()
+            .run_start(&mut NopExternals)
+            .unwrap();
+        Runtime { instance }
     }
 
-    fn memory(&self) -> &Memory {
-        self.instance.context().memory(0)
+    fn memory(&self) -> MemoryRef {
+        self.instance
+            .export_by_name("memory")
+            .unwrap()
+            .as_memory()
+            .cloned()
+            .unwrap()
     }
 
-    fn alloc(&self, size: i32) -> Result<i32, RuntimeError> {
-        self.instance.func::<i32, i32>("alloc").unwrap().call(size)
+    fn alloc(&self, size: i32) -> Result<i32, Error> {
+        Ok(self
+            .instance
+            .invoke_export("alloc", &[RuntimeValue::I32(size)], &mut NopExternals)?
+            .unwrap()
+            .try_into()
+            .unwrap())
     }
 }
 
 mod alloc {
-    use wasmer_runtime::units::Pages;
+    use wasmi::memory_units::Pages;
+    use wasmi::LINEAR_MEMORY_PAGE_SIZE;
 
     use super::Runtime;
 
@@ -39,19 +55,17 @@ mod alloc {
 
     #[test]
     fn grow() {
-        const PAGE_SIZE: i32 = 65_536;
-
         let rt = Runtime::instantiate();
         let mem = rt.memory();
 
-        assert_eq!(mem.size(), Pages(1));
+        assert_eq!(mem.current_size(), Pages(1));
         rt.alloc(20).unwrap();
-        assert_eq!(mem.size(), Pages(1));
-        rt.alloc(PAGE_SIZE * 1).unwrap();
-        assert_eq!(mem.size(), Pages(2));
+        assert_eq!(mem.current_size(), Pages(1));
+        rt.alloc(LINEAR_MEMORY_PAGE_SIZE.0 as i32 * 1).unwrap();
+        assert_eq!(mem.current_size(), Pages(2));
         rt.alloc(40).unwrap();
-        assert_eq!(mem.size(), Pages(2));
-        rt.alloc(PAGE_SIZE * 2).unwrap();
-        assert_eq!(mem.size(), Pages(4));
+        assert_eq!(mem.current_size(), Pages(2));
+        rt.alloc(LINEAR_MEMORY_PAGE_SIZE.0 as i32 * 2).unwrap();
+        assert_eq!(mem.current_size(), Pages(4));
     }
 }
