@@ -1,5 +1,6 @@
 (module
   (memory (export "memory") 1)
+  (table $table (export "table") 512 funcref)
   (global $brk (mut i32) (i32.const 0))
   ;; Simple bump allocator
   (func $memory_alloc (export "memory_alloc") (param $len i32) (result i32)
@@ -97,5 +98,34 @@
     )
 
     (call $string_new (local.get $ptr) (local.get $len))
+  )
+  (type $phf (func (param i32) (result i32)))
+  (func $record_new (export "record_new") (param $len i32) (param $phf i32) (result i64)
+    (call $pair_new
+      (call $memory_alloc
+        (i32.mul
+          (local.get $len)
+          (i32.const 8)
+        )
+      )
+      (local.get $phf)
+    )
+  )
+  (func $record_set (export "record_set") (param $record i64) (param $label i32) (param $value i64)
+    (i64.store
+      (i32.add
+        (call $pair_first (local.get $record))
+        (call_indirect (type $phf) (local.get $label) (call $pair_second (local.get $record)))
+      )
+      (local.get $value)
+    )
+  )
+  (func $record_get (export "record_get") (param $record i64) (param $label i32) (result i64)
+    (i64.load
+      (i32.add
+        (call $pair_first (local.get $record))
+        (call_indirect (type $phf) (local.get $label) (call $pair_second (local.get $record)))
+      )
+    )
   )
 )

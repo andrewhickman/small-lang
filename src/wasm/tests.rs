@@ -21,6 +21,17 @@ impl Runtime {
         Runtime { instance }
     }
 
+    fn instantiate_child(&self, wat: &str) -> ModuleRef {
+        let wasm = wabt::wat2wasm(wat).unwrap();
+        ModuleInstance::new(
+            &Module::from_buffer(wasm).unwrap(),
+            &ImportsBuilder::new().with_resolver("rt", &self.instance),
+        )
+        .unwrap()
+        .run_start(&mut NopExternals)
+        .unwrap()
+    }
+
     fn memory(&self) -> MemoryRef {
         self.instance
             .export_by_name("memory")
@@ -93,6 +104,38 @@ impl Runtime {
         let result = self.instance.invoke_export(
             "string_add",
             &[RuntimeValue::I64(lhs), RuntimeValue::I64(rhs)],
+            &mut NopExternals,
+        )?;
+        Ok(result.unwrap().try_into().unwrap())
+    }
+
+    fn call_record_new(&self, len: i32, phf: i32) -> Result<i64, Error> {
+        let result = self.instance.invoke_export(
+            "record_new",
+            &[RuntimeValue::I32(len), RuntimeValue::I32(phf)],
+            &mut NopExternals,
+        )?;
+        Ok(result.unwrap().try_into().unwrap())
+    }
+
+    fn call_record_set(&self, record: i64, label: i32, value: i64) -> Result<(), Error> {
+        let result = self.instance.invoke_export(
+            "record_set",
+            &[
+                RuntimeValue::I64(record),
+                RuntimeValue::I32(label),
+                RuntimeValue::I64(value),
+            ],
+            &mut NopExternals,
+        )?;
+        assert!(result.is_none());
+        Ok(())
+    }
+
+    fn call_record_get(&self, record: i64, label: i32) -> Result<i64, Error> {
+        let result = self.instance.invoke_export(
+            "record_get",
+            &[RuntimeValue::I64(record), RuntimeValue::I32(label)],
             &mut NopExternals,
         )?;
         Ok(result.unwrap().try_into().unwrap())
@@ -204,4 +247,32 @@ fn string_add() {
     let rhs = rt.string_new("world!");
     let add = rt.call_string_add(lhs, rhs).unwrap();
     assert_eq!(rt.string_get(add), "Hello, world!");
+}
+
+#[test]
+fn record() {
+    let rt = Runtime::instantiate();
+    let _src = rt.instantiate_child(
+        r#"(module
+          (import "rt" "table" (table $table 1 funcref))
+          (elem $table (offset i32.const 0) $id)
+          (func $id (param $label i32) (result i32)
+            (local.get $label)
+          )
+        )"#,
+    );
+
+    println!(
+        "{:?}",
+        rt.instance
+            .export_by_name("table")
+            .unwrap()
+            .as_table()
+            .unwrap()
+    );
+
+    let record = rt.call_record_new(3, 0).unwrap();
+
+    rt.call_record_set(record, 3, 42).unwrap();
+    assert_eq!(rt.call_record_get(record, 3).unwrap(), 42);
 }
