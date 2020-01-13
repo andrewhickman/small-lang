@@ -5,12 +5,10 @@ use crate::check::vars::VarId;
 use crate::optimize::Transform;
 use crate::syntax::Symbol;
 
-pub(in crate::optimize) static INSTANCE: &(dyn Transform + Send + Sync) = &InlineLet;
+pub struct InlineLet;
 
-struct InlineLet;
-
-impl Transform for InlineLet {
-    fn transform(&self, expr: &mut ir::Expr) -> u32 {
+impl<T> Transform<T> for InlineLet {
+    fn transform(&self, expr: &mut ir::Expr<T>) -> u32 {
         let mut cost = 40u32;
         expr.nodes.visit_mut(expr.id, |nodes, id| {
             let changes = transform(nodes, id);
@@ -22,7 +20,7 @@ impl Transform for InlineLet {
     }
 }
 
-fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
+fn transform<T>(nodes: &mut ir::Nodes<T>, id: ir::NodeId) -> u32 {
     match &nodes[id] {
         &ir::Node::Let(let_expr) => {
             if let Some((changes, occurrences)) = should_inline(nodes, id, &let_expr) {
@@ -39,8 +37,8 @@ fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
     }
 }
 
-fn should_inline(
-    nodes: &ir::Nodes,
+fn should_inline<T>(
+    nodes: &ir::Nodes<T>,
     id: ir::NodeId,
     let_expr: &ir::Let,
 ) -> Option<(u32, Vec<ir::NodeId>)> {
@@ -58,13 +56,13 @@ fn should_inline(
     }
 }
 
-fn size(nodes: &ir::Nodes, expr: ir::NodeId) -> u32 {
+fn size<T>(nodes: &ir::Nodes<T>, expr: ir::NodeId) -> u32 {
     let mut visitor = SizeVisitor { nodes, size: 0 };
     visitor.visit_node(expr);
     visitor.size
 }
 
-fn occurrences(nodes: &ir::Nodes, expr: ir::NodeId, var: VarId) -> Vec<ir::NodeId> {
+fn occurrences<T>(nodes: &ir::Nodes<T>, expr: ir::NodeId, var: VarId) -> Vec<ir::NodeId> {
     let mut visitor = OccurrencesVisitor {
         nodes,
         var,
@@ -74,18 +72,18 @@ fn occurrences(nodes: &ir::Nodes, expr: ir::NodeId, var: VarId) -> Vec<ir::NodeI
     visitor.occurrences
 }
 
-struct SizeVisitor<'a> {
-    nodes: &'a ir::Nodes,
+struct SizeVisitor<'a, T> {
+    nodes: &'a ir::Nodes<T>,
     size: u32,
 }
 
-struct OccurrencesVisitor<'a> {
-    nodes: &'a ir::Nodes,
+struct OccurrencesVisitor<'a, T> {
+    nodes: &'a ir::Nodes<T>,
     var: VarId,
     occurrences: Vec<ir::NodeId>,
 }
 
-impl<'a> ir::Visitor for SizeVisitor<'a> {
+impl<'a, T> ir::Visitor<T> for SizeVisitor<'a, T> {
     fn visit_node(&mut self, id: ir::NodeId) {
         self.visit_expr(id, &self.nodes[id]);
     }
@@ -140,7 +138,7 @@ impl<'a> ir::Visitor for SizeVisitor<'a> {
     }
 }
 
-impl<'a> ir::Visitor for OccurrencesVisitor<'a> {
+impl<'a, T> ir::Visitor<T> for OccurrencesVisitor<'a, T> {
     fn visit_node(&mut self, id: ir::NodeId) {
         self.visit_expr(id, &self.nodes[id])
     }
@@ -154,9 +152,12 @@ impl<'a> ir::Visitor for OccurrencesVisitor<'a> {
 
 #[test]
 fn test_transform() {
-    use crate::optimize::tests::generate_ir;
+    use std::rc::Rc;
 
-    fn transformed(mut ir: ir::Expr) -> (ir::Expr, u32) {
+    use crate::optimize::tests::generate_ir;
+    use crate::rt::Command;
+
+    fn transformed(mut ir: ir::Expr<Rc<[Command]>>) -> (ir::Expr<Rc<[Command]>>, u32) {
         let cost = transform(&mut ir.nodes, ir.id);
         (ir, cost)
     }
@@ -216,10 +217,13 @@ fn test_transform() {
 
 #[test]
 fn test_transform_full() {
-    use crate::optimize::tests::generate_ir;
+    use std::rc::Rc;
 
-    fn transformed(mut ir: ir::Expr) -> (ir::Expr, u32) {
-        let cost = INSTANCE.transform(&mut ir);
+    use crate::optimize::tests::generate_ir;
+    use crate::rt::Command;
+
+    fn transformed(mut ir: ir::Expr<Rc<[Command]>>) -> (ir::Expr<Rc<[Command]>>, u32) {
+        let cost = InlineLet.transform(&mut ir);
         (ir, cost)
     }
 
@@ -245,9 +249,12 @@ fn test_transform_full() {
 
 #[test]
 fn test_should_inline() {
-    use crate::optimize::tests::generate_ir;
+    use std::rc::Rc;
 
-    fn should_inline_expr(expr: ir::Expr) -> Option<u32> {
+    use crate::optimize::tests::generate_ir;
+    use crate::rt::Command;
+
+    fn should_inline_expr(expr: ir::Expr<Rc<[Command]>>) -> Option<u32> {
         should_inline(&expr.nodes, expr.id, &expr.nodes[expr.id].unwrap_let())
             .map(|(changes, _)| changes)
     }

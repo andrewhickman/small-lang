@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use crate::check::ir;
 use crate::check::vars::VarId;
 
-pub fn optimize(expr: &mut ir::Expr, opts: Opts) {
+pub fn optimize<T: Clone>(expr: &mut ir::Expr<T>, opts: Opts) {
     let pass = Pass {
-        transforms: vec![inline_iife::INSTANCE, inline_let::INSTANCE],
+        transforms: vec![&inline_iife::InlineIife, &inline_let::InlineLet],
     };
 
     let mut budget: u32 = match opts.opt_level {
@@ -32,9 +32,9 @@ pub fn optimize(expr: &mut ir::Expr, opts: Opts) {
     }
 }
 
-trait Transform {
+trait Transform<T> {
     #[must_use]
-    fn transform(&self, nodes: &mut ir::Expr) -> u32;
+    fn transform(&self, nodes: &mut ir::Expr<T>) -> u32;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -53,12 +53,12 @@ impl Default for Opts {
     }
 }
 
-struct Pass {
-    transforms: Vec<&'static dyn Transform>,
+struct Pass<'a, T> {
+    transforms: Vec<&'a dyn Transform<T>>,
 }
 
-impl Transform for Pass {
-    fn transform(&self, expr: &mut ir::Expr) -> u32 {
+impl<'a, T> Transform<T> for Pass<'a, T> {
+    fn transform(&self, expr: &mut ir::Expr<T>) -> u32 {
         self.transforms
             .iter()
             .map(|transform| transform.transform(expr))
@@ -66,7 +66,7 @@ impl Transform for Pass {
     }
 }
 
-impl ir::Nodes {
+impl<T: Clone> ir::Nodes<T> {
     fn clone_node_with(
         &mut self,
         id: ir::NodeId,

@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
-use std::rc::Rc;
 
 use crate::check::ir;
 use crate::check::vars::VarId;
 use crate::rt;
 use crate::syntax::Symbol;
 
-pub trait Visitor<T = Rc<[rt::Command]>> {
+pub trait Visitor<T> {
     fn visit_node(&mut self, id: ir::NodeId);
 
     fn visit_expr(&mut self, id: ir::NodeId, expr: &ir::Node<T>) {

@@ -4,15 +4,14 @@ pub use self::visitor::Visitor;
 
 use std::collections::BTreeMap;
 use std::ops::{Index, IndexMut};
-use std::rc::Rc;
 
 use crate::check::VarId;
-use crate::rt::{Command, Value};
+use crate::rt::Value;
 use crate::syntax::Symbol;
 use crate::FileSpan;
 
 #[derive(Debug)]
-pub struct Expr<T = Rc<[Command]>> {
+pub struct Expr<T> {
     pub nodes: Nodes<T>,
     pub id: NodeId,
 }
@@ -21,12 +20,12 @@ pub struct Expr<T = Rc<[Command]>> {
 pub struct NodeId(u32);
 
 #[derive(Debug)]
-pub struct Nodes<T = Rc<[Command]>> {
+pub struct Nodes<T> {
     data: Vec<Option<Node<T>>>,
 }
 
 #[derive(Debug)]
-pub enum Node<T = Rc<[Command]>> {
+pub enum Node<T> {
     Literal(Value),
     Var(VarId),
     Call(Call),

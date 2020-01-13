@@ -4,12 +4,10 @@ use std::iter::{once, FromIterator};
 use crate::check::ir;
 use crate::optimize::Transform;
 
-pub(in crate::optimize) static INSTANCE: &(dyn Transform + Send + Sync) = &InlineIife;
+pub struct InlineIife;
 
-struct InlineIife;
-
-impl Transform for InlineIife {
-    fn transform(&self, expr: &mut ir::Expr) -> u32 {
+impl<T: Clone> Transform<T> for InlineIife {
+    fn transform(&self, expr: &mut ir::Expr<T>) -> u32 {
         let mut cost = 20u32;
         expr.nodes.visit_mut(expr.id, |nodes, id| {
             let changes = transform(nodes, id);
@@ -21,7 +19,7 @@ impl Transform for InlineIife {
     }
 }
 
-fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
+fn transform<T: Clone>(nodes: &mut ir::Nodes<T>, id: ir::NodeId) -> u32 {
     match &nodes[id] {
         &ir::Node::Call(call) => {
             let call_func = nodes.deref_id(call.func);
@@ -45,9 +43,12 @@ fn transform(nodes: &mut ir::Nodes, id: ir::NodeId) -> u32 {
 
 #[test]
 fn test_transform() {
-    use crate::optimize::tests::generate_ir;
+    use std::rc::Rc;
 
-    fn transformed(mut ir: ir::Expr) -> (ir::Expr, u32) {
+    use crate::optimize::tests::generate_ir;
+    use crate::rt::Command;
+
+    fn transformed(mut ir: ir::Expr<Rc<[Command]>>) -> (ir::Expr<Rc<[Command]>>, u32) {
         let cost = transform(&mut ir.nodes, ir.id);
         (ir, cost)
     }
@@ -72,10 +73,13 @@ fn test_transform() {
 
 #[test]
 fn test_transform_full() {
-    use crate::optimize::tests::generate_ir;
+    use std::rc::Rc;
 
-    fn transformed(mut ir: ir::Expr) -> (ir::Expr, u32) {
-        let cost = INSTANCE.transform(&mut ir);
+    use crate::optimize::tests::generate_ir;
+    use crate::rt::Command;
+
+    fn transformed(mut ir: ir::Expr<Rc<[Command]>>) -> (ir::Expr<Rc<[Command]>>, u32) {
+        let cost = InlineIife.transform(&mut ir);
         (ir, cost)
     }
 

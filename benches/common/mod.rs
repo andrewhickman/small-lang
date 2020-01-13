@@ -17,13 +17,13 @@ pub fn parse(input: impl Into<Rc<str>>) -> (FileId, ast::Spanned<ast::Expr>) {
     )
 }
 
-pub fn check((file, expr): (FileId, ast::Spanned<ast::Expr>)) -> ir::Expr {
+pub fn check((file, expr): (FileId, ast::Spanned<ast::Expr>)) -> ir::Expr<Rc<[Command]>> {
     small_lang::check::check(file, &expr, |_| unreachable!())
         .unwrap()
         .1
 }
 
-pub fn generate(expr: ir::Expr) -> Vec<Command> {
+pub fn generate(expr: ir::Expr<Rc<[Command]>>) -> Vec<Command> {
     small_lang::generate::rt::generate(&expr)
 }
 

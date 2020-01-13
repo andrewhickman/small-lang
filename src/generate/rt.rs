@@ -10,14 +10,14 @@ use crate::check::vars::VarId;
 use crate::rt;
 use crate::syntax::{ImSymbolMap, Symbol};
 
-pub fn generate(expr: &ir::Expr) -> Vec<rt::Command> {
+pub fn generate(expr: &ir::Expr<Rc<[rt::Command]>>) -> Vec<rt::Command> {
     let mut visitor = GenerateVisitor::new(&expr.nodes);
     visitor.visit_node(expr.id);
     visitor.cmds
 }
 
 struct GenerateVisitor<'a> {
-    ir: &'a ir::Nodes,
+    ir: &'a ir::Nodes<Rc<[rt::Command]>>,
     cmds: Vec<rt::Command>,
     cache: HashMap<ir::NodeId, Vec<rt::Command>>,
     rec_vars: Vec<Option<VarId>>,
@@ -27,13 +27,13 @@ struct GenerateVisitor<'a> {
 type CapturedVars = SmallOrdSet<[VarId; 8]>;
 
 struct CaptureVisitor<'a> {
-    ir: &'a ir::Nodes,
+    ir: &'a ir::Nodes<Rc<[rt::Command]>>,
     local_vars: SmallOrdSet<[VarId; 16]>,
     captured_vars: CapturedVars,
 }
 
 impl<'a> GenerateVisitor<'a> {
-    fn new(ir: &'a ir::Nodes) -> Self {
+    fn new(ir: &'a ir::Nodes<Rc<[rt::Command]>>) -> Self {
         GenerateVisitor {
             cmds: Vec::with_capacity(16),
             cache: HashMap::new(),
@@ -44,7 +44,7 @@ impl<'a> GenerateVisitor<'a> {
     }
 }
 
-impl<'a> ir::Visitor for GenerateVisitor<'a> {
+impl<'a> ir::Visitor<Rc<[rt::Command]>> for GenerateVisitor<'a> {
     fn visit_literal(&mut self, _id: ir::NodeId, value: &rt::Value) {
         self.cmds.push(rt::Command::Push {
             value: value.clone(),
@@ -203,7 +203,7 @@ impl<'a> GenerateVisitor<'a> {
     }
 }
 
-impl<'a> ir::Visitor for CaptureVisitor<'a> {
+impl<'a> ir::Visitor<Rc<[rt::Command]>> for CaptureVisitor<'a> {
     fn visit_node(&mut self, node: ir::NodeId) {
         self.visit_expr(node, &self.ir[node]);
     }
@@ -244,7 +244,11 @@ impl<'a> ir::Visitor for CaptureVisitor<'a> {
 }
 
 impl<'a> CaptureVisitor<'a> {
-    fn get_captures(ir: &ir::Nodes, id: ir::NodeId, func_expr: &ir::Func) -> CapturedVars {
+    fn get_captures(
+        ir: &ir::Nodes<Rc<[rt::Command]>>,
+        id: ir::NodeId,
+        func_expr: &ir::Func,
+    ) -> CapturedVars {
         let mut visitor = CaptureVisitor {
             ir,
             local_vars: SmallOrdSet::new(),

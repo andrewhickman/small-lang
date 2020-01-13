@@ -10,7 +10,7 @@ use crate::pipeline::{Pipeline, ProcessOutput, ProcessResult, Source};
 use crate::rt;
 use crate::syntax::tests::{arb_expr, dummy_file_id};
 
-pub fn generate_ir(input: impl Into<Rc<str>>) -> ir::Expr {
+pub fn generate_ir(input: impl Into<Rc<str>>) -> ir::Expr<Rc<[rt::Command]>> {
     Pipeline::new()
         .process_root_rc(Source::Input(input.into()), generate_ir_impl)
         .into_result()
@@ -18,10 +18,10 @@ pub fn generate_ir(input: impl Into<Rc<str>>) -> ir::Expr {
 }
 
 fn generate_ir_impl(
-    _pipeline: &mut Pipeline<Rc<ir::Expr>>,
+    _pipeline: &mut Pipeline<Rc<ir::Expr<Rc<[rt::Command]>>>>,
     file: FileId,
     input: Rc<str>,
-) -> ProcessResult<ir::Expr> {
+) -> ProcessResult<ir::Expr<Rc<[rt::Command]>>> {
     let ast = crate::syntax::parse(file, &input)?;
     let (_, expr, warnings) = check(file, &ast, |_| unreachable!())?;
     Ok(ProcessOutput {
@@ -35,7 +35,7 @@ const RUNTIME_OPTIONS: rt::Opts = rt::Opts {
     max_ops: Some(1_048_576),
 };
 
-fn run(expr: &ir::Expr) -> Option<rt::Value> {
+fn run(expr: &ir::Expr<Rc<[rt::Command]>>) -> Option<rt::Value> {
     let cmds = generate(expr);
     match rt::run(&cmds, RUNTIME_OPTIONS) {
         Ok(output) => Some(output.value),
@@ -43,7 +43,7 @@ fn run(expr: &ir::Expr) -> Option<rt::Value> {
     }
 }
 
-fn run_optimized(mut expr: ir::Expr) -> Option<rt::Value> {
+fn run_optimized(mut expr: ir::Expr<Rc<[rt::Command]>>) -> Option<rt::Value> {
     optimize(&mut expr, Opts { opt_level: 3 });
     run(&expr)
 }
@@ -86,7 +86,7 @@ fn structural_eq_value(lhs: &rt::Value, rhs: &rt::Value) -> bool {
     }
 }
 
-impl ir::Node {
+impl ir::Node<Rc<[rt::Command]>> {
     pub fn unwrap_let(&self) -> ir::Let {
         match self {
             &ir::Node::Let(let_expr) => let_expr,
