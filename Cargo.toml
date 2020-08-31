@@ -32,16 +32,16 @@ debug = true
 default = ["structopt", "paw"]
 
 [dependencies]
-seahash = "~3"
-lalrpop-util = "0.17"
+seahash = "~4"
+lalrpop-util = "0.19"
 regex = "~1"
-iter-set = "~1"
+iter-set = "~2"
 small-ord-set = "0.1.0"
-codespan = { version = "0.6.0", features = ["serialization"] }
+codespan = { version = "0.9.5", features = ["serialization"] }
 log = "0.4.8"
 serde_json = "1.0.41"
-codespan-reporting = "0.6.0"
-itertools = "0.8.1"
+codespan-reporting = "0.9.5"
+itertools = "0.9.0"
 once_cell = "1.2.0"
 
 [dependencies.paw]
@@ -59,11 +59,11 @@ optional = true
 
 [dependencies.mlsub]
 git = "https://github.com/andrewhickman/mlsub-rs"
-tag = "v0.1.6"
+tag = "v0.1.8"
 
 [dependencies.im]
 package = "im-rc"
-version = "~13"
+version = "~15"
 features = ["serde"]
 
 [dependencies.serde]
@@ -75,8 +75,8 @@ version = "~1"
 features = ["serde"]
 
 [build-dependencies]
-lalrpop = "0.17"
+lalrpop = { version = "0.19", features = ["lexer"] }
 
 [dev-dependencies]
-proptest = "0.9.4"
+proptest = "0.10.1"
 criterion = "0.3.0"

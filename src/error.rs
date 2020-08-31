@@ -1,24 +1,25 @@
+use std::rc::Rc;
 use std::{fmt, io};
 
-use codespan::Files;
+use codespan::{FileId, Files};
 use codespan_reporting::diagnostic::Diagnostic;
 use codespan_reporting::term::termcolor::{Color, ColorSpec, NoColor, WriteColor};
 use codespan_reporting::term::{emit, Config};
 
 #[derive(Debug)]
 pub struct Error {
-    files: Files,
+    files: Files<Rc<str>>,
     data: ErrorData,
 }
 
 #[derive(Debug)]
 pub enum ErrorData {
     Basic(Box<dyn std::error::Error>),
-    Diagnostics(Vec<Diagnostic>),
+    Diagnostics(Vec<Diagnostic<FileId>>),
 }
 
 impl Error {
-    pub(crate) fn new(files: impl Into<Files>, data: ErrorData) -> Self {
+    pub(crate) fn new(files: impl Into<Files<Rc<str>>>, data: ErrorData) -> Self {
         Error {
             files: files.into(),
             data,

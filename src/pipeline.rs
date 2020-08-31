@@ -1,4 +1,5 @@
 use std::collections::hash_map::{self, HashMap};
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,27 +14,27 @@ use crate::{Error, ErrorData};
 
 #[derive(Debug)]
 pub struct Pipeline<T> {
-    files: Files,
+    files: Files<Rc<str>>,
     dir: Vec<PathBuf>,
-    cache: HashMap<String, Option<T>>,
-    warnings: Vec<Diagnostic>,
+    cache: HashMap<OsString, Option<T>>,
+    warnings: Vec<Diagnostic<FileId>>,
 }
 
 pub struct PipelineResult<U> {
-    files: Files,
-    warnings: Vec<Diagnostic>,
+    files: Files<Rc<str>>,
+    warnings: Vec<Diagnostic<FileId>>,
     result: Result<U, ErrorData>,
 }
 
 pub struct ProcessOutput<T> {
     pub value: T,
-    pub warnings: Vec<Diagnostic>,
+    pub warnings: Vec<Diagnostic<FileId>>,
 }
 
 pub type ProcessResult<T> = Result<ProcessOutput<T>, ErrorData>;
 
 pub enum Source<'a> {
-    Input(String),
+    Input(Rc<str>),
     File(&'a Path),
 }
 
@@ -55,7 +56,7 @@ where
     pub fn process_root(
         &mut self,
         source: Source<'_>,
-        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         match source {
             Source::File(path) => self.process_file(path, import),
@@ -66,13 +67,13 @@ where
     pub fn process_import(
         &mut self,
         path: &str,
-        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         match path {
-            "cmp" => self.process_input("cmp", include_str!("../std/cmp.sl"), import),
-            "iter" => self.process_input("iter", include_str!("../std/iter.sl"), import),
-            "math" => self.process_input("math", include_str!("../std/math.sl"), import),
-            "list" => self.process_input("list", include_str!("../std/list.sl"), import),
+            "cmp" => self.process_input("cmp", Rc::from(include_str!("../std/cmp.sl")), import),
+            "iter" => self.process_input("iter", Rc::from(include_str!("../std/iter.sl")), import),
+            "math" => self.process_input("math", Rc::from(include_str!("../std/math.sl")), import),
+            "list" => self.process_input("list", Rc::from(include_str!("../std/list.sl")), import),
             path => self.process_file(path, import),
         }
     }
@@ -80,7 +81,7 @@ where
     pub fn process_file(
         &mut self,
         path: impl AsRef<Path>,
-        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         let path = match self.dir.last() {
             Some(dir) => dir.join(path),
@@ -91,25 +92,25 @@ where
             None => return Err(ErrorData::Basic("invalid path".into())),
         }
         let source = fs::read_to_string(&path).map_err(ErrorData::io)?;
-        let result = self.add_file(path.to_string_lossy(), source, import);
+        let result = self.add_file(path, source.into(), import);
         self.dir.pop();
         result
     }
 
     pub fn process_input(
         &mut self,
-        name: impl Into<String>,
-        input: impl Into<String>,
-        import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        name: impl Into<OsString>,
+        input: Rc<str>,
+        import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         self.add_file(name, input, import)
     }
 
     fn add_file(
         &mut self,
-        name: impl Into<String>,
-        source: impl Into<String>,
-        mut import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        name: impl Into<OsString>,
+        source: Rc<str>,
+        mut import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> Result<T, ErrorData> {
         let name = name.into();
 
@@ -124,7 +125,7 @@ where
         };
 
         let file = self.files.add(name.clone(), source);
-        let output = import(self, file, self.files.source(file).to_owned())?;
+        let output = import(self, file, self.files.source(file).clone())?;
 
         self.cache.insert(name, Some(output.value.clone()));
         self.warnings.extend(output.warnings);
@@ -144,7 +145,7 @@ impl<T: Debug> Pipeline<Rc<T>> {
     pub fn process_root_rc(
         mut self,
         source: Source<'_>,
-        mut import: impl FnMut(&mut Self, FileId, String) -> ProcessResult<T>,
+        mut import: impl FnMut(&mut Self, FileId, Rc<str>) -> ProcessResult<T>,
     ) -> PipelineResult<T> {
         let result = self.process_root(source, |this, file, input| {
             import(this, file, input).map(|output| ProcessOutput {

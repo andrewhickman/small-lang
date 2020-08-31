@@ -1,15 +1,13 @@
 error: expected `enum [b, c]` but found `enum [a, b]`
-
-   ┌── ui/enum_mismatch.sl:2:8 ───                                     @skip
-   │
- 2 │   then [a]
-   │        ^^^ found here
-   ·
- 4 │   in match enum with [
-   │ ╭────'
- 5 │ │   b => null,
- 6 │ │   c => null,
- 7 │ │ ]
-   │ ╰─' expected type inferred here
-   │
+  ┌─ ui/enum_mismatch.sl:2:8                                           @skip
+  │  
+2 │     then [a]
+  │          ^^^ found here
+3 │     else [b]
+4 │   in match enum with [
+  │ ╭────'
+5 │ │   b => null,
+6 │ │   c => null,
+7 │ │ ]
+  │ ╰─' expected type inferred here
 

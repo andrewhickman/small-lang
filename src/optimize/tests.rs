@@ -10,7 +10,7 @@ use crate::pipeline::{Pipeline, ProcessOutput, ProcessResult, Source};
 use crate::rt;
 use crate::syntax::tests::{arb_expr, dummy_file_id};
 
-pub fn generate_ir(input: impl Into<String>) -> ir::Expr {
+pub fn generate_ir(input: impl Into<Rc<str>>) -> ir::Expr {
     Pipeline::new()
         .process_root_rc(Source::Input(input.into()), generate_ir_impl)
         .into_result()
@@ -20,7 +20,7 @@ pub fn generate_ir(input: impl Into<String>) -> ir::Expr {
 fn generate_ir_impl(
     _pipeline: &mut Pipeline<Rc<ir::Expr>>,
     file: FileId,
-    input: String,
+    input: Rc<str>,
 ) -> ProcessResult<ir::Expr> {
     let ast = crate::syntax::parse(file, &input)?;
     let (_, expr, warnings) = check(file, &ast, |_| unreachable!())?;

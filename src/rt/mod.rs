@@ -199,7 +199,7 @@ impl FuncValue {
     fn env<'a>(&'a self) -> impl Iterator<Item = (VarId, Value)> + 'a {
         self.env
             .iter()
-            .cloned()
+            .map(|(&id, val)| (id, val.clone()))
             .chain(self.rec_var.map(|var| (var, Value::Func(self.clone()))))
     }
 }

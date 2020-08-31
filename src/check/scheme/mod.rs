@@ -70,7 +70,7 @@ impl Scheme {
     }
 
     fn states<'a>(&'a self) -> impl Iterator<Item = (StateId, Polarity)> + 'a {
-        once((self.ty, Polarity::Pos)).chain(self.env.iter().map(|&(_, id)| (id, Polarity::Neg)))
+        once((self.ty, Polarity::Pos)).chain(self.env.iter().map(|(_, &id)| (id, Polarity::Neg)))
     }
 
     pub(in crate::check) fn reduce(&self, auto: &Automaton<Constructor>) -> ReducedScheme {
@@ -82,7 +82,7 @@ impl Scheme {
             scheme: Scheme {
                 ty: range.next().unwrap(),
                 env: itertools::zip_eq(&self.env, range)
-                    .map(|(&(var, _), id)| (var, id))
+                    .map(|((&var, _), id)| (var, id))
                     .collect(),
             },
         }
@@ -99,7 +99,7 @@ impl ReducedScheme {
                 .scheme
                 .env
                 .iter()
-                .map(|&(var, id)| (var, id.shift(offset)))
+                .map(|(&var, &id)| (var, id.shift(offset)))
                 .collect(),
         }
     }

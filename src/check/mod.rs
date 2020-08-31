@@ -23,7 +23,7 @@ pub fn check<T, F>(
     file: FileId,
     expr: &ast::Spanned<ast::Expr>,
     import: F,
-) -> Result<(ReducedScheme, ir::Expr<T>, Vec<Diagnostic>), ErrorData>
+) -> Result<(ReducedScheme, ir::Expr<T>, Vec<Diagnostic<FileId>>), ErrorData>
 where
     T: Clone,
     F: FnMut(&str) -> Result<(ReducedScheme, T), ErrorData>,
@@ -55,7 +55,7 @@ struct Context<T, F> {
     auto: Automaton<Constructor>,
     vars: Vars,
     import: F,
-    warnings: Vec<Diagnostic>,
+    warnings: Vec<Diagnostic<FileId>>,
     ir: ir::Nodes<T>,
 }
 
@@ -555,17 +555,18 @@ impl<T, F> Context<T, F> {
         let data = self.vars.get(id);
         if data.uses == 0 {
             let (file, span) = data.span.unwrap();
-            self.warnings.push(Diagnostic::new_warning(
-                format!("Unused variable `{}`", data.name),
-                Label::new(file, span, "defined here"),
-            ));
+            self.warnings.push(
+                Diagnostic::warning()
+                    .with_message(format!("Unused variable `{}`", data.name))
+                    .with_labels(vec![Label::primary(file, span).with_message("defined here")]),
+            );
         }
         id
     }
 }
 
 impl Error {
-    fn into_diagnostics(self) -> Vec<Diagnostic> {
+    fn into_diagnostics(self) -> Vec<Diagnostic<FileId>> {
         match self {
             Error::TypeCheck((expr_file, expr_span), err) => {
                 let actual_span = err.constraint.0.spans().get(0);
@@ -577,46 +578,44 @@ impl Error {
                     (None, None) => (expr_file, expr_span),
                 };
 
-                let mut diagnostic = Diagnostic::new_error(
-                    format!(
+                let mut diagnostic = Diagnostic::error()
+                    .with_message(format!(
                         "expected `{}` but found `{}`",
                         err.constraint.1, err.constraint.0
-                    ),
-                    Label::new(primary_span.0, primary_span.1, "found here"),
-                );
+                    ))
+                    .with_labels(vec![
+                        Label::primary(primary_span.0, primary_span.1).with_message("found here")
+                    ]);
                 if actual_span.is_some() {
                     diagnostic
-                        .secondary_labels
+                        .labels
                         .extend(err.constraint.1.spans().iter().map(|&(file, span)| {
-                            Label::new(file, span, "expected type inferred here")
+                            Label::secondary(file, span).with_message("expected type inferred here")
                         }));
                 }
                 diagnostic
-                    .secondary_labels
+                    .labels
                     .extend(err.stack.iter().filter_map(|(label, found, _)| {
                         if found.is_object() {
                             None
                         } else {
                             found.spans().get(0).map(|&(file, span)| {
-                                Label::new(
-                                    file,
-                                    span,
-                                    format!("in {} of type `{}` here", label, found),
-                                )
+                                Label::secondary(file, span)
+                                    .with_message(format!("in {} of type `{}` here", label, found))
                             })
                         }
                     }));
                 vec![diagnostic]
             }
-            Error::UndefinedVar((file, span), symbol) => vec![Diagnostic::new_error(
-                format!("undefined variable `{}`", symbol),
-                Label::new(file, span, "used here"),
-            )],
+            Error::UndefinedVar((file, span), symbol) => vec![Diagnostic::error()
+                .with_message(format!("undefined variable `{}`", symbol))
+                .with_labels(vec![Label::primary(file, span).with_message("used here")])],
             Error::Import((file, span), path, data) => match data {
-                ErrorData::Basic(err) => vec![Diagnostic::new_error(
-                    format!("failed to import module from `{}`: {}", path, err),
-                    Label::new(file, span, "imported here"),
-                )],
+                ErrorData::Basic(err) => vec![Diagnostic::error()
+                    .with_message(format!("failed to import module from `{}`: {}", path, err))
+                    .with_labels(vec![
+                        Label::primary(file, span).with_message("imported here")
+                    ])],
                 ErrorData::Diagnostics(diagnostics) => diagnostics,
             },
         }

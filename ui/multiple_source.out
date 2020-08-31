@@ -1,14 +1,14 @@
 error: expected `record {b, c}` but found `record {b}`
-
-   ┌── ui/multiple_source.sl:4:17 ───                                  @skip
-   │
- 8 │   then { a: 1, b: 2 }
-   │        ^^^^^^^^^^^^^^ found here
-   ·
- 4 │   then math.add arg.b 1
-   │                 ----- expected type inferred here
-   ·
- 5 │   else math.add arg.c 1 in
-   │                 ----- expected type inferred here
-   │
+  ┌─ ui/multiple_source.sl:3:9                                         @skip
+  │  
+3 │   let f = func arg => if true
+  │ ╭─────────'
+4 │ │   then math.add arg.b 1
+  │ │                 ----- expected type inferred here
+5 │ │   else math.add arg.c 1 in
+  │ │                 ----- expected type inferred here
+  │ ╰───────────────────────' in domain of type `func` here
+  ·  
+8 │     then { a: 1, b: 2 }
+  │          ^^^^^^^^^^^^^^ found here
 

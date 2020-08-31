@@ -41,7 +41,7 @@ impl ReducedScheme {
             self.scheme
                 .env
                 .iter()
-                .map(|&(var, id)| (id, Polarity::Neg, NodeKind::Env(var))),
+                .map(|(&var, &id)| (id, Polarity::Neg, NodeKind::Env(var))),
         );
         stack.push((self.scheme.ty, Polarity::Pos, NodeKind::Root));
 

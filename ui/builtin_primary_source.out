@@ -1,8 +1,6 @@
 error: expected `record {l, r}` but found `func`
-
-   ┌── ui/builtin_primary_source.sl:1:1 ───                            @skip
-   │
- 1 │ __builtin_eq __builtin_get_sub
-   │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ found here
-   │
+  ┌─ ui/builtin_primary_source.sl:1:1                                  @skip
+  │
+1 │ __builtin_eq __builtin_get_sub
+  │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ found here
 

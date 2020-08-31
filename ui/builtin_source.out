@@ -1,8 +1,11 @@
 error: expected `capabilities {add}` but found `capabilities {}`
-
-   ┌── ui/builtin_source.sl:3:10 ───                                   @skip
-   │
- 3 │ math.add null
-   │          ^^^^ found here
-   │
+  ┌─ ui/builtin_source.sl:3:10                                         @skip
+  │
+3 │ math.add null
+  │          ^^^^ found here
+  │
+  ┌─ math:2:8
+  │
+2 │   add: func l r => (__builtin_get_add l) r,
+  │        ----------------------------------- in domain of type `func` here
 

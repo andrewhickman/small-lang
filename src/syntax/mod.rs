@@ -5,6 +5,7 @@ pub mod tests;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
+    #[allow(unused_parens)]
     parser,
     "/syntax/parser.rs"
 );
@@ -56,35 +57,49 @@ impl Error {
     }
 }
 
-fn build_diagnostic(file: FileId, err: ParseError<ByteIndex, Token<'_>, Error>) -> Diagnostic {
+fn build_diagnostic(
+    file: FileId,
+    err: ParseError<ByteIndex, Token<'_>, Error>,
+) -> Diagnostic<FileId> {
     match err {
-        ParseError::InvalidToken { location: start } => Diagnostic::new_error(
-            "invalid token found",
-            Label::new(file, Span::new(start, start), "invalid token here"),
-        ),
+        ParseError::InvalidToken { location: start } => Diagnostic::error()
+            .with_message("invalid token found")
+            .with_labels(vec![
+                Label::primary(file, Span::new(start, start)).with_message("invalid token here")
+            ]),
         ParseError::UnrecognizedEOF {
             location: end,
             expected,
-        } => Diagnostic::new_error(
-            format!("expected {}, found end of file", fmt_expected(&expected)),
-            Label::new(file, Span::new(end, end), "unexpected EOF here"),
-        ),
+        } => Diagnostic::error()
+            .with_message(format!(
+                "expected {}, found end of file",
+                fmt_expected(&expected)
+            ))
+            .with_labels(vec![
+                Label::primary(file, Span::new(end, end)).with_message("unexpected EOF here")
+            ]),
         ParseError::UnrecognizedToken {
             token: (start, token, end),
             expected,
-        } => Diagnostic::new_error(
-            format!("expected {}, found `{}`", fmt_expected(&expected), token),
-            Label::new(file, Span::new(start, end), "unexpected token here"),
-        ),
+        } => Diagnostic::error()
+            .with_message(format!(
+                "expected {}, found `{}`",
+                fmt_expected(&expected),
+                token
+            ))
+            .with_labels(vec![
+                Label::primary(file, Span::new(start, end)).with_message("unexpected token here")
+            ]),
         ParseError::ExtraToken {
             token: (start, token, end),
-        } => Diagnostic::new_error(
-            format!("extra token found `{}`", token),
-            Label::new(file, Span::new(start, end), "extra token here"),
-        ),
-        ParseError::User { error } => {
-            Diagnostic::new_error(error.message, Label::new(file, error.span, "here"))
-        }
+        } => Diagnostic::error()
+            .with_message(format!("extra token found `{}`", token))
+            .with_labels(vec![
+                Label::primary(file, Span::new(start, end)).with_message("extra token here")
+            ]),
+        ParseError::User { error } => Diagnostic::error()
+            .with_message(error.message)
+            .with_labels(vec![Label::primary(file, error.span).with_message("here")]),
     }
 }
 

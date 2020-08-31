@@ -468,8 +468,8 @@ where
     F: FnMut(Label, &StateSet, &StateSet) -> Result<(), E>,
     L: FnMut(Symbol) -> Label,
 {
-    itertools::merge_join_by(l, r, |l, r| Ord::cmp(&l.0, &r.0)).try_for_each(|eob| match eob {
-        itertools::EitherOrBoth::Both(l, r) => visit(label(l.0), &l.1, &r.1),
+    itertools::merge_join_by(l, r, |l, r| Ord::cmp(l.0, r.0)).try_for_each(|eob| match eob {
+        itertools::EitherOrBoth::Both(l, r) => visit(label(*(l.0)), l.1, r.1),
         _ => Ok(()),
     })
 }

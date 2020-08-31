@@ -65,7 +65,7 @@ pub fn run(
 fn check_impl(
     pipeline: &mut Pipeline<ReducedScheme>,
     file: FileId,
-    input: String,
+    input: Rc<str>,
 ) -> ProcessResult<ReducedScheme> {
     let ast = syntax::parse(file, &input)?;
     let (scheme, _, warnings) = check::check(file, &ast, |path| {
@@ -80,7 +80,7 @@ fn check_impl(
 fn generate_impl(
     pipeline: &mut Pipeline<(ReducedScheme, Rc<[rt::Command]>)>,
     file: FileId,
-    input: String,
+    input: Rc<str>,
     optimize_opts: optimize::Opts,
 ) -> ProcessResult<(ReducedScheme, Rc<[rt::Command]>)> {
     let ast = syntax::parse(file, &input)?;
